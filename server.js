@@ -1,39 +1,39 @@
 const express = require("express");
-const bodyParser = require("body-parser");
+const fetch = require("node-fetch");
+require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
 
-// Middleware
-app.use(bodyParser.json());
-
-// Default route
+// টেস্ট API
 app.get("/", (req, res) => {
-  res.send("✅ Auto Comment Tool is running on Render!");
+  res.send("✅ Facebook Auto Comment Tool is Running!");
 });
 
-// New API route: /comment
-app.post("/comment", (req, res) => {
-  const { postId, comment, account } = req.body;
+// comment API
+app.post("/comment", async (req, res) => {
+  const { postId, message } = req.body;
 
-  if (!postId || !comment) {
-    return res.status(400).json({ error: "❌ postId এবং comment লাগবে!" });
+  if (!postId || !message) {
+    return res.status(400).json({ error: "Post ID এবং Message লাগবে" });
   }
 
-  // এখন শুধু ডেমো হিসেবে কনসোলে লগ করব
-  console.log(`📌 Post ID: ${postId}`);
-  console.log(`💬 Comment: ${comment}`);
-  console.log(`👤 Account: ${account || "Default"}`);
+  const token = process.env.FB_ACCESS_TOKEN;
+  const url = `https://graph.facebook.com/${postId}/comments`;
 
-  // Response
-  res.json({
-    success: true,
-    message: "✅ Comment request received!",
-    data: { postId, comment, account },
-  });
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, access_token: token }),
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "কিছু ভুল হয়েছে", details: err.message });
+  }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
