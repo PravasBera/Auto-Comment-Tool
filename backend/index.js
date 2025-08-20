@@ -1,25 +1,15 @@
 const express = require("express");
-const fs = require("fs");
+const path = require("path");
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+// static files serve
+app.use(express.static(path.join(__dirname, "templates")));
 
-const comments = fs.readFileSync("../shared/comments.txt", "utf-8").split("\n");
-const posts = fs.readFileSync("../shared/posts.txt", "utf-8").split("\n");
-
-app.get("/comment", (req, res) => {
-  const randomComment = comments[Math.floor(Math.random() * comments.length)];
-  res.json({ comment: randomComment });
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "templates", "index.html"));
 });
 
-app.get("/posts", (req, res) => {
-  res.json({ posts });
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-app.post("/comment", (req, res) => {
-  const { postId, comment } = req.body;
-  console.log(`Posting comment "${comment}" to post ${postId}`);
-  res.json({ success: true, postId, comment });
-});
-
-app.listen(5000, () => console.log("✅ Backend running on port 5000"));
