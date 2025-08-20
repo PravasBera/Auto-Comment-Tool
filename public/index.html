@@ -1,0 +1,108 @@
+here<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facebook Auto Comment Tool</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: monospace;
+      text-align: center;
+    }
+    pre {
+      color: lime;
+      font-size: 18px;
+      line-height: 1.1em;
+      margin-top: 20px;
+    }
+    h2 {
+      color: purple;
+      margin: 10px 0;
+    }
+    .info { color: yellow; margin: 2px 0; }
+    .team { color: red; margin-top: 10px; font-weight: bold; }
+    .form-section {
+      background: #111;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+      margin: 20px auto;
+      text-align: left;
+    }
+    label {
+      font-size: 14px;
+      display: block;
+      margin: 8px 0 4px;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      margin-bottom: 10px;
+      font-family: monospace;
+    }
+    button {
+      background: lime;
+      color: black;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: yellow; }
+  </style>
+</head>
+<body>
+
+  <!-- Header Banner -->
+  <pre>
+██████╗ ██╗   ██╗██╗     ██╗     ███████╗████████╗
+██╔══██╗██║   ██║██║     ██║     ██╔════╝╚══██╔══╝
+██████╔╝██║   ██║██║     ██║     █████╗     ██║   
+██╔══██╗██║   ██║██║     ██║     ██╔══╝     ██║   
+██████║  ██████╔╝███████╗███████╗███████╗   ██║   
+╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝  
+  </pre>
+
+  <h2>Facebook Auto Comment</h2>
+  <p class="info">Author  : PRAVAS BERA</p>
+  <p class="info">Version : 1.2</p>
+  <p class="info">Country : INDIA</p>
+  <p class="team">⚡ INDIAN DANGER OF BULLET TEAM ⚡</p>
+
+  <!-- Form Section -->
+  <div class="form-section">
+    <form method="POST" action="/start" enctype="multipart/form-data">
+      
+      <label>Access Token:</label>
+      <input type="text" name="token" placeholder="Enter your Facebook Access Token" required>
+
+      <label>Upload posts.txt (one post ID per line):</label>
+      <input type="file" name="posts" accept=".txt" required>
+
+      <label>Upload comments.txt (one comment per line):</label>
+      <input type="file" name="comments" accept=".txt" required>
+
+      <label>Comment Delay (seconds):</label>
+      <input type="number" name="delay" value="5" required>
+
+      <label>Max Comments (0 = unlimited):</label>
+      <input type="number" name="max_comments" value="0">
+
+      <label>
+        <input type="checkbox" name="shuffle"> Shuffle comments
+      </label>
+
+      <button type="submit">🚀 Start Auto Comment</button>
+    </form>
+  </div>
+
+</body>
+</html>
