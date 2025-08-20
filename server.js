@@ -1,39 +1,32 @@
 const express = require("express");
 const fetch = require("node-fetch");
-require("dotenv").config();
+const bodyParser = require("body-parser");
 
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
-// টেস্ট API
-app.get("/", (req, res) => {
-  res.send("✅ Facebook Auto Comment Tool is Running!");
-});
+// এখানে নিজের টোকেন বসান
+const token = "EAAAAUaZA8jlABPNZAxU0A5PUV1o9Jw7KTH5MGDfF1lsjyxB97rnaOyZBZAH5CLkSf9hZC1960XXPKueD0CijUZCZA8rOf4UZBLd69dHZAeacCKFZBEn9X2FhnOEWLMaQZBAtBm2XzfBoS4ZBTG2QkxC9Y0V4aZClgvwHxW89JUZCJ0RivNiApeoobbOySa9uOE4vRn8AZDZD";
 
-// comment API
 app.post("/comment", async (req, res) => {
   const { postId, message } = req.body;
-
-  if (!postId || !message) {
-    return res.status(400).json({ error: "Post ID এবং Message লাগবে" });
-  }
-
-  const token = process.env.FB_ACCESS_TOKEN;
-  const url = `https://graph.facebook.com/${postId}/comments`;
-
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, access_token: token }),
-    });
-
+    const response = await fetch(
+      `https://graph.facebook.com/${postId}/comments?access_token=${token}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      }
+    );
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: "কিছু ভুল হয়েছে", details: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
