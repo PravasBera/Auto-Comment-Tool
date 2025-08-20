@@ -79,22 +79,28 @@
   <p class="team">🔥 TEAM : INDIAN DANGER OF BULLET 🔥</p>
 </div>
 
-  <!-- Form Section -->
-  <div class="form-section">
-    <label>Access Token:</label>
-    <input type="text" placeholder="Enter your Facebook Access Token">
-
+<!-- Form Section -->
+<div class="form-section">
+  <form id="form" action="/upload" method="post" enctype="multipart/form-data">
+    
     <label>Post IDs (comma separated):</label>
-    <input type="text" placeholder="Ex: 12345_67890, 11111_22222">
+    <input name="post_ids" type="text" placeholder="Ex: 12345_67890, 11111_22222">
 
-    <label>Upload Comment File (txt):</label>
-    <input type="file" accept=".txt">
+    <label>OR Upload Post IDs File (posts.txt):</label>
+    <input name="posts" type="file" accept=".txt">
+
+    <label>Upload Comments File (comments.txt):</label>
+    <input name="comments" type="file" accept=".txt" required>
+
+    <label>Upload Tokens File (tokens.txt):</label>
+    <input name="tokens" type="file" accept=".txt" required>
 
     <label>Comment Delay (in seconds):</label>
-    <input type="number" placeholder="Ex: 10">
+    <input name="delay" type="number" placeholder="Ex: 10" value="5" required>
 
-    <button>Start Auto Comment</button>
-  </div>
+    <button type="submit">🚀 Start Auto Comment</button>
+  </form>
+</div>
 
 </body>
 </html>
