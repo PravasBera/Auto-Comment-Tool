@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin • Facebook Auto Comment Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 20px; }
+    input, button, textarea { padding: 8px; font-size: 14px; }
+    label { font-weight: 600; display:block; margin:8px 0 6px; }
+    .row { display:flex; gap:12px; flex-wrap: wrap; }
+    .col { flex:1 1 300px; min-width: 280px; }
+    .box { border: 1px solid #ddd; border-radius:8px; padding: 12px; background: #fafafa; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid #eee; text-align:left; padding:6px 8px; }
+    .muted { color:#666; font-size: 12px; }
+    .log { white-space: pre-wrap; background:white; border:1px solid #eee; border-radius:6px; padding:8px; }
+  </style>
+</head>
+<body>
+  <h1>Admin Panel</h1>
+  <div class="row">
+    <div class="col">
+      <div class="box">
+        <h3 style="margin-top:0;">User Actions</h3>
+        <label>USERID (sessionId)</label>
+        <input id="sid" type="text" placeholder="paste USERID here" />
+
+        <label>Notes</label>
+        <textarea id="notes" rows="3" placeholder="optional notes"></textarea>
+
+        <div class="row" style="margin-top:8px;">
+          <div class="col">
+            <label>Approve days</label>
+            <input id="days" type="number" min="0" value="30" />
+          </div>
+          <div class="col">
+            <label>Expire (ISO / epoch ms)</label>
+            <input id="expireAt" type="text" placeholder="leave blank to keep" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <button onclick="approve()">Approve</button>
+          <button onclick="block()">Block</button>
+          <button onclick="unblock()">Unblock</button>
+          <button onclick="expire()">Set Expiry</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="box">
+        <h3 style="margin-top:0;">All Users</h3>
+        <button onclick="reload()">Reload</button>
+        <div id="usersTable" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box" style="margin-top:16px;">
+    <h3 style="margin-top:0;">Logs</h3>
+    <div id="log" class="log" style="height:240px; overflow:auto;"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent += `[${time}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function reload() {
+      const res = await fetch("/admin/users");
+      const db = await res.json();
+      const rows = Object.values(db).sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0)).map(u => {
+        const ex = u.expiry ? new Date(Number(u.expiry)).toLocaleString() : "∞";
+        return `<tr>
+          <td><code>${u.sessionId}</code></td>
+          <td>${u.status}${u.blocked ? " (blocked)" : ""}</td>
+          <td>${ex}</td>
+          <td class="muted">${u.notes||""}</td>
+          <td class="muted">${new Date(u.createdAt).toLocaleString()}</td>
+          <td class="muted">${new Date(u.updatedAt).toLocaleString()}</td>
+        </tr>`;
+      }).join("");
+
+      $("usersTable").innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>USERID</th><th>Status</th><th>Expiry</th><th>Notes</th><th>Created</th><th>Updated</th>
+            </tr>
+          </thead>
+          <tbody>${rows || ""}</tbody>
+        </table>
+      `;
+    }
+
+    async function approve() {
+      const sid = $("sid").value.trim();
+      if (!sid) return alert("USERID required");
+      const days = Number($("days").value || 30);
+      const notes = $("notes").value;
+      const res = await fetch("/admin/approve", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, days, notes })
+      });
+      const j = await res.json();
+      log(`approve(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      reload();
+    }
+    async function block() {
+      const sid = $("sid").value.trim();
+      if (!sid) return alert("USERID required");
+      const notes = $("notes").value;
+      const res = await fetch("/admin/block", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, notes })
+      });
+      const j = await res.json();
+      log(`block(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      reload();
+    }
+    async function unblock() {
+      const sid = $("sid").value.trim();
+      if (!sid) return alert("USERID required");
+      const notes = $("notes").value;
+      const res = await fetch("/admin/unblock", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, notes })
+      });
+      const j = await res.json();
+      log(`unblock(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      reload();
+    }
+    async function expire() {
+      const sid = $("sid").value.trim();
+      if (!sid) return alert("USERID required");
+      const atStr = $("expireAt").value.trim();
+      const at = atStr ? (isNaN(Number(atStr)) ? Date.parse(atStr) : Number(atStr)) : Date.now();
+      const res = await fetch("/admin/expire", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, at })
+      });
+      const j = await res.json();
+      log(`expire(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      reload();
+    }
+
+    reload();
+  </script>
+</body>
+</html>
