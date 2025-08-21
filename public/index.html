@@ -1,129 +1,69 @@
-// =======================
-// Facebook Auto Comment Tool - v1.5 Fixed
-// =======================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Facebook Auto Comment Tool ⚡</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+    <p>👨 Author: PRAVAS BERA | 🌀 Version: 1.5 | 🌍 Country: INDIA</p>
+    <p>🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+  </header>
 
-const stats = {
-    success: 0,
-    failed: 0,
-    badPosts: 0,
-    invalidTokens: 0,
-    expiredTokens: 0,
-    blocked: 0
-};
+  <main>
+    <!-- Setup Section -->
+    <section class="setup">
+      <h2>Setup</h2>
+      <label>Post IDs (comma separated)</label>
+      <input type="text" id="postIds" placeholder="12345,67890,11111">
 
-let stopFlag = false;
+      <p>OR Upload Post IDs File (posts.txt)</p>
+      <input type="file" id="postFile">
 
-// ----------------- Utility -----------------
-function logFeed(message, type = "info") {
-    const feedBox = document.getElementById("live-feed");
-    const entry = document.createElement("div");
-    entry.className = `feed-item ${type}`;
-    entry.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
-    feedBox.prepend(entry);
-}
+      <label>Post Link 1</label>
+      <input type="text" id="postLink1" placeholder="https://www.facebook.com/...">
+      <label>Post Link 2</label>
+      <input type="text" id="postLink2" placeholder="https://www.facebook.com/...">
+      <label>Post Link 3</label>
+      <input type="text" id="postLink3" placeholder="https://www.facebook.com/...">
 
-function updateStats() {
-    document.getElementById("success-count").innerText = stats.success;
-    document.getElementById("failed-count").innerText = stats.failed;
-    document.getElementById("badpost-count").innerText = stats.badPosts;
-    document.getElementById("invalid-count").innerText = stats.invalidTokens;
-    document.getElementById("expired-count").innerText = stats.expiredTokens;
-    document.getElementById("blocked-count").innerText = stats.blocked;
-}
+      <p>OR Upload Post Links File (links.txt)</p>
+      <input type="file" id="linksFile">
 
-// ----------------- Post ID Extract -----------------
-function extractPostId(linkOrId) {
-    // Direct numeric ID
-    if (/^\d+$/.test(linkOrId)) return linkOrId;
+      <p>Upload Comments File (comments.txt)</p>
+      <input type="file" id="commentsFile">
 
-    // Facebook link patterns
-    try {
-        let url = new URL(linkOrId);
-        if (url.searchParams.get("story_fbid")) {
-            return url.searchParams.get("story_fbid");
-        }
-        if (url.pathname.includes("/posts/")) {
-            return url.pathname.split("/posts/")[1].split("/")[0];
-        }
-        if (url.pathname.includes("/videos/")) {
-            return url.pathname.split("/videos/")[1].split("/")[0];
-        }
-    } catch (e) {
-        return null;
-    }
-    return null;
-}
+      <p>Upload Tokens File (tokens.txt)</p>
+      <input type="file" id="tokensFile">
 
-// ----------------- Comment Function -----------------
-async function commentOnPost(postId, message, token, tokenIndex, postIndex) {
-    const url = `https://graph.facebook.com/${postId}/comments`;
-    try {
-        let response = await fetch(url, {
-            method: "POST",
-            body: new URLSearchParams({
-                message: message,
-                access_token: token
-            })
-        });
-        let data = await response.json();
+      <label>Comment Delay (seconds)</label>
+      <input type="number" id="delay" value="5">
 
-        if (data.error) {
-            let code = data.error.code;
-            if (code === 190) {
-                stats.expiredTokens++;
-                logFeed(`❌ Token ${tokenIndex} expired/invalid (Post ${postIndex})`, "error");
-            } else if (code === 200) {
-                stats.invalidTokens++;
-                logFeed(`⚠️ Token ${tokenIndex} missing permission (Post ${postIndex})`, "warn");
-            } else if (code === 368) {
-                stats.blocked++;
-                logFeed(`🚫 Token ${tokenIndex} temporarily blocked (Post ${postIndex})`, "error");
-            } else {
-                stats.failed++;
-                logFeed(`❌ Failed (Token ${tokenIndex}, Post ${postIndex}): ${data.error.message}`, "error");
-            }
-        } else {
-            stats.success++;
-            logFeed(`✅ Commented on Post ${postIndex} with Token ${tokenIndex}`, "success");
-        }
-    } catch (err) {
-        stats.failed++;
-        logFeed(`❌ Network error (Token ${tokenIndex}, Post ${postIndex})`, "error");
-    }
-    updateStats();
-}
+      <label>Max Comments (0 = unlimited)</label>
+      <input type="number" id="maxComments" value="0">
 
-// ----------------- Main Runner -----------------
-async function startComments(posts, comments, tokens, delay, maxComments) {
-    stopFlag = false;
-    let count = 0;
+      <button id="startBtn">🚀 Start</button>
+      <button id="stopBtn">🛑 Stop</button>
+    </section>
 
-    for (let t = 0; t < tokens.length; t++) {
-        for (let p = 0; p < posts.length; p++) {
-            if (stopFlag) return;
-            let postId = extractPostId(posts[p]);
-            if (!postId) {
-                stats.badPosts++;
-                logFeed(`⚠️ Bad Post Link/ID at index ${p + 1}`, "warn");
-                updateStats();
-                continue;
-            }
+    <!-- Stats Section -->
+    <section class="stats">
+      <h2>Live Feed & Stats</h2>
+      <div class="stats-grid">
+        <div>✅ Success: <span id="success-count">0</span></div>
+        <div>❌ Failed: <span id="failed-count">0</span></div>
+        <div>⚠️ Bad Posts: <span id="badpost-count">0</span></div>
+        <div>🔑 Token Invalid: <span id="invalid-count">0</span></div>
+        <div>⏳ Token Expired: <span id="expired-count">0</span></div>
+        <div>🚫 Blocked/Perm: <span id="blocked-count">0</span></div>
+      </div>
+      <div id="live-feed" class="feed"></div>
+    </section>
+  </main>
 
-            let comment = comments[count % comments.length];
-            await commentOnPost(postId, comment, tokens[t], t + 1, p + 1);
-
-            count++;
-            if (maxComments > 0 && count >= maxComments) {
-                logFeed("✅ Reached max comments limit", "success");
-                return;
-            }
-
-            await new Promise(r => setTimeout(r, delay * 1000));
-        }
-    }
-}
-
-function stopComments() {
-    stopFlag = true;
-    logFeed("⛔ Commenting stopped by user", "warn");
-}
+  <script src="script.js"></script>
+</body>
+</html>
