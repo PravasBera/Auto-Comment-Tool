@@ -1,12 +1,14 @@
 // server.js
 /**
  * Facebook Auto Comment Tool (v2.0)
- * - tokens/comments/postlinks txt + manual fields (UI অপরিবর্তিত)
- * - pfbid/various links → numeric ID resolver (Graph Lookup + pfbid canonicalizer)
- * - real Graph API comments + delay/limit/shuffle + stop + SSE logs
- * - error/warning classification
- * - Multi-user sessions via sessionId (per-SSE connection)
- * - Access Control: USERID auto-generate on first use, admin approve/block/expiry
+ * - Static public + views/index.html
+ * - Cookie-based session + /session (auto userId)
+ * - SSE /events → named events: session, user + log/info/warn/success/error/summary
+ * - Admin: approve/block/unblock/expire + list + whoami
+ * - Upload tokens/comments/postlinks
+ * - Start/Stop job with delay/limit/shuffle
+ * - Robust FB link → commentable id resolver (pfbid, story.php, groups, photos, numeric, actor_post)
+ * - Error classifier
  */
 
 const express = require("express");
@@ -15,6 +17,7 @@ const fs      = require("fs");
 const path    = require("path");
 const fetch   = require("node-fetch");
 const cors    = require("cors");
+const cookieParser = require("cookie-parser");
 const { randomUUID } = require("crypto");
 
 // -------------------- App setup --------------------
@@ -25,20 +28,24 @@ const upload = multer({ dest: "uploads/" });
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
-if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
+app.use(cookieParser());
 
-// Serve index.html (তোমার index views/index.html এ আছে)
+// Folders
+if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
+const PUBLIC_DIR = path.join(__dirname, "public");
+const VIEWS_DIR  = path.join(__dirname, "views");
+app.use(express.static(PUBLIC_DIR));
+
+// Serve index.html (UI তোমার views/index.html এ)
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "views", "index.html"));
+  res.sendFile(path.join(VIEWS_DIR, "index.html"));
 });
 
 // -------------------- Access Control (Admin) --------------------
-// data store
 const DATA_DIR = path.join(__dirname, "data");
 const USERS_DB = path.join(DATA_DIR, "users.json");
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}), "utf-8");
+if (!fs.existsSync(DATA_DIR))  fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(USERS_DB))  fs.writeFileSync(USERS_DB, JSON.stringify({}), "utf-8");
 
 function loadUsers() {
   try { return JSON.parse(fs.readFileSync(USERS_DB, "utf-8")); }
@@ -54,7 +61,7 @@ function ensureUser(sessionId) {
     db[sessionId] = {
       sessionId,
       status: "pending",     // pending | approved | blocked
-      blocked: false,        // quick flag (redundant with status but handy)
+      blocked: false,
       expiry: null,          // timestamp (ms) or null
       notes: "",
       createdAt: now,
@@ -63,10 +70,6 @@ function ensureUser(sessionId) {
     saveUsers(db);
   }
   return db[sessionId];
-}
-function getUser(sessionId) {
-  const db = loadUsers();
-  return db[sessionId] || null;
 }
 function setUser(sessionId, patch = {}) {
   const db = loadUsers();
@@ -83,73 +86,21 @@ function isUserAllowed(u) {
   return { ok: true };
 }
 
-// Admin APIs
-app.get("/admin/users", (_req, res) => {
-  res.json(loadUsers());
-});
-app.post("/admin/approve", (req, res) => {
-  const { sessionId, days = 30, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
-  ensureUser(sessionId);
-  const expiry = days ? Date.now() + Number(days) * 24*60*60*1000 : null;
-  const out = setUser(sessionId, { status: "approved", blocked: false, expiry, notes });
-  res.json({ ok:true, user: out });
-});
-app.post("/admin/block", (req, res) => {
-  const { sessionId, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
-  ensureUser(sessionId);
-  const out = setUser(sessionId, { status: "blocked", blocked: true, notes });
-  res.json({ ok:true, user: out });
-});
-app.post("/admin/unblock", (req, res) => {
-  const { sessionId, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
-  ensureUser(sessionId);
-  // unblock -> back to pending (admin later approves)
-  const out = setUser(sessionId, { status: "pending", blocked: false, notes });
-  res.json({ ok:true, user: out });
-});
-app.post("/admin/expire", (req, res) => {
-  const { sessionId, at = null } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
-  ensureUser(sessionId);
-  const expiry = at ? Number(at) : Date.now(); // default: expire now
-  const out = setUser(sessionId, { expiry });
-  res.json({ ok:true, user: out });
-});
-app.get("/whoami", (req, res) => {
-  const sessionId = req.query.sessionId || null;
-  if (!sessionId) return res.json({ ok:false, message:"sessionId required" });
-  const u = ensureUser(sessionId);
-  res.json({ ok:true, user:u });
-});
-
-// -------------------- Multi-user SSE state --------------------
-/** jobs: Map<sessionId, { running:boolean, abort:boolean, clients:Set<res> }> */
-const jobs = new Map();
-
-function getJob(sessionId) {
-  if (!sessionId) throw new Error("sessionId required");
-  if (!jobs.has(sessionId)) {
-    jobs.set(sessionId, { running: false, abort: false, clients: new Set() });
+// -------------------- Session middleware (cookie-based) --------------------
+app.use((req, res, next) => {
+  // keep one cookie-based sid for all routes (works with /session and /events)
+  let sid = req.cookies?.sid;
+  if (!sid) {
+    sid = randomUUID();
+    // 180 days cookie
+    res.cookie("sid", sid, { httpOnly: false, maxAge: 180*24*60*60*1000, sameSite: "lax" });
   }
-  return jobs.get(sessionId);
-}
+  req.sessionId = sid;
+  ensureUser(sid); // make sure user exists
+  next();
+});
 
-function sseBroadcast(sessionId, payloadObj) {
-  const job = getJob(sessionId);
-  const payload = `data: ${JSON.stringify(payloadObj)}\n\n`;
-  for (const res of job.clients) {
-    try { res.write(payload); } catch {}
-  }
-}
-
-function sseLine(sessionId, type, text, extra = {}) {
-  sseBroadcast(sessionId, { t: Date.now(), type, text, ...extra });
-}
-
-// -------------------- Helpers --------------------
+// -------------------- Small utils --------------------
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const cleanLines = (txt) => txt.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
@@ -158,25 +109,14 @@ const PFBID_RE = /^(pfbid[a-zA-Z0-9]+)$/i;
 // Detect pfbid anywhere inside a URL/path
 const PFBID_IN_TEXT_RE = /(pfbid[a-zA-Z0-9]+)/i;
 
-/**
- * If input is a bare pfbid or a URL containing pfbid, return a canonical URL
- * that Graph Lookup can resolve reliably.
- * Examples:
- *   "pfbid02ABC..."        -> "https://www.facebook.com/pfbid02ABC..."
- *   "https://fb.com/.../pfbid02ABC.../?" -> original URL returned as-is
- */
+/** pfbid canonicalizer */
 function canonicalizePfbidInput(raw) {
   if (!raw) return null;
-
-  // If it's already a URL, just return raw; Graph lookup will handle it.
   try {
     const u = new URL(raw);
-    // safety: ensure it contains pfbid → then use as-is
     if (PFBID_IN_TEXT_RE.test(raw)) return u.toString();
-    // not a pfbid URL → let caller handle normally
     return raw;
   } catch {
-    // Not a URL. If it's a bare pfbid, make a canonical URL.
     const m = String(raw).trim().match(PFBID_RE);
     if (m) {
       return `https://www.facebook.com/${m[1]}`;
@@ -185,36 +125,29 @@ function canonicalizePfbidInput(raw) {
   }
 }
 
-// QUICK parser (no network) → id-like
+// QUICK parser (no network)
 function tryExtractGraphPostId(raw) {
   if (!raw) return null;
-
-  // already numeric or actor_post
   if (/^\d+$/.test(raw) || /^\d+_\d+$/.test(raw)) return raw;
 
   try {
     const u = new URL(raw);
 
-    // story.php?story_fbid=POST&id=ACTOR → ACTOR_POST
     const story = u.searchParams.get("story_fbid");
     const actor = u.searchParams.get("id");
     if (story && actor && /^\d+$/.test(story) && /^\d+$/.test(actor)) {
       return `${actor}_${story}`;
     }
 
-    // /<actorId>/posts/<postId>
     let m = u.pathname.match(/^\/(\d+)\/posts\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
 
-    // groups permalink: /groups\/(\d+)\/permalink\/(\d+)
     m = u.pathname.match(/^\/groups\/(\d+)\/permalink\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
 
-    // photos (object id): /photo.php?fbid=<object_id>
     const fbid = u.searchParams.get("fbid");
     if (fbid && /^\d+$/.test(fbid)) return fbid;
 
-    // pfbid লিংক হলে এখানে numeric বের হয় না → network resolver লাগবে
     return null;
   } catch {
     return null;
@@ -223,7 +156,6 @@ function tryExtractGraphPostId(raw) {
 
 // GRAPH lookup (?id=link) → prefer og_object.id, else id
 async function resolveViaGraphLookup(linkOrPfbidLike, token) {
-  // pfbid হলে canonical URL তৈরি করো
   const normalized = canonicalizePfbidInput(linkOrPfbidLike);
   const api = `https://graph.facebook.com/v19.0/?id=${encodeURIComponent(normalized)}&access_token=${encodeURIComponent(token)}`;
   const res = await fetch(api);
@@ -233,18 +165,14 @@ async function resolveViaGraphLookup(linkOrPfbidLike, token) {
   return null;
 }
 
-// refine: id → comment target (photo হলে object_id তে comment করা ভাল)
+// refine: id → comment target (photo হলে object_id comment-এ বেশি reliable)
 async function refineCommentTarget(id, token) {
   try {
-    // actor_post (######_######) হলে সাধারণত সরাসরি id তেই কাজ হয়
     if (/^\d+_\d+$/.test(id)) return id;
-
     const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(id)}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
     const res = await fetch(ep);
     const json = await res.json();
-
     if (json?.object_id && /^\d+$/.test(String(json.object_id))) {
-      // photo/video attachment হলে object_id তে comment করা reliable
       return String(json.object_id);
     }
     return id;
@@ -255,15 +183,9 @@ async function refineCommentTarget(id, token) {
 
 // master resolver: anything → final commentable id
 async function resolveAnyToCommentId(raw, token) {
-  // 1) quick parse first (no network)
   let pid = tryExtractGraphPostId(raw);
-  if (!pid) {
-    // 2) network resolve (?id=link) — pfbid হলে canonical URL use করবে
-    pid = await resolveViaGraphLookup(raw, token);
-  }
+  if (!pid) pid = await resolveViaGraphLookup(raw, token);
   if (!pid) return null;
-
-  // 3) refine (object_id vs post id)
   const finalId = await refineCommentTarget(pid, token);
   return finalId;
 }
@@ -290,7 +212,7 @@ async function postComment({ token, postId, message }) {
     throw err;
   }
   if (!json?.id) throw { message: "Comment id missing in response" };
-  return json; // { id: "<comment_id>" }
+  return json;
 }
 
 // error classifier (UI friendly)
@@ -309,14 +231,88 @@ function classifyError(err) {
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
+// -------------------- Multi-user SSE state --------------------
+/** jobs: Map<sessionId, { running:boolean, abort:boolean, clients:Set<res> }> */
+const jobs = new Map();
+function getJob(sessionId) {
+  if (!sessionId) throw new Error("sessionId required");
+  if (!jobs.has(sessionId)) {
+    jobs.set(sessionId, { running: false, abort: false, clients: new Set() });
+  }
+  return jobs.get(sessionId);
+}
+function sseBroadcast(sessionId, payloadObj) {
+  const job = getJob(sessionId);
+  const payload = `data: ${JSON.stringify(payloadObj)}\n\n`;
+  for (const res of job.clients) {
+    try { res.write(payload); } catch {}
+  }
+}
+function sseLine(sessionId, type, text, extra = {}) {
+  sseBroadcast(sessionId, { t: Date.now(), type, text, ...extra });
+}
+
 // -------------------- Routes --------------------
+
+// Health
+app.get("/health", (_req, res) => res.json({ ok:true }));
+
+// Return cookie-based session id (supports old frontend auto-load)
+app.get("/session", (req, res) => {
+  const sessionId = req.sessionId;
+  const user = ensureUser(sessionId);
+  res.json({ id: sessionId, status: user.status, expiry: user.expiry, blocked: user.blocked });
+});
+
+// Admin APIs
+app.get("/admin/users", (_req, res) => {
+  res.json(loadUsers());
+});
+app.post("/admin/approve", (req, res) => {
+  const { sessionId, days = 30, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const expiry = days ? Date.now() + Number(days) * 24*60*60*1000 : null;
+  const out = setUser(sessionId, { status: "approved", blocked: false, expiry, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/block", (req, res) => {
+  const { sessionId, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const out = setUser(sessionId, { status: "blocked", blocked: true, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/unblock", (req, res) => {
+  const { sessionId, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const out = setUser(sessionId, { status: "pending", blocked: false, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/expire", (req, res) => {
+  const { sessionId, at = null } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const expiry = at ? Number(at) : Date.now();
+  const out = setUser(sessionId, { expiry });
+  res.json({ ok:true, user: out });
+});
+app.get("/whoami", (req, res) => {
+  const u = ensureUser(req.sessionId);
+  res.json({ ok:true, user:u });
+});
 
 // SSE for live logs (per session)
 app.get("/events", (req, res) => {
-  const sessionId = req.query.sessionId || randomUUID();
-  const job = getJob(sessionId);
+  // Prefer explicit ?sessionId= ; else cookie sid
+  let sessionId = req.query.sessionId || req.sessionId || randomUUID();
+  // If we had to generate a new one (shouldn't usually happen), set cookie:
+  if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
+    res.cookie("sid", sessionId, { httpOnly: false, maxAge: 180*24*60*60*1000, sameSite: "lax" });
+  }
 
-  // ensure user exists in DB (first-time user becomes pending)
+  const job  = getJob(sessionId);
   const user = ensureUser(sessionId);
 
   res.set({
@@ -328,16 +324,13 @@ app.get("/events", (req, res) => {
 
   job.clients.add(res);
 
-  // always send session + user status to UI
+  // push session & user snapshot (named events)
   res.write(`event: session\n`);
   res.write(`data: ${sessionId}\n\n`);
 
   res.write(`event: user\n`);
   res.write(`data: ${JSON.stringify({
-    sessionId,
-    status: user.status,
-    blocked: user.blocked,
-    expiry: user.expiry
+    sessionId, status: user.status, blocked: user.blocked, expiry: user.expiry
   })}\n\n`);
 
   sseLine(sessionId, "ready", "SSE connected");
@@ -356,7 +349,7 @@ app.post(
     { name: "postlinks", maxCount: 1 },
   ]),
   (req, res) => {
-    const sessionId = req.query.sessionId || req.body.sessionId || null;
+    const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId || null;
     if (!sessionId) return res.status(400).json({ ok:false, message: "sessionId required" });
 
     const user = ensureUser(sessionId);
@@ -392,7 +385,7 @@ app.post(
 
 // Stop job
 app.post("/stop", (req, res) => {
-  const { sessionId } = req.body || {};
+  const sessionId = req.body?.sessionId || req.sessionId || null;
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
   const job = getJob(sessionId);
@@ -406,10 +399,9 @@ app.post("/stop", (req, res) => {
 
 // Start job
 app.post("/start", async (req, res) => {
-  const { sessionId } = req.body || {};
+  const sessionId = req.body?.sessionId || req.sessionId || null;
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
-  // access control gate
   const user = ensureUser(sessionId);
   const allowed = isUserAllowed(user);
   if (!allowed.ok) {
@@ -440,7 +432,7 @@ app.post("/start", async (req, res) => {
       job.running = true;
       job.abort   = false;
 
-      sseLine(sessionId, "info", "Job started (v2.0)");
+      sseLine(sessionId, "info", "Job started");
 
       // Load txt files
       const pToken = path.join("uploads", "token.txt");
@@ -474,19 +466,17 @@ app.post("/start", async (req, res) => {
       sseLine(sessionId, "info", `Resolving ${inputs.length} post link/id(s)...`);
       const resolvedPosts = [];
       const wrongLinks = [];
-      const resolverToken = tokens[0]; // প্রথম token দিয়ে resolve
+      const resolverToken = tokens[0];
 
       for (const raw of inputs) {
         if (job.abort) { sseLine(sessionId, "warn", "Aborted while resolving posts."); return; }
 
         let finalId = null;
 
-        // quick path (numeric / actor_post / classic URLs)
         const quick = tryExtractGraphPostId(raw);
         if (quick) {
           finalId = await refineCommentTarget(quick, resolverToken);
         } else {
-          // network resolve (works for pfbid too via canonicalizePfbidInput)
           const via = await resolveViaGraphLookup(raw, resolverToken);
           if (via) finalId = await refineCommentTarget(via, resolverToken);
         }
@@ -540,20 +530,14 @@ app.post("/start", async (req, res) => {
           const out = await postComment({ token, postId: post.id, message: comment });
           okCount++; count++;
           sseLine(sessionId, "log", `✔ ${acc} → "${comment}" on ${post.id}`, {
-            account: acc,
-            comment,
-            postId: post.id,
-            resultId: out.id || null
+            account: acc, comment, postId: post.id, resultId: out.id || null
           });
         } catch (err) {
           failCount++; count++;
           const cls = classifyError(err);
           counters[cls.kind] = (counters[cls.kind] || 0) + 1;
           sseLine(sessionId, "error", `✖ ${acc} → ${cls.human} (${post.id})`, {
-            account: acc,
-            postId: post.id,
-            errKind: cls.kind,
-            errMsg: err.message || String(err)
+            account: acc, postId: post.id, errKind: cls.kind, errMsg: err.message || String(err)
           });
         }
 
