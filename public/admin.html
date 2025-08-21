@@ -15,52 +15,68 @@
     th, td { border-bottom: 1px solid #eee; text-align:left; padding:6px 8px; }
     .muted { color:#666; font-size: 12px; }
     .log { white-space: pre-wrap; background:white; border:1px solid #eee; border-radius:6px; padding:8px; }
+    #panel { display:none; }  /* ডিফল্টে panel লুকানো থাকবে */
   </style>
 </head>
 <body>
   <h1>Admin Panel</h1>
-  <div class="row">
-    <div class="col">
-      <div class="box">
-        <h3 style="margin-top:0;">User Actions</h3>
-        <label>USERID (sessionId)</label>
-        <input id="sid" type="text" placeholder="paste USERID here" />
 
-        <label>Notes</label>
-        <textarea id="notes" rows="3" placeholder="optional notes"></textarea>
-
-        <div class="row" style="margin-top:8px;">
-          <div class="col">
-            <label>Approve days</label>
-            <input id="days" type="number" min="0" value="30" />
-          </div>
-          <div class="col">
-            <label>Expire (ISO / epoch ms)</label>
-            <input id="expireAt" type="text" placeholder="leave blank to keep" />
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button onclick="approve()">Approve</button>
-          <button onclick="block()">Block</button>
-          <button onclick="unblock()">Unblock</button>
-          <button onclick="expire()">Set Expiry</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="col">
-      <div class="box">
-        <h3 style="margin-top:0;">All Users</h3>
-        <button onclick="reload()">Reload</button>
-        <div id="usersTable" style="margin-top:10px;"></div>
-      </div>
-    </div>
+  <!-- Login form -->
+  <div id="loginBox" class="box">
+    <h3>Admin Login</h3>
+    <label>Username</label>
+    <input id="adminUser" type="text" />
+    <label>Password</label>
+    <input id="adminPass" type="password" />
+    <button onclick="login()">Login</button>
+    <div id="loginMsg" class="muted"></div>
   </div>
 
-  <div class="box" style="margin-top:16px;">
-    <h3 style="margin-top:0;">Logs</h3>
-    <div id="log" class="log" style="height:240px; overflow:auto;"></div>
+  <!-- Main panel -->
+  <div id="panel">
+    <div class="row">
+      <div class="col">
+        <div class="box">
+          <h3 style="margin-top:0;">User Actions</h3>
+          <label>USERID (sessionId)</label>
+          <input id="sid" type="text" placeholder="paste USERID here" />
+
+          <label>Notes</label>
+          <textarea id="notes" rows="3" placeholder="optional notes"></textarea>
+
+          <div class="row" style="margin-top:8px;">
+            <div class="col">
+              <label>Approve days</label>
+              <input id="days" type="number" min="0" value="30" />
+            </div>
+            <div class="col">
+              <label>Expire (ISO / epoch ms)</label>
+              <input id="expireAt" type="text" placeholder="leave blank to keep" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <button onclick="approve()">Approve</button>
+            <button onclick="block()">Block</button>
+            <button onclick="unblock()">Unblock</button>
+            <button onclick="expire()">Set Expiry</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="box">
+          <h3 style="margin-top:0;">All Users</h3>
+          <button onclick="reload()">Reload</button>
+          <div id="usersTable" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="box" style="margin-top:16px;">
+      <h3 style="margin-top:0;">Logs</h3>
+      <div id="log" class="log" style="height:240px; overflow:auto;"></div>
+    </div>
   </div>
 
   <script>
@@ -72,15 +88,32 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    async function reload() {
-      const res = await fetch("/admin/users", {
-        headers:{ "Authorization":"Bearer " + token }
+    // ---- LOGIN ----
+    async function login() {
+      const username = $("adminUser").value.trim();
+      const password = $("adminPass").value.trim();
+      const res = await fetch("/admin/login", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ username, password })
       });
+      const j = await res.json();
+      if(j.ok) {
+        $("loginBox").style.display = "none";
+        $("panel").style.display = "block";
+        reload();
+      } else {
+        $("loginMsg").textContent = j.message || "Login failed";
+      }
+    }
+
+    // ---- PANEL ----
+    async function reload() {
+      const res = await fetch("/admin/users");
       const db = await res.json();
       const rows = Object.values(db).sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0)).map(u => {
         const ex = u.expiry ? new Date(Number(u.expiry)).toLocaleString() : "∞";
         return `<tr>
-          <td><code>${u.username || u.sessionId}</code></td>
+          <td><code>${u.sessionId}</code></td>
           <td>${u.status}${u.blocked ? " (blocked)" : ""}</td>
           <td>${ex}</td>
           <td class="muted">${u.notes||""}</td>
@@ -104,18 +137,11 @@
     async function approve() {
       const sid = $("sid").value.trim();
       if (!sid) return alert("USERID required");
-      const days = Number($("days").value || 0);
-      let expiry = null;
-      if (days > 0) expiry = Date.now() + days*24*60*60*1000;
+      const days = Number($("days").value || 30);
       const notes = $("notes").value;
-
       const res = await fetch("/admin/approve", {
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "Authorization":"Bearer " + token
-        },
-        body: JSON.stringify({ username:sid, expiry, notes })
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, days, notes })
       });
       const j = await res.json();
       log(`approve(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
@@ -127,12 +153,8 @@
       if (!sid) return alert("USERID required");
       const notes = $("notes").value;
       const res = await fetch("/admin/block", {
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "Authorization":"Bearer " + token
-        },
-        body: JSON.stringify({ username:sid, notes })
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, notes })
       });
       const j = await res.json();
       log(`block(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
@@ -144,12 +166,8 @@
       if (!sid) return alert("USERID required");
       const notes = $("notes").value;
       const res = await fetch("/admin/unblock", {
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "Authorization":"Bearer " + token
-        },
-        body: JSON.stringify({ username:sid, notes })
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, notes })
       });
       const j = await res.json();
       log(`unblock(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
@@ -160,22 +178,15 @@
       const sid = $("sid").value.trim();
       if (!sid) return alert("USERID required");
       const atStr = $("expireAt").value.trim();
-      const expiry = atStr ? (isNaN(Number(atStr)) ? Date.parse(atStr) : Number(atStr)) : null;
-
+      const at = atStr ? (isNaN(Number(atStr)) ? Date.parse(atStr) : Number(atStr)) : Date.now();
       const res = await fetch("/admin/expire", {
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "Authorization":"Bearer " + token
-        },
-        body: JSON.stringify({ username:sid, expiry })
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ sessionId:sid, at })
       });
       const j = await res.json();
       log(`expire(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
       reload();
     }
-
-    reload();
   </script>
 </body>
 </html>
