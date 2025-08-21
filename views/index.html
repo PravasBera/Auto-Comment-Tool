@@ -19,15 +19,12 @@
 
   <main class="container">
 
-    <!-- 🔹 NEW: UserID Section -->
+    <!-- ✅ UserID Section -->
     <section class="card">
       <h2>Your UserID</h2>
-      <p>
-        <b id="userIdBox">Loading...</b>
-      </p>
-      <small>⚠ Copy this UserID and send it to Admin for approval.</small>
+      <div id="userIdBox">Loading...</div>
+      <p>📋 Copy this UserID and send it to Admin for approval.</p>
     </section>
-    <!-- END -->
 
     <section class="card">
       <h2>Upload Files</h2>
@@ -103,19 +100,5 @@
   </footer>
 
   <script src="/script.js"></script>
-  <script>
-    // 🔹 Fetch UserID from server on page load
-    fetch("/register")
-      .then(res => res.json())
-      .then(data => {
-        if (data.userId) {
-          document.getElementById("userIdBox").innerText = data.userId;
-          // Save globally for all API calls
-          window.USERID = data.userId;
-        } else {
-          document.getElementById("userIdBox").innerText = "Error loading USERID!";
-        }
-      });
-  </script>
 </body>
 </html>
