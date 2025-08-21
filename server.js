@@ -15,7 +15,7 @@ app.use(express.static("public")); // style.css, script.js এখান থে�
 
 // -------- Serve index.html --------
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
 // -------- File upload --------
