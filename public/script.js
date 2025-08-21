@@ -1,88 +1,107 @@
+// ---- Live log helpers
 const logBox = document.getElementById("logBox");
 const warnBox = document.getElementById("warnBox");
 
-// Append helper
-function addLine(el, text, cls = "") {
-  const d = document.createElement("div");
-  d.className = `log-line ${cls}`;
-  d.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-  el.appendChild(d);
-  el.scrollTop = el.scrollHeight;
+function addLine(box, text, cls = "") {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
 }
 
-// Connect SSE
-function connectSSE() {
+// ---- SSE connect
+(function connectSSE() {
   const es = new EventSource("/events");
-  es.onmessage = (e) => {
+  es.onmessage = (evt) => {
     try {
-      const data = JSON.parse(e.data);
-      const { type, text } = data;
+      const data = JSON.parse(evt.data);
+      const ts = new Date(data.t || Date.now()).toLocaleTimeString();
+      const line = `[${ts}] ${data.text}`;
 
-      // classify to boxes
-      if (type === "error") addLine(warnBox, text, "log-error");
-      else if (type === "warn") addLine(warnBox, text, "log-warn");
-      else if (type === "success") addLine(logBox, text, "log-success");
-      else if (type === "summary") {
-        addLine(logBox, text, "log-summary");
-        // also show counters if present
-        if (data.counters) {
-          const c = data.counters;
-          addLine(warnBox, `Invalid Token: ${c.INVALID_TOKEN || 0}`, "log-warn");
-          addLine(warnBox, `Wrong Post ID/Link: ${c.WRONG_POST_ID || 0}`, "log-warn");
-          addLine(warnBox, `No Permission: ${c.NO_PERMISSION || 0}`, "log-warn");
-          addLine(warnBox, `Comment Blocked: ${c.COMMENT_BLOCKED || 0}`, "log-warn");
-          addLine(warnBox, `ID Locked: ${c.ID_LOCKED || 0}`, "log-warn");
-          addLine(warnBox, `Unknown: ${c.UNKNOWN || 0}`, "log-warn");
-        }
-        if (typeof data.unresolvedLinks === "number") {
-          addLine(warnBox, `Unresolved links: ${data.unresolvedLinks}`, "log-warn");
-        }
+      switch (data.type) {
+        case "log":
+        case "info":
+          addLine(logBox, line, "info");
+          break;
+        case "success":
+          addLine(logBox, line, "success");
+          break;
+        case "warn":
+          addLine(warnBox, line, "warn");
+          break;
+        case "error":
+          addLine(warnBox, line, "error");
+          break;
+        case "summary":
+          addLine(warnBox, `--- Summary ---`, "summary");
+          addLine(warnBox, `Sent: ${data.sent}, OK: ${data.ok}, Failed: ${data.failed}`);
+          if (data.counters) {
+            Object.keys(data.counters).forEach(k => {
+              if (data.counters[k] > 0) addLine(warnBox, `${k}: ${data.counters[k]}`);
+            });
+          }
+          if (typeof data.unresolvedLinks === "number") {
+            addLine(warnBox, `Unresolved links: ${data.unresolvedLinks}`);
+          }
+          break;
+        default:
+          addLine(logBox, line);
       }
-      else addLine(logBox, text, "log-info");
-
-      // Extra pretty line for each successful comment
-      if (data.type === "log" && data.account && data.comment && data.postId) {
-        addLine(logBox, `✔ ${data.account} → "${data.comment}" on ${data.postId}`, "log-success");
-      }
-    } catch {}
+    } catch {
+      // plain text
+      addLine(logBox, evt.data || "");
+    }
   };
   es.onerror = () => {
-    // reconnect automatically (browser does this) – keep quiet
+    addLine(warnBox, "SSE disconnected. Retrying in 3s...", "warn");
+    setTimeout(connectSSE, 3000);
   };
-}
-connectSSE();
+})();
 
-// Upload handler
-document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+// ---- Upload form
+const uploadForm = document.getElementById("uploadForm");
+uploadForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const fd = new FormData(e.target);
-  addLine(logBox, "Uploading files...", "log-info");
-  const res = await fetch("/upload", { method: "POST", body: fd });
-  const data = await res.json();
-  if (data.ok) addLine(logBox, "Files uploaded successfully", "log-success");
-  else addLine(warnBox, "Upload failed: " + (data.message || "unknown"), "log-error");
+  warnBox.innerHTML = ""; // clear warnings
+  const fd = new FormData(uploadForm);
+  try {
+    const res = await fetch("/upload", { method: "POST", body: fd });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.message || "Upload failed");
+    addLine(logBox, "✔ Files uploaded successfully", "success");
+  } catch (err) {
+    addLine(warnBox, `Upload error: ${err.message}`, "error");
+  }
 });
 
-// Start job
-document.getElementById("startForm").addEventListener("submit", async (e) => {
+// ---- Start form
+const startForm = document.getElementById("startForm");
+startForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const body = Object.fromEntries(new FormData(e.target).entries());
-  addLine(logBox, "Starting job...", "log-info");
-
-  const res = await fetch("/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const data = await res.json();
-  if (data.ok) addLine(logBox, "Job started", "log-success");
-  else addLine(warnBox, "Cannot start: " + (data.message || "unknown"), "log-error");
+  warnBox.innerHTML = "";
+  const data = new URLSearchParams(new FormData(startForm));
+  try {
+    const res = await fetch("/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: data.toString()
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.message || "Start failed");
+    addLine(logBox, "▶ Job started", "info");
+  } catch (err) {
+    addLine(warnBox, `Start error: ${err.message}`, "error");
+  }
 });
 
-// Stop job
-document.getElementById("stopBtn").addEventListener("click", async () => {
-  const res = await fetch("/stop", { method: "POST" });
-  const data = await res.json();
-  addLine(warnBox, data.message || "Stop requested", "log-warn");
+// ---- Stop button
+document.getElementById("stopBtn")?.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/stop", { method: "POST" });
+    const json = await res.json();
+    addLine(warnBox, json.message || "Stop sent", "warn");
+  } catch (err) {
+    addLine(warnBox, `Stop error: ${err.message}`, "error");
+  }
 });
