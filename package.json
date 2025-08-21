@@ -1,16 +1,12 @@
 {
   "name": "facebook-auto-comment-tool",
   "version": "1.6.0",
-  "description": "Facebook Auto Comment Tool (Graph API, tokens + files, live logs, stop, delay, limit).",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
-    "node-fetch": "^2.7.0",
-    "ejs": "^3.1.9"
+    "node-fetch": "^2.7.0"
   }
 }
