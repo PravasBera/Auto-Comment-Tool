@@ -1,87 +1,162 @@
 // server.js
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const fetch = require("node-fetch");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// __dirname fix (ESM)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// --- Middleware
-app.use(express.urlencoded({ extended: true }));
+// --------- Middleware ---------
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public"));
 
-// --- Static files (public ফোল্ডার থেকে CSS/JS serve হবে)
-app.use(express.static(path.join(__dirname, "public")));
+// View engine
+app.set("views", path.join(__dirname, "views"));
+app.engine("html", require("ejs").renderFile);
+app.set("view engine", "html");
 
-// --- Multer upload setup
+// File upload
 const upload = multer({ dest: "uploads/" });
 
-// --- Serve index.html (views থেকে)
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "views", "index.html"));
-});
+// --------- Global store ---------
+let TOKENS = [];
+let COMMENTS = [];
+let POSTLINKS = [];
 
-// ---- File Upload
-app.post("/upload", upload.fields([
-  { name: "tokens", maxCount: 1 },
-  { name: "comments", maxCount: 1 },
-  { name: "postlinks", maxCount: 1 }
-]), (req, res) => {
+// --------- Utils ---------
+function sseLine(event, data, extra = {}) {
+  let payload = { event, data, ...extra };
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+function classifyError(err) {
+  let msg = err.message || String(err);
+  if (/expired|invalid token/i.test(msg)) return { kind: "token", human: "❌ Invalid/Expired Token" };
+  if (/limit/i.test(msg)) return { kind: "limit", human: "⚠ Rate Limit" };
+  return { kind: "other", human: msg };
+}
+
+// --------- Resolve Post Link ---------
+async function resolveViaGraphLookup(link, token) {
+  const api = `https://graph.facebook.com/v19.0/?id=${encodeURIComponent(link)}&access_token=${encodeURIComponent(token)}`;
+  console.log("[DEBUG] Graph lookup URL:", api);
+
+  const res = await fetch(api);
+  const json = await res.json();
+  console.log("[DEBUG] Graph lookup response:", json);
+
+  if (json?.og_object?.id) return String(json.og_object.id);
+  if (json?.id) return String(json.id);
+  return null;
+}
+
+async function refineCommentTarget(id, token) {
   try {
-    if (req.files.tokens) {
-      fs.renameSync(req.files.tokens[0].path, "tokens.txt");
+    console.log("[DEBUG] refineCommentTarget input:", id);
+    if (/^\d+_\d+$/.test(id)) return id;
+
+    const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(id)}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
+    console.log("[DEBUG] refineCommentTarget fetch:", ep);
+
+    const res = await fetch(ep);
+    const json = await res.json();
+    console.log("[DEBUG] refineCommentTarget response:", json);
+
+    if (json?.object_id && /^\d+$/.test(String(json.object_id))) {
+      return String(json.object_id);
     }
-    if (req.files.comments) {
-      fs.renameSync(req.files.comments[0].path, "comments.txt");
-    }
-    if (req.files.postlinks) {
-      fs.renameSync(req.files.postlinks[0].path, "postlinks.txt");
-    }
-    res.json({ ok: true, message: "Files uploaded successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, message: "Upload failed" });
+    return id;
+  } catch (e) {
+    console.log("[DEBUG] refineCommentTarget error:", e);
+    return id;
   }
+}
+
+async function postComment({ token, postId, message }) {
+  const url = `https://graph.facebook.com/v19.0/${postId}/comments`;
+  const body = new URLSearchParams({ message, access_token: token });
+  const res = await fetch(url, { method: "POST", body });
+  const json = await res.json();
+  if (!res.ok || json.error) throw new Error(json.error?.message || "Unknown error");
+  return json;
+}
+
+// --------- Routes ---------
+app.get("/", (req, res) => {
+  res.render("index.html");
 });
 
-// ---- Start Job
-app.post("/start", (req, res) => {
-  console.log("▶ Job started with data:", req.body);
-  // এখানে comment করার লজিক যাবে
-  res.json({ ok: true, message: "Job started" });
+// File Upload Route
+app.post("/upload", upload.fields([{ name: "tokens" }, { name: "comments" }, { name: "postlinks" }]), (req, res) => {
+  if (req.files.tokens) {
+    TOKENS = fs.readFileSync(req.files.tokens[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  if (req.files.comments) {
+    COMMENTS = fs.readFileSync(req.files.comments[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  if (req.files.postlinks) {
+    POSTLINKS = fs.readFileSync(req.files.postlinks[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  res.json({ tokens: TOKENS.length, comments: COMMENTS.length, postlinks: POSTLINKS.length });
 });
 
-// ---- Stop Job
-app.post("/stop", (req, res) => {
-  console.log("⏹ Job stopped");
-  res.json({ ok: true, message: "Job stopped" });
-});
-
-// ---- Events (SSE log stream)
+// SSE stream
 app.get("/events", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  res.write(`data: ${JSON.stringify({ type: "log", text: "SSE Connected" })}\n\n`);
-
-  // প্রতি 5 সেকেন্ডে 1টা ping পাঠাবে
-  const interval = setInterval(() => {
-    res.write(`data: ${JSON.stringify({ type: "info", text: "heartbeat" })}\n\n`);
-  }, 5000);
-
-  req.on("close", () => {
-    clearInterval(interval);
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive"
   });
+  res.flushHeaders();
+
+  let sent = 0;
+  let okCount = 0;
+  let failCount = 0;
+  let counters = {};
+
+  (async () => {
+    try {
+      for (let token of TOKENS) {
+        const acc = token.slice(0, 10) + "...";
+        for (let link of POSTLINKS) {
+          try {
+            // 1. resolve
+            let rawId = await resolveViaGraphLookup(link, token);
+            if (!rawId) throw new Error("Cannot resolve ID from link");
+
+            let finalId = await refineCommentTarget(rawId, token);
+            console.log("[DEBUG] Final targetId after refine:", finalId, "raw:", rawId);
+
+            // 2. choose comment
+            let msg = COMMENTS[Math.floor(Math.random() * COMMENTS.length)];
+
+            // 3. post comment
+            console.log("[DEBUG] Final targetId before commenting:", finalId);
+            const out = await postComment({ token, postId: finalId, message: msg });
+            okCount++; sent++;
+
+            res.write(sseLine("log", `✔ ${acc} → "${msg}" on ${finalId}`, { account: acc, comment: msg, postId: finalId, resultId: out.id || null }));
+          } catch (err) {
+            failCount++; sent++;
+            const cls = classifyError(err);
+            counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+            res.write(sseLine("error", `✖ ${acc} → ${cls.human}`, { account: acc, errKind: cls.kind, errMsg: err.message || String(err) }));
+          }
+        }
+      }
+    } catch (e) {
+      res.write(sseLine("fatal", "Server crashed: " + (e.message || e)));
+    } finally {
+      res.write(sseLine("summary", { sent, okCount, failCount, counters }));
+      res.end();
+    }
+  })();
 });
 
-// --- Start server
+// --------- Start ---------
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
