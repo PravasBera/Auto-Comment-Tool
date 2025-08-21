@@ -105,3 +105,64 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     addLine(warnBox, `Stop error: ${err.message}`, "error");
   }
 });
+
+// =======================
+// Utility: Extract Post ID
+// =======================
+function extractPostId(url) {
+  try {
+    // case-1: /posts/{postId}
+    let match = url.match(/\/posts\/(\d+)/);
+    if (match) return match[1];
+
+    // case-2: profileId_postId ফরম্যাট
+    match = url.match(/(\d+)_(\d+)/);
+    if (match) return match[1] + "_" + match[2];
+
+    // case-3: fallback → বড় সংখ্যার id ধরবে
+    match = url.match(/(\d{10,})/);
+    if (match) return match[1];
+
+  } catch (e) {
+    console.error("Post ID extract error:", e);
+  }
+  return null;
+}
+
+// =======================
+// Main: Post Comment
+// =======================
+async function postComment(token, postLink, comment) {
+  try {
+    const postId = extractPostId(postLink);
+    if (!postId) {
+      addLine(warnBox, `❌ Could not extract post ID from link: ${postLink}`, "warn");
+      return false;
+    }
+
+    const url = `https://graph.facebook.com/${postId}/comments`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        access_token: token,
+        message: comment
+      })
+    });
+
+    const data = await res.json();
+    if (data.id) {
+      addLine(logBox, `✅ Commented → ${comment} (id: ${data.id})`, "success");
+      return true;
+    } else {
+      addLine(warnBox, `❌ Comment failed on ${postLink}`, "error");
+      console.error("Response:", data);
+      return false;
+    }
+
+  } catch (err) {
+    addLine(warnBox, `⚠️ Error while commenting: ${err.message}`, "error");
+    return false;
+  }
+}
