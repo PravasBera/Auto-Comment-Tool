@@ -1,234 +1,129 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Facebook Auto Comment Tool</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>body{font-family:'Poppins',sans-serif}</style>
-</head>
-<body class="bg-gray-950 text-gray-100 min-h-screen">
+// =======================
+// Facebook Auto Comment Tool - v1.5 Fixed
+// =======================
 
-  <!-- Header -->
-  <header class="max-w-5xl mx-auto p-6">
-    <div class="rounded-2xl p-6 bg-gradient-to-r from-fuchsia-600 to-purple-700 shadow-xl">
-      <h1 class="text-3xl md:text-4xl font-extrabold text-white text-center">⚡ Facebook Auto Comment Tool ⚡</h1>
-      <p class="mt-2 text-center text-sm text-fuchsia-100">
-        👤 Author: <span class="font-semibold">PRAVAS BERA</span> |
-        🌀 Version: <span class="font-semibold">1.5</span> |
-        🌍 Country: <span class="font-semibold">INDIA</span>
-      </p>
-      <p class="text-center mt-1 font-semibold text-orange-200">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
-    </div>
-  </header>
+const stats = {
+    success: 0,
+    failed: 0,
+    badPosts: 0,
+    invalidTokens: 0,
+    expiredTokens: 0,
+    blocked: 0
+};
 
-  <!-- Main -->
-  <main class="max-w-5xl mx-auto grid md:grid-cols-2 gap-6 p-6">
+let stopFlag = false;
 
-    <!-- Form -->
-    <section class="bg-gray-900 rounded-2xl p-6 shadow-xl">
-      <h2 class="text-xl font-bold mb-4">Setup</h2>
-      <form id="form" class="space-y-5" enctype="multipart/form-data">
-        <!-- Post IDs text -->
-        <div>
-          <label class="block text-sm mb-2 font-semibold">Post IDs (comma separated)</label>
-          <input name="postIds" type="text" placeholder="12345_67890, 11111_22222"
-                 class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-fuchsia-500 outline-none">
-        </div>
+// ----------------- Utility -----------------
+function logFeed(message, type = "info") {
+    const feedBox = document.getElementById("live-feed");
+    const entry = document.createElement("div");
+    entry.className = `feed-item ${type}`;
+    entry.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
+    feedBox.prepend(entry);
+}
 
-        <!-- Post IDs file -->
-        <div>
-          <label class="block text-sm mb-2 font-semibold">OR Upload Post IDs File (posts.txt)</label>
-          <input name="postFile" type="file" accept=".txt"
-                 class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-semibold file:bg-fuchsia-600 file:text-white hover:file:bg-fuchsia-700">
-        </div>
+function updateStats() {
+    document.getElementById("success-count").innerText = stats.success;
+    document.getElementById("failed-count").innerText = stats.failed;
+    document.getElementById("badpost-count").innerText = stats.badPosts;
+    document.getElementById("invalid-count").innerText = stats.invalidTokens;
+    document.getElementById("expired-count").innerText = stats.expiredTokens;
+    document.getElementById("blocked-count").innerText = stats.blocked;
+}
 
-        <!-- 3 Post Links -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label class="block text-sm mb-2 font-semibold">Post Link 1</label>
-            <input name="link1" type="url" placeholder="https://www.facebook.com/100.../posts/..."
-                   class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-purple-500 outline-none">
-          </div>
-          <div>
-            <label class="block text-sm mb-2 font-semibold">Post Link 2</label>
-            <input name="link2" type="url" placeholder="https://www.facebook.com/100.../posts/..."
-                   class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-purple-500 outline-none">
-          </div>
-          <div>
-            <label class="block text-sm mb-2 font-semibold">Post Link 3</label>
-            <input name="link3" type="url" placeholder="https://www.facebook.com/100.../posts/..."
-                   class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-purple-500 outline-none">
-          </div>
-        </div>
+// ----------------- Post ID Extract -----------------
+function extractPostId(linkOrId) {
+    // Direct numeric ID
+    if (/^\d+$/.test(linkOrId)) return linkOrId;
 
-        <!-- Post links file (optional) -->
-        <div>
-          <label class="block text-sm mb-2 font-semibold">OR Upload Post Links File (links.txt)</label>
-          <input name="linksFile" type="file" accept=".txt"
-                 class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700">
-        </div>
-
-        <!-- Comments -->
-        <div>
-          <label class="block text-sm mb-2 font-semibold">Upload Comments File (comments.txt)</label>
-          <input name="commentsFile" type="file" accept=".txt" required
-                 class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700">
-        </div>
-
-        <!-- Tokens -->
-        <div>
-          <label class="block text-sm mb-2 font-semibold">Upload Tokens File (tokens.txt)</label>
-          <input name="tokensFile" type="file" accept=".txt" required
-                 class="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700">
-        </div>
-
-        <!-- Delay + Limit -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm mb-2 font-semibold">Comment Delay (seconds)</label>
-            <input name="delaySec" type="number" min="0" step="1" value="5"
-                   class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none">
-          </div>
-          <div>
-            <label class="block text-sm mb-2 font-semibold">Max Comments (success count)</label>
-            <input name="maxCount" type="number" min="0" step="1" placeholder="0 = unlimited"
-                   class="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none">
-          </div>
-        </div>
-
-        <!-- Buttons -->
-        <div class="flex gap-3">
-          <button id="btnStart" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 font-semibold hover:scale-[1.02] transition">🚀 Start</button>
-          <button id="btnStop" type="button" class="px-5 rounded-xl bg-red-600 font-semibold hover:bg-red-700">⛔ Stop</button>
-        </div>
-        <p class="text-xs text-gray-400">Use your own tokens & posts, follow Facebook rules. This tool is for educational/legitimate automation only.</p>
-      </form>
-    </section>
-
-    <!-- Live Panel -->
-    <section class="bg-gray-900 rounded-2xl p-6 shadow-xl">
-      <h2 class="text-xl font-bold mb-4">Live Feed & Stats</h2>
-
-      <!-- Counters -->
-      <div id="counters" class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-        <div class="p-3 rounded-lg bg-gray-800"><b>Success</b><div id="cSuccess">0</div></div>
-        <div class="p-3 rounded-lg bg-gray-800"><b>Failed</b><div id="cFailed">0</div></div>
-        <div class="p-3 rounded-lg bg-gray-800"><b>Bad Posts</b><div id="cBadPost">0</div></div>
-        <div class="p-3 rounded-lg bg-gray-800"><b>Token Invalid</b><div id="cTokInv">0</div></div>
-        <div class="p-3 rounded-lg bg-gray-800"><b>Token Expired</b><div id="cTokExp">0</div></div>
-        <div class="p-3 rounded-lg bg-gray-800"><b>Blocked/Perm</b><div id="cBlockPerm">0</div></div>
-      </div>
-
-      <!-- Alerts -->
-      <div id="alerts" class="mt-4 space-y-2 max-h-80 overflow-auto pr-1"></div>
-
-      <!-- Last events -->
-      <h3 class="mt-6 mb-2 font-semibold">Recent</h3>
-      <ul id="recent" class="space-y-1 text-sm max-h-48 overflow-auto pr-1"></ul>
-    </section>
-
-  </main>
-
-  <script>
-    const alertsBox = document.getElementById("alerts");
-    const recent = document.getElementById("recent");
-    const btnStart = document.getElementById("btnStart");
-    const btnStop  = document.getElementById("btnStop");
-
-    const cSuccess = document.getElementById("cSuccess");
-    const cFailed  = document.getElementById("cFailed");
-    const cBadPost = document.getElementById("cBadPost");
-    const cTokInv  = document.getElementById("cTokInv");
-    const cTokExp  = document.getElementById("cTokExp");
-    const cBlockPerm = document.getElementById("cBlockPerm");
-
-    let es = null;
-
-    function addAlert(level, message) {
-      const colors = {
-        success: "bg-emerald-600",
-        error: "bg-red-600",
-        warning: "bg-yellow-500 text-black",
-        info: "bg-gray-700"
-      };
-      const d = document.createElement("div");
-      d.className = `p-3 rounded-lg shadow ${colors[level] || colors.info}`;
-      d.textContent = message;
-      alertsBox.prepend(d);
-      while (alertsBox.childElementCount > 50) alertsBox.lastChild.remove();
+    // Facebook link patterns
+    try {
+        let url = new URL(linkOrId);
+        if (url.searchParams.get("story_fbid")) {
+            return url.searchParams.get("story_fbid");
+        }
+        if (url.pathname.includes("/posts/")) {
+            return url.pathname.split("/posts/")[1].split("/")[0];
+        }
+        if (url.pathname.includes("/videos/")) {
+            return url.pathname.split("/videos/")[1].split("/")[0];
+        }
+    } catch (e) {
+        return null;
     }
+    return null;
+}
 
-    function addRecent(text) {
-      const li = document.createElement("li");
-      li.textContent = text;
-      recent.prepend(li);
-      while (recent.childElementCount > 100) recent.lastChild.remove();
+// ----------------- Comment Function -----------------
+async function commentOnPost(postId, message, token, tokenIndex, postIndex) {
+    const url = `https://graph.facebook.com/${postId}/comments`;
+    try {
+        let response = await fetch(url, {
+            method: "POST",
+            body: new URLSearchParams({
+                message: message,
+                access_token: token
+            })
+        });
+        let data = await response.json();
+
+        if (data.error) {
+            let code = data.error.code;
+            if (code === 190) {
+                stats.expiredTokens++;
+                logFeed(`❌ Token ${tokenIndex} expired/invalid (Post ${postIndex})`, "error");
+            } else if (code === 200) {
+                stats.invalidTokens++;
+                logFeed(`⚠️ Token ${tokenIndex} missing permission (Post ${postIndex})`, "warn");
+            } else if (code === 368) {
+                stats.blocked++;
+                logFeed(`🚫 Token ${tokenIndex} temporarily blocked (Post ${postIndex})`, "error");
+            } else {
+                stats.failed++;
+                logFeed(`❌ Failed (Token ${tokenIndex}, Post ${postIndex}): ${data.error.message}`, "error");
+            }
+        } else {
+            stats.success++;
+            logFeed(`✅ Commented on Post ${postIndex} with Token ${tokenIndex}`, "success");
+        }
+    } catch (err) {
+        stats.failed++;
+        logFeed(`❌ Network error (Token ${tokenIndex}, Post ${postIndex})`, "error");
     }
+    updateStats();
+}
 
-    function hookSSE() {
-      if (es) es.close();
-      es = new EventSource("/events");
-      es.addEventListener("hello", () => {});
-      es.addEventListener("start", (e) => {
-        const d = JSON.parse(e.data);
-        addAlert("info", `Started: posts=${d.posts}, comments=${d.comments}, tokens=${d.tokens}, delay=${d.delaySec}s`);
-      });
-      es.addEventListener("alert", (e) => {
-        const d = JSON.parse(e.data);
-        addAlert(d.level || "info", d.message || "");
-      });
-      es.addEventListener("success", (e) => {
-        const d = JSON.parse(e.data);
-        addAlert("success", `✔ ${d.account.name} → ${d.postId}`);
-        addRecent(`✔ ${d.account.name}: "${d.message}"`);
-      });
-      es.addEventListener("status", (e) => {
-        const s = JSON.parse(e.data);
-        cSuccess.textContent = s.success || 0;
-        cFailed.textContent  = s.failed || 0;
-        cBadPost.textContent = s.bad_post || 0;
-        cTokInv.textContent  = s.token_invalid || 0;
-        cTokExp.textContent  = s.token_expired || 0;
-        cBlockPerm.textContent = (s.permission || 0) + (s.temporary_block || 0);
-      });
-      es.addEventListener("summary", (e) => {
-        const s = JSON.parse(e.data);
-        addAlert("info", `Summary: success=${s.success}, failed=${s.failed}, invalidTokens=${s.invalid_tokens_count}, badPosts=${s.bad_posts_count}`);
-      });
+// ----------------- Main Runner -----------------
+async function startComments(posts, comments, tokens, delay, maxComments) {
+    stopFlag = false;
+    let count = 0;
+
+    for (let t = 0; t < tokens.length; t++) {
+        for (let p = 0; p < posts.length; p++) {
+            if (stopFlag) return;
+            let postId = extractPostId(posts[p]);
+            if (!postId) {
+                stats.badPosts++;
+                logFeed(`⚠️ Bad Post Link/ID at index ${p + 1}`, "warn");
+                updateStats();
+                continue;
+            }
+
+            let comment = comments[count % comments.length];
+            await commentOnPost(postId, comment, tokens[t], t + 1, p + 1);
+
+            count++;
+            if (maxComments > 0 && count >= maxComments) {
+                logFeed("✅ Reached max comments limit", "success");
+                return;
+            }
+
+            await new Promise(r => setTimeout(r, delay * 1000));
+        }
     }
+}
 
-    hookSSE();
-
-    // Start
-    document.getElementById("form").addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      btnStart.disabled = true;
-      const fd = new FormData(ev.target);
-      try {
-        const r = await fetch("/start", { method: "POST", body: fd });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "failed");
-        addAlert("success", "Job started.");
-      } catch (e) {
-        addAlert("error", e.message);
-      } finally {
-        btnStart.disabled = false;
-      }
-    });
-
-    // Stop
-    btnStop.addEventListener("click", async () => {
-      try {
-        const r = await fetch("/stop", { method: "POST" });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "failed");
-        addAlert("warning", "Stop requested.");
-      } catch (e) {
-        addAlert("error", e.message);
-      }
-    });
-  </script>
-</body>
-</html>
+function stopComments() {
+    stopFlag = true;
+    logFeed("⛔ Commenting stopped by user", "warn");
+}
