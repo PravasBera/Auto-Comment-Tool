@@ -1,170 +1,137 @@
-/* ===============================
-   Global Styles
-================================= */
-body {
+/* Reset */
+* {
   margin: 0;
   padding: 0;
-  background: #0d1117;   /* Dark theme background */
-  color: #ffffff;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
 }
 
-/* ===============================
-   Header Banner
-================================= */
-.header {
-  background: linear-gradient(90deg, #a100ff, #00c2ff);
-  text-align: center;
-  padding: 25px 15px;
-  border-radius: 0 0 20px 20px;
-  color: white;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-}
-
-.header h1 {
-  margin: 0;
-  font-size: 30px;
-  font-weight: bold;
-  letter-spacing: 1px;
-}
-
-.header p {
-  margin: 6px 0;
-  font-size: 16px;
-  opacity: 0.95;
-}
-
-.header .team {
-  margin-top: 10px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #ffdf00;
-  text-shadow: 0 0 6px #000;
-}
-
-/* ===============================
-   Setup Section
-================================= */
-.setup {
-  background: #161b22;
-  margin: 20px;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-}
-
-.setup label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 14px;
-  color: #c9d1d9;
-}
-
-.setup input[type="text"],
-.setup input[type="number"],
-.setup input[type="file"] {
-  width: 100%;
+/* Body */
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  line-height: 1.6;
   padding: 10px;
-  margin-bottom: 15px;
-  border-radius: 10px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: #fff;
-  font-size: 14px;
 }
 
-.setup input:focus {
-  outline: none;
-  border-color: #00c2ff;
-  box-shadow: 0 0 6px #00c2ff;
-}
-
-/* ===============================
-   Buttons
-================================= */
-button.start {
-  background: #00c853;
-  color: #fff;
-  border: none;
-  padding: 12px 25px;
-  border-radius: 12px;
-  font-size: 16px;
-  cursor: pointer;
-  margin-right: 10px;
-  transition: 0.3s;
-}
-
-button.start:hover {
-  background: #00e676;
-  box-shadow: 0 0 10px #00c853;
-}
-
-button.stop {
-  background: #d50000;
-  color: #fff;
-  border: none;
-  padding: 12px 25px;
-  border-radius: 12px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-button.stop:hover {
-  background: #ff1744;
-  box-shadow: 0 0 10px #d50000;
-}
-
-/* ===============================
-   Live Feed & Stats
-================================= */
-.stats {
-  background: #161b22;
-  margin: 20px;
-  padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-}
-
-.stats h2 {
-  margin-top: 0;
-  font-size: 20px;
-  color: #00c2ff;
-}
-
-.stat-boxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 15px;
-  margin-top: 15px;
-}
-
-.stat-box {
-  background: #0d1117;
-  padding: 15px;
-  border-radius: 12px;
+/* Header */
+.app-header {
   text-align: center;
-  font-size: 14px;
-  border: 1px solid #30363d;
-  transition: 0.3s;
+  padding: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6, #06b6d4);
+  color: white;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
-.stat-box:hover {
-  border-color: #00c2ff;
-  box-shadow: 0 0 8px #00c2ff;
+.app-header h1 {
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin-bottom: 8px;
 }
 
-/* ===============================
-   Responsive (Mobile Friendly)
-================================= */
-@media (max-width: 600px) {
-  .header h1 {
-    font-size: 22px;
-  }
-  .header p {
-    font-size: 13px;
-  }
-  .header .team {
-    font-size: 15px;
-  }
+.header-meta {
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tagline {
+  font-weight: bold;
+  font-size: 1rem;
+  color: #ff6b6b;
+  margin-top: 5px;
+}
+
+/* Cards */
+.card {
+  background: #1e293b;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.card h2 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #334155;
+  padding-bottom: 5px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.95rem;
+}
+
+input[type="text"],
+input[type="url"],
+input[type="number"] {
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.file-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.file-inputs label {
+  background: #334155;
+  padding: 6px;
+  border-radius: 6px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.file-inputs input {
+  display: none;
+}
+
+/* Buttons */
+.actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  color: white;
+}
+
+.btn.start {
+  background: #22c55e;
+}
+
+.btn.stop {
+  background: #ef4444;
+}
+
+/* Logs */
+#log-box {
+  background: #0f172a;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  max-height: 200px;
+  overflow-y: auto;
 }
