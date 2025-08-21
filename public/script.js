@@ -1,21 +1,13 @@
-// =======================
-// ✅ Auto load UserID
-// =======================
-async function loadUserId() {
-  try {
-    const res = await fetch("/session");
-    const data = await res.json();
-    document.getElementById("userIdBox").innerText = data.id;
-  } catch (err) {
-    document.getElementById("userIdBox").innerText = "❌ Failed to load";
-  }
-}
-
-window.onload = loadUserId;
-
 // ---- Live log helpers
 const logBox = document.getElementById("logBox");
 const warnBox = document.getElementById("warnBox");
+
+// ✅ sessionId here
+let SESSION_ID = null;
+const userIdBox = document.getElementById("userIdBox");
+function setUserIdUI(text) {
+  if (userIdBox) userIdBox.textContent = text;
+}
 
 function addLine(box, text, cls = "") {
   const line = document.createElement("div");
@@ -25,9 +17,28 @@ function addLine(box, text, cls = "") {
   box.scrollTop = box.scrollHeight;
 }
 
-// ---- SSE connect
+// ---- SSE connect (uses server's /events that emits `session` & `user`)
 (function connectSSE() {
   const es = new EventSource("/events");
+
+  // 🔹 catch named event: session → this is your UserID
+  es.addEventListener("session", (evt) => {
+    SESSION_ID = evt.data;
+    setUserIdUI(SESSION_ID || "—");
+    addLine(logBox, `Session ready: ${SESSION_ID}`, "info");
+  });
+
+  // optional: show user status (pending/approved/blocked)
+  es.addEventListener("user", (evt) => {
+    try {
+      const info = JSON.parse(evt.data);
+      if (info?.status && info.status !== "approved") {
+        addLine(warnBox, `Status: ${info.status}. Ask admin for approval.`, "warn");
+      }
+    } catch {}
+  });
+
+  // fallback for generic messages (log/info/success/warn/error/summary)
   es.onmessage = (evt) => {
     try {
       const data = JSON.parse(evt.data);
@@ -64,10 +75,10 @@ function addLine(box, text, cls = "") {
           addLine(logBox, line);
       }
     } catch {
-      // plain text
       addLine(logBox, evt.data || "");
     }
   };
+
   es.onerror = () => {
     addLine(warnBox, "SSE disconnected. Retrying in 3s...", "warn");
     setTimeout(connectSSE, 3000);
@@ -78,10 +89,22 @@ function addLine(box, text, cls = "") {
 const uploadForm = document.getElementById("uploadForm");
 uploadForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  warnBox.innerHTML = ""; // clear warnings
+  warnBox.innerHTML = "";
+
+  if (!SESSION_ID) {
+    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
+    return;
+  }
+
   const fd = new FormData(uploadForm);
+  // send in body too (server reads body or query)
+  fd.append("sessionId", SESSION_ID);
+
   try {
-    const res = await fetch("/upload", { method: "POST", body: fd });
+    const res = await fetch(`/upload?sessionId=${encodeURIComponent(SESSION_ID)}`, {
+      method: "POST",
+      body: fd
+    });
     const json = await res.json();
     if (!res.ok || !json.ok) throw new Error(json.message || "Upload failed");
     addLine(logBox, "✔ Files uploaded successfully", "success");
@@ -95,7 +118,15 @@ const startForm = document.getElementById("startForm");
 startForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   warnBox.innerHTML = "";
+
+  if (!SESSION_ID) {
+    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
+    return;
+  }
+
   const data = new URLSearchParams(new FormData(startForm));
+  data.append("sessionId", SESSION_ID);
+
   try {
     const res = await fetch("/start", {
       method: "POST",
@@ -112,8 +143,16 @@ startForm?.addEventListener("submit", async (e) => {
 
 // ---- Stop button
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
+  if (!SESSION_ID) {
+    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
+    return;
+  }
   try {
-    const res = await fetch("/stop", { method: "POST" });
+    const res = await fetch("/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ sessionId: SESSION_ID }).toString()
+    });
     const json = await res.json();
     addLine(warnBox, json.message || "Stop sent", "warn");
   } catch (err) {
@@ -122,22 +161,16 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
 });
 
 // =======================
-// Utility: Extract Post ID
+// Utility: Extract Post ID (unchanged)
 // =======================
 function extractPostId(url) {
   try {
-    // case-1: /posts/{postId}
     let match = url.match(/\/posts\/(\d+)/);
     if (match) return match[1];
-
-    // case-2: profileId_postId ফরম্যাট
     match = url.match(/(\d+)_(\d+)/);
     if (match) return match[1] + "_" + match[2];
-
-    // case-3: fallback → বড় সংখ্যার id ধরবে
     match = url.match(/(\d{10,})/);
     if (match) return match[1];
-
   } catch (e) {
     console.error("Post ID extract error:", e);
   }
@@ -145,7 +178,7 @@ function extractPostId(url) {
 }
 
 // =======================
-// Main: Post Comment
+// Main: Post Comment (old helper; kept unchanged)
 // =======================
 async function postComment(token, postLink, comment) {
   try {
@@ -154,18 +187,12 @@ async function postComment(token, postLink, comment) {
       addLine(warnBox, `❌ Could not extract post ID from link: ${postLink}`, "warn");
       return false;
     }
-
     const url = `https://graph.facebook.com/${postId}/comments`;
-
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        access_token: token,
-        message: comment
-      })
+      body: new URLSearchParams({ access_token: token, message: comment })
     });
-
     const data = await res.json();
     if (data.id) {
       addLine(logBox, `✅ Commented → ${comment} (id: ${data.id})`, "success");
@@ -175,7 +202,6 @@ async function postComment(token, postLink, comment) {
       console.error("Response:", data);
       return false;
     }
-
   } catch (err) {
     addLine(warnBox, `⚠️ Error while commenting: ${err.message}`, "error");
     return false;
