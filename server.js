@@ -296,8 +296,8 @@ app.get("/events", (req, res) => {
 // -------------------- Admin auth (JWT + bcrypt) --------------------
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123"; // CHANGE in production
 const ADMIN_USER = {
-  username: process.env.ADMIN_USER || "admin",
-  passwordHash: bcrypt.hashSync(process.env.ADMIN_PASS || "12345", 10)
+  username: "admin",
+  passwordHash: "$2b$10$2hk7IBoOBmHv.R7jx0.a9eQ1RSxklhQ7isPqNoA3zjk8siRMAitmS" // 👉 এখানে তোমার hash বসাও
 };
 
 app.post("/admin/login", async (req, res) => {
