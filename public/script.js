@@ -1,20 +1,17 @@
-const logBox = document.getElementById("log-box");
-const startBtn = document.querySelector(".btn.start");
-const stopBtn = document.querySelector(".btn.stop");
+// settings.json থেকে header info load
+fetch("/settings")
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("version").innerText = data.version;
+    document.getElementById("author").innerText = data.author;
+    document.getElementById("team").innerText = data.team;
+    document.getElementById("country").innerText = data.country;
+  });
 
-function log(message, type="info") {
-  let prefix = "[INFO]";
-  if (type === "error") prefix = "[ERROR]";
-  if (type === "success") prefix = "[SUCCESS]";
-  logBox.textContent += `\n${prefix} ${message}`;
-  logBox.scrollTop = logBox.scrollHeight;
+// example log show function
+function addLog(msg) {
+  const logs = document.getElementById("logs");
+  const p = document.createElement("p");
+  p.innerText = msg;
+  logs.appendChild(p);
 }
-
-startBtn.addEventListener("click", () => {
-  log("Process started...");
-  // এখানে তোমার comment request logic যাবে
-});
-
-stopBtn.addEventListener("click", () => {
-  log("Process stopped!", "error");
-});
