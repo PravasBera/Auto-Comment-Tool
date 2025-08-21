@@ -6,15 +6,32 @@ body {
   padding: 0;
 }
 
-header {
-  background: linear-gradient(90deg, #7c3aed, #ec4899);
-  padding: 15px;
+.header {
+  background: linear-gradient(90deg, #a100ff, #00c2ff);
   text-align: center;
-  border-radius: 0 0 12px 12px;
+  padding: 20px;
+  border-radius: 12px;
+  color: white;
+  font-family: Arial, sans-serif;
 }
 
-header h1 {
-  margin: 5px;
+.header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.header p {
+  margin: 5px 0;
+  font-size: 16px;
+}
+
+.header .team {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffdf00;
+  text-shadow: 0 0 6px #000;
 }
 
 main {
