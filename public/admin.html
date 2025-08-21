@@ -1,142 +1,304 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="bn">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Panel</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin • Facebook Auto Comment Tool</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .login-box, .panel { max-width: 500px; margin: auto; }
-    .user { border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 5px; }
-    .pending { background: #fff3cd; }
-    .approved { background: #d4edda; }
-    .blocked { background: #f8d7da; }
-    button { margin: 2px; }
+    :root{
+      --bg:#0f172a; --card:#111827; --muted:#9ca3af; --txt:#f8fafc; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --btn:#1f2937;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;padding:16px;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    h1{margin:0 0 14px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .card{background:var(--card);border:1px solid #222;border-radius:14px;padding:14px}
+    .row{display:grid;gap:14px;grid-template-columns:repeat(12,minmax(0,1fr))}
+    .col-4{grid-column:span 4}
+    .col-8{grid-column:span 8}
+    @media (max-width:900px){.col-4,.col-8{grid-column:span 12}}
+    input,button,select,textarea{width:100%;padding:12px;border:1px solid #263041;background:#0b1220;color:var(--txt);border-radius:10px;font-size:15px}
+    button{cursor:pointer;background:var(--btn)}
+    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #2a364f;background:#0b1220;color:var(--txt);font-weight:600}
+    .btn.ok{border-color:#065f46}
+    .btn.warn{border-color:#7c5806}
+    .btn.err{border-color:#7f1d1d}
+    .btn.small{padding:8px 10px;font-size:13px}
+    .stack{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .user{background:#0b1220;border:1px solid #1f2a44;border-radius:12px;padding:12px;margin-bottom:10px}
+    .user h4{margin:0 0 6px;font-size:15px;word-break:break-all}
+    .muted{color:var(--muted);font-size:12px}
+    .tag{display:inline-block;background:#172033;border:1px solid #243147;padding:2px 8px;border-radius:999px;font-size:12px}
+    .sections{display:grid;gap:16px}
+    .sec h3{margin:0 0 10px}
+    .right{float:right}
+    .sep{height:1px;background:#1b243a;margin:10px 0}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .hide{display:none}
   </style>
 </head>
 <body>
-  <h2>Admin Panel</h2>
-
-  <!-- Login Form -->
-  <div class="login-box" id="loginBox">
-    <h3>Login</h3>
-    <input id="username" placeholder="Username"><br><br>
-    <input id="password" type="password" placeholder="Password"><br><br>
-    <button onclick="login()">Login</button>
-    <p id="loginMsg" style="color:red"></p>
+<div class="wrap">
+  <div class="topbar">
+    <h1>Admin Panel</h1>
+    <div class="stack">
+      <span id="adminUser" class="muted"></span>
+      <button class="btn small" id="logoutBtn">Logout</button>
+    </div>
   </div>
 
-  <!-- Panel -->
-  <div class="panel" id="panel" style="display:none">
-    <button onclick="logout()">Logout</button>
-
-    <h3>Pending Users</h3>
-    <div id="pending"></div>
-
-    <h3>Approved Users</h3>
-    <div id="approved"></div>
-
-    <h3>Blocked Users</h3>
-    <div id="blocked"></div>
+  <!-- Login card -->
+  <div id="loginCard" class="card">
+    <div class="row">
+      <div class="col-4">
+        <label>Username</label>
+        <input id="lu" placeholder="admin" />
+      </div>
+      <div class="col-4">
+        <label>Password</label>
+        <input id="lp" type="password" placeholder="••••••••" />
+      </div>
+      <div class="col-4" style="display:flex;align-items:flex-end">
+        <button class="btn ok" id="loginBtn">Login</button>
+      </div>
+    </div>
+    <p id="loginMsg" class="muted" style="margin-top:8px"></p>
   </div>
+
+  <!-- Panel card -->
+  <div id="panelCard" class="card hide">
+    <div class="row">
+      <div class="col-4">
+        <h3 style="margin-top:0">Quick Actions</h3>
+        <div class="stack" style="margin-bottom:10px">
+          <input id="days" type="number" min="0" placeholder="Approve for N days (optional)" />
+          <button class="btn small ok" id="approveDaysBtn">Approve (days)</button>
+          <button class="btn small ok" id="lifetimeBtn">Lifetime</button>
+        </div>
+        <div class="stack" style="margin-bottom:10px">
+          <input id="expiryAt" placeholder="Set expiry (ISO or epoch ms)" />
+          <button class="btn small warn" id="setExpiryBtn">Set Expiry</button>
+        </div>
+        <div class="stack">
+          <button class="btn small err" id="blockBtn">Block</button>
+          <button class="btn small" id="unblockBtn">Unblock</button>
+          <button class="btn small" id="reloadBtn">Reload</button>
+        </div>
+        <p class="muted" style="margin-top:10px">নিচে যেকোনো ইউজার কার্ডে ট্যাপ করলে সেটাই “selected” হবে। উপরের অ্যাকশনগুলো selected user-এর উপর চলবে।</p>
+        <div id="selectedUser" class="tag" style="margin-top:6px">No user selected</div>
+      </div>
+
+      <div class="col-8">
+        <div class="sections">
+          <div class="sec">
+            <h3>Pending Users</h3>
+            <div id="pending"></div>
+          </div>
+          <div class="sep"></div>
+          <div class="sec">
+            <h3>Approved Users</h3>
+            <div id="approved"></div>
+          </div>
+          <div class="sep"></div>
+          <div class="sec">
+            <h3>Blocked Users</h3>
+            <div id="blocked"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
 
 <script>
-// token save করো login এর পর
-function saveToken(t){ localStorage.setItem("token", t); }
-function getToken(){ return localStorage.getItem("token"); }
-function clearToken(){ localStorage.removeItem("token"); }
+  // ---------- helpers ----------
+  const $ = (id)=>document.getElementById(id);
+  const loginCard = $("loginCard");
+  const panelCard = $("panelCard");
+  const adminUserEl = $("adminUser");
+  const selectedUserEl = $("selectedUser");
+  let TOKEN = localStorage.getItem("token") || null;
+  let SELECTED = null;
 
-// generic API helper
-async function api(path, body){
-  const token = getToken();
-  return fetch(path, {
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization":"Bearer " + token
-    },
-    body: JSON.stringify(body || {})
-  }).then(r=>r.json());
-}
-
-// GET helper (users list)
-async function apiGet(path){
-  const token = getToken();
-  return fetch(path, {
-    headers:{ "Authorization":"Bearer " + token }
-  }).then(r=>r.json());
-}
-
-// login
-async function login(){
-  const u=document.getElementById("username").value;
-  const p=document.getElementById("password").value;
-  const res=await fetch("/admin/login",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({username:u,password:p})
-  }).then(r=>r.json());
-  if(res.token){
-    saveToken(res.token);
-    document.getElementById("loginBox").style.display="none";
-    document.getElementById("panel").style.display="block";
-    loadUsers();
-  }else{
-    document.getElementById("loginMsg").innerText="Login failed";
+  function setSelected(u){
+    SELECTED = u;
+    selectedUserEl.textContent = u ? `Selected: ${u.username}` : "No user selected";
   }
-}
 
-function logout(){
-  clearToken();
-  document.getElementById("panel").style.display="none";
-  document.getElementById("loginBox").style.display="block";
-}
+  function headersJSON(){
+    const h = { "Content-Type":"application/json" };
+    if (TOKEN) h["Authorization"] = "Bearer " + TOKEN;
+    return h;
+  }
 
-// user actions
-async function approve(username){ await api("/admin/approve",{username}); loadUsers(); }
-async function lifetime(username){ await api("/admin/approve",{username,expiry:null}); loadUsers(); }
-async function setExpiry(username){
-  const days=prompt("Enter expiry in days:");
-  if(days){
-    const expiry=Date.now() + (parseInt(days)*24*60*60*1000);
-    await api("/admin/expire",{username,expiry});
+  async function apiGET(path){
+    const r = await fetch(path, { headers: headersJSON() });
+    if (r.status === 401) throw new Error("unauth");
+    return r.json();
+  }
+  async function apiPOST(path, body){
+    const r = await fetch(path, { method:"POST", headers: headersJSON(), body: JSON.stringify(body||{}) });
+    if (r.status === 401) throw new Error("unauth");
+    return r.json();
+  }
+
+  function fmtExpiry(v){
+    if (!v) return "Lifetime";
+    const n = Number(v);
+    if (!Number.isFinite(n)) return String(v);
+    try { return new Date(n).toLocaleString(); } catch { return String(v); }
+  }
+
+  function normalizeUsers(db){
+    const arr = Array.isArray(db) ? db : Object.values(db||{});
+    // ensure fields
+    return arr.map(u => ({
+      username: u.username || u.sessionId || u.id || "",
+      status: u.status || (u.blocked ? "blocked" : "approved"),
+      blocked: !!u.blocked || u.status === "blocked",
+      expiry: (u.expiry ?? null),
+      notes: u.notes || "",
+      createdAt: u.createdAt || null,
+      updatedAt: u.updatedAt || null
+    }));
+  }
+
+  function renderLists(users){
+    const P = $("pending"), A = $("approved"), B = $("blocked");
+    P.innerHTML = A.innerHTML = B.innerHTML = "";
+    const mk = (u) => {
+      const div = document.createElement("div");
+      div.className = "user";
+      div.innerHTML = `
+        <h4>${u.username}</h4>
+        <div class="stack" style="margin-bottom:8px">
+          <span class="tag">${u.status}${u.blocked ? " (blocked)" : ""}</span>
+          <span class="tag">Expiry: ${fmtExpiry(u.expiry)}</span>
+          ${u.notes ? `<span class="tag">${u.notes}</span>` : ""}
+        </div>
+        <div class="muted">
+          ${u.createdAt ? "Created: " + new Date(u.createdAt).toLocaleString() : ""} 
+          ${u.updatedAt ? " • Updated: " + new Date(u.updatedAt).toLocaleString() : ""}
+        </div>
+      `;
+      div.onclick = ()=> setSelected(u);
+      return div;
+    };
+
+    users.forEach(u=>{
+      if (u.blocked || u.status === "blocked") B.appendChild(mk(u));
+      else if (u.status === "pending") P.appendChild(mk(u));
+      else A.appendChild(mk(u));
+    });
+  }
+
+  async function loadUsers(){
+    try{
+      const db = await apiGET("/admin/users");
+      renderLists(normalizeUsers(db));
+    }catch(e){
+      if (e.message === "unauth") {
+        TOKEN = null;
+        localStorage.removeItem("token");
+        showLogin();
+      } else {
+        alert("Failed to load users.");
+      }
+    }
+  }
+
+  function showLogin(){
+    loginCard.classList.remove("hide");
+    panelCard.classList.add("hide");
+    adminUserEl.textContent = "";
+    setSelected(null);
+  }
+  function showPanel(){
+    loginCard.classList.add("hide");
+    panelCard.classList.remove("hide");
+    adminUserEl.textContent = "Logged in";
     loadUsers();
   }
-}
-async function block(username){ await api("/admin/block",{username}); loadUsers(); }
-async function unblock(username){ await api("/admin/unblock",{username}); loadUsers(); }
 
-// load users
-async function loadUsers(){
-  const data=await apiGet("/admin/users");
-  const pending=document.getElementById("pending");
-  const approved=document.getElementById("approved");
-  const blocked=document.getElementById("blocked");
-  pending.innerHTML=""; approved.innerHTML=""; blocked.innerHTML="";
-  data.forEach(u=>{
-    const div=document.createElement("div");
-    div.className="user "+u.status;
-    div.innerHTML=`
-      <b>${u.username}</b><br>
-      Status: ${u.status}<br>
-      Expiry: ${u.expiry || "Lifetime"}<br>
-      <button onclick="approve('${u.username}')">Approve</button>
-      <button onclick="lifetime('${u.username}')">Lifetime</button>
-      <button onclick="setExpiry('${u.username}')">Set Expiry</button>
-      <button onclick="block('${u.username}')">Block</button>
-      <button onclick="unblock('${u.username}')">Unblock</button>
-    `;
-    if(u.status==="pending") pending.appendChild(div);
-    else if(u.status==="approved") approved.appendChild(div);
-    else if(u.status==="blocked") blocked.appendChild(div);
-  });
-}
+  // ---------- login/logout ----------
+  $("loginBtn").onclick = async ()=>{
+    const username = $("lu").value.trim() || "admin";
+    const password = $("lp").value;
+    $("loginMsg").textContent = "Logging in…";
+    try{
+      const r = await fetch("/admin/login", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const j = await r.json();
+      if (j.ok && j.token){
+        TOKEN = j.token;
+        localStorage.setItem("token", TOKEN);
+        $("loginMsg").textContent = "Success.";
+        showPanel();
+      } else {
+        $("loginMsg").textContent = j.message || "Login failed";
+      }
+    }catch{
+      $("loginMsg").textContent = "Network error";
+    }
+  };
 
-// auto-login if token exists
-if(getToken()){
-  document.getElementById("loginBox").style.display="none";
-  document.getElementById("panel").style.display="block";
-  loadUsers();
-}
+  $("logoutBtn").onclick = ()=>{
+    TOKEN = null;
+    localStorage.removeItem("token");
+    showLogin();
+  };
+
+  // ---------- actions using selected user ----------
+  $("reloadBtn").onclick = loadUsers;
+
+  $("lifetimeBtn").onclick = async ()=>{
+    if (!SELECTED) return alert("Select a user first.");
+    const j = await apiPOST("/admin/approve", { username: SELECTED.username, expiry: null });
+    if (!j.ok) return alert(j.message||"Failed");
+    await loadUsers();
+  };
+
+  $("approveDaysBtn").onclick = async ()=>{
+    if (!SELECTED) return alert("Select a user first.");
+    const days = Number($("days").value || 0);
+    if (!days) return alert("Enter days > 0");
+    const expiry = Date.now() + days*24*60*60*1000;
+    const j = await apiPOST("/admin/approve", { username: SELECTED.username, expiry });
+    if (!j.ok) return alert(j.message||"Failed");
+    await loadUsers();
+  };
+
+  $("setExpiryBtn").onclick = async ()=>{
+    if (!SELECTED) return alert("Select a user first.");
+    const v = $("expiryAt").value.trim();
+    if (!v) return alert("Put an ISO date or epoch ms.");
+    const expiry = isNaN(Number(v)) ? Date.parse(v) : Number(v);
+    if (!expiry || !Number.isFinite(expiry)) return alert("Invalid date");
+    const j = await apiPOST("/admin/expire", { username: SELECTED.username, expiry });
+    if (!j.ok) return alert(j.message||"Failed");
+    await loadUsers();
+  };
+
+  $("blockBtn").onclick = async ()=>{
+    if (!SELECTED) return alert("Select a user first.");
+    const j = await apiPOST("/admin/block", { username: SELECTED.username });
+    if (!j.ok) return alert(j.message||"Failed");
+    await loadUsers();
+  };
+
+  $("unblockBtn").onclick = async ()=>{
+    if (!SELECTED) return alert("Select a user first.");
+    const j = await apiPOST("/admin/unblock", { username: SELECTED.username });
+    if (!j.ok) return alert(j.message||"Failed");
+    await loadUsers();
+  };
+
+  // ---------- boot ----------
+  if (TOKEN) showPanel(); else showLogin();
 </script>
 </body>
 </html>
