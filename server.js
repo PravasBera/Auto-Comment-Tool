@@ -264,6 +264,11 @@ app.get("/session", (req, res) => {
   res.json({ id: sessionId, status: user.status, expiry: user.expiry, blocked: user.blocked });
 });
 
+// ✅ Serve Admin Panel
+app.get("/admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
 // Admin APIs
 app.get("/admin/users", (_req, res) => {
   res.json(loadUsers());
