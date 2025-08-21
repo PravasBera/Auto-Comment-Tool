@@ -1,5 +1,5 @@
 // ==========================
-// Facebook Auto Comment Tool - v1.6 (Name + Comment shown)
+// Facebook Auto Comment Tool - v1.5 (Name + Comment shown)
 // ==========================
 
 const stats = {
