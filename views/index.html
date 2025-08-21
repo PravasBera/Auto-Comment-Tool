@@ -1,158 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Facebook Auto Comment Tool</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f3f4f6;
-    }
-
-    /* Header */
-    .header {
-      background: linear-gradient(90deg, #9333ea, #ec4899);
-      color: white;
-      text-align: center;
-      padding: 20px 10px;
-      border-bottom-left-radius: 12px;
-      border-bottom-right-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    .header h1 { font-size: 1.6rem; margin: 0; }
-    .header p { font-size: 0.85rem; margin-top: 5px; }
-    .team { margin-top: 6px; font-weight: bold; color: #fff700; }
-
-    /* Container */
-    .container { max-width: 800px; margin: 20px auto; padding: 15px; }
-
-    /* Card */
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .card h2 { font-size: 1.2rem; margin-bottom: 10px; color: #4f46e5; }
-
-    /* Inputs */
-    .input-group { margin-bottom: 15px; }
-    .input-group label { display: block; margin-bottom: 5px; font-weight: 600; }
-    .input-group input, .input-group textarea {
-      width: 100%; padding: 10px; border: 1px solid #d1d5db;
-      border-radius: 8px; outline: none; transition: 0.2s;
-    }
-    .input-group input:focus, .input-group textarea:focus {
-      border-color: #9333ea; box-shadow: 0 0 0 2px rgba(147,51,234,0.3);
-    }
-
-    button {
-      background: linear-gradient(90deg, #9333ea, #ec4899);
-      color: white; border: none; padding: 10px 20px;
-      border-radius: 8px; font-weight: 600; cursor: pointer;
-    }
-
-    /* Logs */
-    .logs {
-      height: 200px; overflow-y: auto; background: #f9fafb;
-      border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px;
-      font-size: 0.9rem; line-height: 1.4;
-    }
-
-    /* Log Colors */
-    .success { color: #16a34a; font-weight: 600; }
-    .error { color: #dc2626; font-weight: 600; }
-    .warning { color: #ca8a04; font-weight: 600; }
-
-    /* Footer */
-    .footer { text-align: center; padding: 15px; font-size: 0.8rem; color: #6b7280; }
-  </style>
+  <meta charset="utf-8" />
+  <title>Facebook Auto Comment Tool v1.6</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-
-  <!-- Header -->
-  <div class="header">
+  <header class="app-header">
     <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-    <p>👤 Author: PRAVAS BERA | 🔄 Version: 1.5 | 🌍 Country: INDIA</p>
-    <div class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</div>
-  </div>
+    <p>
+      👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp;
+      🌀 Version: <b>1.6</b> &nbsp;|&nbsp;
+      🌍 Country: <b>INDIA</b>
+    </p>
+    <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+  </header>
 
-  <!-- Main Container -->
-  <div class="container">
+  <main class="container">
+    <section class="card">
+      <h2>Upload Files</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <label>Upload Tokens (token.txt)</label>
+        <input type="file" name="tokens" accept=".txt" required />
 
-    <!-- Inputs -->
-    <div class="card">
-      <h2>Enter Details</h2>
-      <div class="input-group">
-        <label>Post ID</label>
-        <input type="text" id="postId" placeholder="Enter Facebook Post ID">
-      </div>
-      <div class="input-group">
-        <label>Access Token</label>
-        <input type="text" id="token" placeholder="Enter Access Token">
-      </div>
-      <div class="input-group">
-        <label>Comment Text</label>
-        <textarea id="comment" rows="3" placeholder="Type your comment here..."></textarea>
-      </div>
-      <button onclick="startComment()">Start Commenting</button>
-    </div>
+        <label>Upload Comments (comment.txt)</label>
+        <input type="file" name="comments" accept=".txt" required />
 
-    <!-- Logs -->
-    <div class="card">
-      <h2>Comment Logs</h2>
-      <div class="logs" id="logBox"></div>
-    </div>
+        <label>Upload Post Links (postlink.txt)</label>
+        <input type="file" name="postlinks" accept=".txt" />
 
-  </div>
+        <button type="submit">Upload</button>
+      </form>
+    </section>
 
-  <!-- Footer -->
-  <div class="footer">
+    <section class="card">
+      <h2>Manual Inputs</h2>
+      <form id="startForm">
+        <label>Single Post ID (optional)</label>
+        <input name="postId" type="text" placeholder="e.g. 123456789_987654321 or 1234567890" />
+
+        <div class="grid-3">
+          <div>
+            <label>Post Link 1</label>
+            <input name="link1" type="text" placeholder="Paste link (optional)" />
+          </div>
+          <div>
+            <label>Post Link 2</label>
+            <input name="link2" type="text" placeholder="Paste link (optional)" />
+          </div>
+          <div>
+            <label>Post Link 3</label>
+            <input name="link3" type="text" placeholder="Paste link (optional)" />
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div>
+            <label>Delay (seconds)</label>
+            <input name="delay" type="number" min="0" value="5" />
+          </div>
+          <div>
+            <label>Limit (0 = unlimited)</label>
+            <input name="limit" type="number" min="0" value="0" />
+          </div>
+          <div class="chk">
+            <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit">▶ Start</button>
+          <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Live Log</h2>
+      <div id="logBox" class="logs"></div>
+    </section>
+
+    <section class="card">
+      <h2>Warnings & Summary</h2>
+      <div id="warnBox" class="logs"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
     © 2025 | Facebook Auto Comment Tool | Developed by PRAVAS BERA
-  </div>
+  </footer>
 
-  <!-- JS -->
-  <script>
-    function addLog(message, type="normal") {
-      const logBox = document.getElementById("logBox");
-      const time = new Date().toLocaleTimeString();
-      const div = document.createElement("div");
-      div.className = type;
-      div.innerHTML = `[${time}] ${message}`;
-      logBox.appendChild(div);
-      logBox.scrollTop = logBox.scrollHeight;
-    }
-
-    function startComment() {
-      let postId = document.getElementById("postId").value.trim();
-      let token = document.getElementById("token").value.trim();
-      let comment = document.getElementById("comment").value.trim();
-
-      // Dummy Validation for Demo
-      if (!token) {
-        addLog("Invalid Token ❌", "error");
-        return;
-      }
-      if (!postId) {
-        addLog("Wrong Post ID ⚠️", "warning");
-        return;
-      }
-      if (token === "locked") {
-        addLog("ID Locked 🚫", "error");
-        return;
-      }
-      if (token === "blocked") {
-        addLog("ID Comment Blocked ⛔", "warning");
-        return;
-      }
-
-      // Success
-      addLog("Comment Posted Successfully ✅", "success");
-    }
-  </script>
-
+  <script src="/script.js"></script>
 </body>
 </html>
