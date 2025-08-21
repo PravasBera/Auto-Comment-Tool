@@ -1,223 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Facebook Auto Comment Tool</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0f172a; --card:#111827; --muted:#9ca3af; --text:#e5e7eb;
-    --accent:#8b5cf6; --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
-  .container{max-width:1050px;margin:18px auto;padding:0 14px}
-  .banner{background:linear-gradient(90deg,#7c3aed,#06b6d4);padding:16px 18px;border-radius:16px; display:flex;align-items:center;gap:12px}
-  .title{font-size:clamp(20px,5vw,28px);font-weight:800;letter-spacing:.5px}
-  .meta{font-size:13px;color:#ecfeff}
-  .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}
-  @media (min-width:900px){.grid{grid-template-columns:1.1fr .9fr}}
-  .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:14px}
-  h3{margin:0 0 12px;font-size:16px}
-  label{display:block;font-size:13px;margin:12px 0 6px;color:var(--muted)}
-  input[type="text"],input[type="number"]{
-    width:100%;padding:10px 12px;border-radius:10px;border:1px solid #374151;background:#0b1220;color:var(--text);
-  }
-  .row{display:grid;grid-template-columns:1fr;gap:10px}
-  @media (min-width:600px){.row{grid-template-columns:repeat(3,1fr)}}
-  .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-  .start{background:var(--ok);color:#052e16}
-  .stop{background:var(--bad);color:#fff}
-  .muted{font-size:12px;color:var(--muted);margin-top:10px}
-  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-  @media (min-width:600px){.stats{grid-template-columns:repeat(3,1fr)}}
-  @media (min-width:900px){.stats{grid-template-columns:repeat(4,1fr)}}
-  .stat{background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px}
-  .stat b{font-size:18px;display:block;margin-top:4px}
-  .feed{margin-top:12px;max-height:55vh;overflow:auto;display:flex;flex-direction:column-reverse}
-  .log{padding:8px 10px;border-radius:8px;margin:6px 0;background:#0b1220;border:1px solid #1f2937;font-size:13px}
-  .ok{border-color:#14532d}
-  .warnLog{border-color:#854d0e}
-  .bad{border-color:#7f1d1d}
-  .flex{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-  .file{display:flex;align-items:center;gap:8px}
-  .chip{display:inline-block;background:#0b1220;border:1px solid #1f2937;border-radius:999px;padding:4px 10px;font-size:12px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Facebook Auto Comment Tool</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="header">
-  <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-  <p>👤 Author: <b>PRAVAS BERA</b> | 🔄 Version: <b>1.5</b> | 🌍 Country: <b>INDIA</b></p>
-  <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
-</div>
+  <!-- Header -->
+  <header class="app-header">
+    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+    <div class="header-meta">
+      <span>👨 Author: <b>PRAVAS BERA</b></span>
+      <span>🛠️ Version: <b>1.5</b></span>
+      <span>🌍 Country: <b>INDIA</b></span>
+    </div>
+    <p class="tagline">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+  </header>
 
-  <div class="grid">
-    <!-- Setup -->
-    <div class="card">
-      <h3>Setup</h3>
+  <!-- Setup Section -->
+  <section class="card">
+    <h2>Setup</h2>
+    <label>Post IDs (comma separated)</label>
+    <input type="text" placeholder="12345_67890, 11111_22222">
 
-      <label>Post IDs (comma separated)</label>
-      <input id="postIds" type="text" placeholder="12345_67890, 11111_22222">
-
-      <div class="flex" style="margin-top:8px">
-        <div class="file"><input id="postsFile" type="file" accept=".txt"><span class="chip">posts.txt</span></div>
-        <div class="file"><input id="linksFile" type="file" accept=".txt"><span class="chip">links.txt</span></div>
-        <div class="file"><input id="commentsFile" type="file" accept=".txt"><span class="chip">comments.txt</span></div>
-        <div class="file"><input id="tokensFile" type="file" accept=".txt"><span class="chip">tokens.txt</span></div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label>Post Link 1</label>
-          <input id="postLink1" type="text" placeholder="https://www.facebook.com/...">
-        </div>
-        <div>
-          <label>Post Link 2</label>
-          <input id="postLink2" type="text" placeholder="https://www.facebook.com/...">
-        </div>
-        <div>
-          <label>Post Link 3</label>
-          <input id="postLink3" type="text" placeholder="https://www.facebook.com/...">
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <div>
-          <label>Comment Delay (seconds)</label>
-          <input id="delay" type="number" value="5" min="0">
-        </div>
-        <div>
-          <label>Max Comments (success count)</label>
-          <input id="maxSuccess" type="number" value="0" min="0" placeholder="0 = unlimited">
-        </div>
-      </div>
-
-      <div class="flex">
-        <button id="startBtn" class="btn start">🚀 Start</button>
-        <button id="stopBtn" class="btn stop">⛔ Stop</button>
-      </div>
-
-      <div class="muted">
-        Use your own tokens & posts; follow Facebook rules. Educational/legitimate automation only.
-      </div>
+    <div class="file-inputs">
+      <label><input type="file"> posts.txt</label>
+      <label><input type="file"> links.txt</label>
+      <label><input type="file"> comments.txt</label>
+      <label><input type="file"> tokens.txt</label>
     </div>
 
-    <!-- Live -->
-    <div class="card">
-      <h3>Live Feed & Stats</h3>
-      <div class="stats">
-        <div class="stat"><span>Success</span><b id="s-success">0</b></div>
-        <div class="stat"><span>Failed</span><b id="s-failed">0</b></div>
-        <div class="stat"><span>Bad Posts</span><b id="s-badpost">0</b></div>
-        <div class="stat"><span>Token Invalid</span><b id="s-invalid">0</b></div>
-        <div class="stat"><span>Token Expired</span><b id="s-expired">0</b></div>
-        <div class="stat"><span>Blocked/Perm</span><b id="s-blocked">0</b></div>
-        <div class="stat"><span>Perm Missing</span><b id="s-perm">0</b></div>
-        <div class="stat"><span>Rate Limit</span><b id="s-rate">0</b></div>
-      </div>
-      <div class="feed" id="feed"></div>
+    <label>Post Link 1</label>
+    <input type="url" placeholder="https://www.facebook.com/...">
+
+    <label>Post Link 2</label>
+    <input type="url" placeholder="https://www.facebook.com/...">
+
+    <label>Post Link 3</label>
+    <input type="url" placeholder="https://www.facebook.com/...">
+
+    <label>Comment Delay (seconds)</label>
+    <input type="number" value="5">
+
+    <label>Max Comments (success count)</label>
+    <input type="number" value="0">
+
+    <div class="actions">
+      <button class="btn start">🚀 Start</button>
+      <button class="btn stop">⛔ Stop</button>
     </div>
-  </div>
-</div>
+  </section>
 
-<script>
-  const feed = document.getElementById('feed');
-  const stats = {
-    success: 0, failed: 0, badpost: 0,
-    invalid: 0, expired: 0, blocked: 0, perm: 0, rate: 0
-  };
-  const sid = () => Math.random().toString(36).slice(2);
+  <!-- Logs Section -->
+  <section class="card">
+    <h2>Live Logs</h2>
+    <pre id="log-box">[INFO] Ready to start...</pre>
+  </section>
 
-  function addLog(html, cls='') {
-    const div = document.createElement('div');
-    div.className = `log ${cls}`;
-    div.innerHTML = html;
-    feed.prepend(div);
-  }
-  function upd() {
-    for (const k in stats) {
-      const el = document.getElementById('s-'+k);
-      if (el) el.textContent = stats[k];
-    }
-  }
-
-  let es, sessionId = null;
-
-  function toFormData() {
-    const fd = new FormData();
-    fd.append('sessionId', sessionId);
-    fd.append('postIds', document.getElementById('postIds').value || '');
-    fd.append('postLink1', document.getElementById('postLink1').value || '');
-    fd.append('postLink2', document.getElementById('postLink2').value || '');
-    fd.append('postLink3', document.getElementById('postLink3').value || '');
-    fd.append('delay', document.getElementById('delay').value || '0');
-    fd.append('maxSuccess', document.getElementById('maxSuccess').value || '0');
-
-    const files = {
-      commentsFile: 'commentsFile',
-      tokensFile: 'tokensFile',
-      postsFile: 'postsFile',
-      linksFile: 'linksFile'
-    };
-    for (const [id,name] of Object.entries(files)) {
-      const f = document.getElementById(id);
-      if (f && f.files && f.files[0]) fd.append(name, f.files[0]);
-    }
-    return fd;
-  }
-
-  function openStream() {
-    es = new EventSource(`/api/stream?id=${sessionId}`);
-    es.addEventListener('success', e => {
-      const d = JSON.parse(e.data);
-      stats.success++; upd();
-      addLog(`✅ <b>${d.tokenName}</b> → <span class="chip">${d.postId}</span><br>“${d.comment}”`, 'ok');
-    });
-    const bump = (k, cls, label) => (e) => {
-      const d = JSON.parse(e.data); stats[k]++; upd();
-      addLog(`⚠️ <b>${d.tokenName||'-'}</b> → <span class="chip">${d.postId||'-'}</span> <b>${label}</b><br>${d.message||d.msg||''}`, cls);
-    };
-    es.addEventListener('failed', bump('failed','bad','Failed'));
-    es.addEventListener('badpost', bump('badpost','bad','Bad Post'));
-    es.addEventListener('invalid', bump('invalid','bad','Token Invalid'));
-    es.addEventListener('expired', bump('expired','bad','Token Expired'));
-    es.addEventListener('blocked', bump('blocked','warnLog','Temporarily Blocked'));
-    es.addEventListener('perm',    bump('perm','warnLog','Missing Permission'));
-    es.addEventListener('ratelimit',bump('rate','warnLog','Rate/Service Limit'));
-    es.addEventListener('warn', e => addLog('⚠️ '+JSON.parse(e.data).msg, 'warnLog'));
-    es.addEventListener('token_error', e => {
-      const d = JSON.parse(e.data);
-      addLog(`⚠️ Token ${d.tokenIndex}: ${d.msg} (code:${d.code || '-'})`, 'warnLog');
-    });
-    es.addEventListener('stopped', e => addLog('⛔ Stopped by user','warnLog'));
-    es.addEventListener('done', e => addLog('🏁 '+JSON.parse(e.data).msg,'ok'));
-  }
-
-  document.getElementById('startBtn').onclick = async () => {
-    // reset
-    Object.keys(stats).forEach(k => stats[k]=0); upd(); feed.innerHTML='';
-    sessionId = sid(); openStream();
-    const r = await fetch('/api/start', { method:'POST', body: toFormData() });
-    const j = await r.json().catch(()=>({}));
-    if (!j.ok) {
-      addLog('❌ '+(j.msg||'Failed to start'),'bad');
-      if (es) es.close();
-    } else {
-      addLog(`▶️ Started • posts:${j.posts} • comments:${j.comments} • tokens:${j.tokens}`,'ok');
-    }
-  };
-
-  document.getElementById('stopBtn').onclick = async () => {
-    if (!sessionId) return;
-    await fetch('/api/stop', {
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({ id: sessionId })
-    });
-  };
-</script>
+  <script src="script.js"></script>
 </body>
 </html>
