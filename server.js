@@ -1,22 +1,109 @@
+// server.js — Auto Comment Tool v1.5
+// (c) PRAVAS BERA — Use responsibly and within Facebook TOS.
+
 const express = require("express");
-const multer = require("multer");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 
 const app = express();
-const upload = multer({ dest: "uploads/" });
+const PORT = process.env.PORT || 3000;
 
+// ---------- Static ----------
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- Helpers ---
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const cleanLines = (text) =>
-  text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+// ---------- Upload (multer) ----------
+const upload = multer({ dest: path.join(__dirname, "uploads") });
 
-// --- Core worker: comment on a post ---
-async function postComment({ postId, message, token }) {
+// ---------- SSE (live alerts) ----------
+const sseClients = new Set();
+function sseSend(event, data) {
+  const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(line); } catch {}
+  }
+}
+app.get("/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  sseClients.add(res);
+  // greet
+  res.write(`event: hello\ndata: {}\n\n`);
+  req.on("close", () => sseClients.delete(res));
+});
+
+// ---------- Helpers ----------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const cleanLines = (txt) =>
+  (txt || "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+function parseIdsFromCsv(input) {
+  return (input || "")
+    .split(/[, \t\r\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// fb url => {userId}_{postId}
+function extractPostIdFromUrl(url) {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+
+    // /{userId}/posts/{postId}
+    const idx = parts.findIndex((p) => p === "posts");
+    if (idx > 0 && parts[idx + 1]) {
+      const userId = parts[idx - 1];
+      const postId = parts[idx + 1].replace(/[^0-9]/g, "");
+      if (/^\d+$/.test(userId) && /^\d+$/.test(postId)) {
+        return `${userId}_${postId}`;
+      }
+    }
+
+    // /groups/{groupId}/posts/{postId}
+    const g = parts.findIndex((p) => p === "groups");
+    if (g >= 0 && parts[g + 1] && parts.includes("posts")) {
+      const groupId = parts[g + 1];
+      const pIdx = parts.findIndex((p) => p === "posts");
+      const postId = parts[pIdx + 1]?.replace(/[^0-9]/g, "");
+      if (/^\d+$/.test(groupId) && /^\d+$/.test(postId)) {
+        return `${groupId}_${postId}`;
+      }
+    }
+
+    // story_fbid / fbid fallback
+    const fbid = u.searchParams.get("story_fbid") || u.searchParams.get("fbid");
+    const id = u.searchParams.get("id");
+    if (fbid && id && /^\d+$/.test(fbid) && /^\d+$/.test(id)) {
+      return `${id}_${fbid}`;
+    }
+  } catch {}
+  return null;
+}
+
+async function fbMe(token) {
+  const url = "https://graph.facebook.com/v17.0/me?fields=name";
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const j = await res.json();
+  if (!res.ok || j.error) {
+    const msg = j?.error?.message || `HTTP ${res.status}`;
+    const code = j?.error?.code;
+    const sub = j?.error?.error_subcode;
+    throw Object.assign(new Error(msg), { code, sub });
+  }
+  return j; // {id, name}
+}
+
+async function fbComment(postId, message, token) {
   const url = `https://graph.facebook.com/v17.0/${encodeURIComponent(postId)}/comments`;
   const res = await fetch(url, {
     method: "POST",
@@ -26,74 +113,227 @@ async function postComment({ postId, message, token }) {
     },
     body: new URLSearchParams({ message }),
   });
-  const json = await res.json();
-  if (!res.ok || json.error) {
-    const msg = json?.error?.message || `HTTP ${res.status}`;
-    throw new Error(msg);
+  const j = await res.json();
+  if (!res.ok || j.error) {
+    const err = j?.error || {};
+    const e = Object.assign(new Error(err.message || `HTTP ${res.status}`), {
+      code: err.code,
+      sub: err.error_subcode,
+      type: err.type,
+    });
+    throw e;
   }
-  return json;
+  return j; // {id}
 }
 
-// --- Upload handler ---
+function classifyFbError(e) {
+  // returns {kind,label}
+  const code = Number(e.code || 0);
+  const sub = Number(e.sub || 0);
+
+  if (code === 190) {
+    if (sub === 463 || sub === 467) return { kind: "token_expired", label: "Token expired" };
+    return { kind: "token_invalid", label: "Token invalid" };
+  }
+  if (code === 368) return { kind: "temporary_block", label: "Temporarily blocked (368)" };
+  if (code === 200 || code === 10) return { kind: "permission", label: "Permission denied" };
+  if (code === 100) return { kind: "bad_post", label: "Invalid post id/link" };
+  return { kind: "unknown", label: "Unknown error" };
+}
+
+// ---------- Job state ----------
+let currentJob = null;
+
+// ---------- Start ----------
 app.post(
-  "/upload",
+  "/start",
   upload.fields([
-    { name: "posts", maxCount: 1 },
-    { name: "comments", maxCount: 1 },
-    { name: "tokens", maxCount: 1 }, // NEW: token.txt
+    { name: "postFile", maxCount: 1 },
+    { name: "linksFile", maxCount: 1 },
+    { name: "commentsFile", maxCount: 1 },
+    { name: "tokensFile", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
-      if (!req.files?.posts?.[0] || !req.files?.comments?.[0] || !req.files?.tokens?.[0]) {
-        return res.status(400).json({ error: "posts.txt, comments.txt এবং token.txt লাগবে" });
+      if (currentJob && !currentJob.done) {
+        return res.status(409).json({ error: "Job already running. Stop first." });
       }
 
-      const postsText = fs.readFileSync(req.files.posts[0].path, "utf-8");
-      const commentsText = fs.readFileSync(req.files.comments[0].path, "utf-8");
-      const tokensText = fs.readFileSync(req.files.tokens[0].path, "utf-8");
+      // form values
+      const delaySec = Math.max(0, parseInt(req.body.delaySec || "0", 10));
+      const maxCount = Math.max(0, parseInt(req.body.maxCount || "0", 10));
 
-      let postIds = cleanLines(postsText);
-      let comments = cleanLines(commentsText);
-      let tokens = cleanLines(tokensText);
+      // ----- collect post IDs -----
+      let postIds = [];
 
-      if (postIds.length === 0) return res.status(400).json({ error: "posts.txt is empty" });
+      // from text box
+      postIds.push(...parseIdsFromCsv(req.body.postIds));
+
+      // from post file
+      if (req.files?.postFile?.[0]) {
+        const txt = fs.readFileSync(req.files.postFile[0].path, "utf-8");
+        postIds.push(...cleanLines(txt));
+      }
+
+      // from 3 link inputs
+      ["link1", "link2", "link3"].forEach((k) => {
+        const link = (req.body[k] || "").trim();
+        if (link) {
+          const id = extractPostIdFromUrl(link);
+          if (id) postIds.push(id);
+        }
+      });
+
+      // from links file
+      if (req.files?.linksFile?.[0]) {
+        const txt = fs.readFileSync(req.files.linksFile[0].path, "utf-8");
+        cleanLines(txt).forEach((ln) => {
+          const id = extractPostIdFromUrl(ln);
+          if (id) postIds.push(id);
+        });
+      }
+
+      postIds = [...new Set(postIds.filter(Boolean))]; // unique
+
+      // comments
+      if (!req.files?.commentsFile?.[0])
+        return res.status(400).json({ error: "comments.txt required" });
+      const comments = cleanLines(fs.readFileSync(req.files.commentsFile[0].path, "utf-8"));
       if (comments.length === 0) return res.status(400).json({ error: "comments.txt is empty" });
-      if (tokens.length === 0) return res.status(400).json({ error: "token.txt is empty" });
 
-      const delaySec = 5; // fixed delay, চাইলে form থেকে নিতে পারো
-      const items = [];
-      let success = 0, failed = 0, sent = 0;
+      // tokens
+      if (!req.files?.tokensFile?.[0])
+        return res.status(400).json({ error: "tokens.txt required" });
+      let tokens = cleanLines(fs.readFileSync(req.files.tokensFile[0].path, "utf-8"));
+      if (tokens.length === 0) return res.status(400).json({ error: "tokens.txt is empty" });
 
-      let tokenIndex = 0; // Round Robin pointer
+      // safety caps
+      const MAX_POSTS = 300, MAX_COMMENTS = 300, MAX_TOKENS = 50;
+      if (postIds.length > MAX_POSTS) postIds = postIds.slice(0, MAX_POSTS);
+      if (comments.length > MAX_COMMENTS) comments = comments.slice(0, MAX_COMMENTS);
+      if (tokens.length > MAX_TOKENS) tokens = tokens.slice(0, MAX_TOKENS);
 
-      outer:
-      for (const postId of postIds) {
-        for (const message of comments) {
-          const token = tokens[tokenIndex];
-          tokenIndex = (tokenIndex + 1) % tokens.length; // rotate
+      // clean temp files
+      [req.files?.postFile?.[0], req.files?.linksFile?.[0], req.files?.commentsFile?.[0], req.files?.tokensFile?.[0]]
+        .filter(Boolean)
+        .forEach((f) => { try { fs.unlinkSync(f.path); } catch {} });
 
-          try {
-            const out = await postComment({ postId, message, token });
-            items.push({ ok: true, postId, message, id: out.id, token: token.slice(0, 10) + "..." });
-            success++;
-          } catch (e) {
-            items.push({ ok: false, postId, message, error: e.message, token: token.slice(0, 10) + "..." });
-            failed++;
+      // prepare job
+      const job = {
+        abort: false,
+        done: false,
+        stats: {
+          success: 0, failed: 0,
+          token_invalid: 0, token_expired: 0, permission: 0, temporary_block: 0,
+          bad_post: 0, unknown: 0,
+          invalid_token_list: new Set(),
+          bad_post_list: new Set(),
+        }
+      };
+      currentJob = job;
+
+      // resolve account names
+      const accounts = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const tk = tokens[i];
+        try {
+          const me = await fbMe(tk);
+          accounts.push({ token: tk, name: me.name, id: me.id, alive: true });
+          sseSend("alert", { level: "success", message: `Token #${i + 1}: ${me.name} ✅` });
+        } catch (e) {
+          const cat = classifyFbError(e);
+          if (cat.kind === "token_expired" || cat.kind === "token_invalid") {
+            job.stats[cat.kind]++; job.stats.invalid_token_list.add(i + 1);
+            sseSend("alert", { level: "error", message: `Token #${i + 1} invalid: ${cat.label}` });
+          } else {
+            job.stats.unknown++;
+            sseSend("alert", { level: "warning", message: `Token #${i + 1} check failed: ${e.message}` });
           }
-
-          sent++;
-          if (delaySec > 0) await sleep(delaySec * 1000);
         }
       }
+      const aliveAccounts = accounts.filter(a => a.alive !== false);
+      if (aliveAccounts.length === 0) {
+        job.done = true;
+        return res.status(400).json({ error: "No valid tokens." });
+      }
 
-      // Cleanup
-      try { fs.unlinkSync(req.files.posts[0].path); } catch {}
-      try { fs.unlinkSync(req.files.comments[0].path); } catch {}
-      try { fs.unlinkSync(req.files.tokens[0].path); } catch {}
+      // fire-and-forget worker
+      (async () => {
+        sseSend("start", { posts: postIds.length, comments: comments.length, tokens: aliveAccounts.length, delaySec, maxCount });
+        let tokenIdx = 0;
+
+        outer:
+        for (const postId of postIds) {
+          for (const message of comments) {
+            if (job.abort) break outer;
+            if (maxCount && job.stats.success >= maxCount) break outer;
+
+            // pick next usable token
+            let tries = 0, acc = null;
+            while (tries < aliveAccounts.length) {
+              acc = aliveAccounts[tokenIdx % aliveAccounts.length];
+              tokenIdx++;
+              if (acc && acc.alive !== false) break;
+              tries++;
+            }
+            if (!acc || acc.alive === false) { // all dead
+              sseSend("alert", { level: "error", message: "All tokens unusable. Stopping." });
+              break outer;
+            }
+
+            try {
+              const out = await fbComment(postId, message, acc.token);
+              job.stats.success++;
+              sseSend("success", {
+                postId, message, commentId: out.id,
+                account: { name: acc.name, id: acc.id }
+              });
+            } catch (e) {
+              job.stats.failed++;
+              const cat = classifyFbError(e);
+
+              if (["token_invalid", "token_expired", "permission", "temporary_block"].includes(cat.kind)) {
+                job.stats[cat.kind]++; // count category
+                // mark token dead for this run
+                acc.alive = false;
+                const tIndex = accounts.indexOf(acc) + 1;
+                job.stats.invalid_token_list.add(tIndex);
+                sseSend("alert", {
+                  level: "error",
+                  message: `${acc.name}: ${cat.label} — token disabled for this run`
+                });
+              } else if (cat.kind === "bad_post") {
+                job.stats.bad_post++; job.stats.bad_post_list.add(postId);
+                sseSend("alert", { level: "warning", message: `Invalid Post: ${postId}` });
+              } else {
+                job.stats.unknown++;
+                sseSend("alert", { level: "warning", message: `Error: ${e.message}` });
+              }
+            }
+
+            sseSend("status", job.stats);
+            if (delaySec > 0) await sleep(delaySec * 1000);
+          }
+        }
+
+        job.done = true;
+        sseSend("summary", {
+          ...job.stats,
+          invalid_tokens_count: job.stats.invalid_token_list.size,
+          bad_posts_count: job.stats.bad_post_list.size
+        });
+      })().catch((e) => {
+        sseSend("alert", { level: "error", message: `Worker crash: ${e.message}` });
+        currentJob = null;
+      });
 
       return res.json({
-        summary: { success, failed, totalTried: sent, delaySec, tokens: tokens.length },
-        items
+        ok: true,
+        posts: postIds.length,
+        comments: comments.length,
+        tokens: aliveAccounts.length,
+        delaySec,
+        maxCount,
       });
     } catch (err) {
       return res.status(500).json({ error: err.message || "Server error" });
@@ -101,5 +341,15 @@ app.post(
   }
 );
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+// ---------- Stop ----------
+app.post("/stop", (_req, res) => {
+  if (currentJob && !currentJob.done) {
+    currentJob.abort = true;
+    sseSend("alert", { level: "warning", message: "⛔ Stopping job..." });
+    return res.json({ ok: true });
+  }
+  return res.status(400).json({ error: "No running job" });
+});
+
+// ---------- Start server ----------
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
