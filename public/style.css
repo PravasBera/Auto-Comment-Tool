@@ -1,89 +1,170 @@
+/* ===============================
+   Global Styles
+================================= */
 body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #fff;
   margin: 0;
   padding: 0;
+  background: #0d1117;   /* Dark theme background */
+  color: #ffffff;
+  font-family: 'Segoe UI', Arial, sans-serif;
 }
 
+/* ===============================
+   Header Banner
+================================= */
 .header {
   background: linear-gradient(90deg, #a100ff, #00c2ff);
   text-align: center;
-  padding: 20px;
-  border-radius: 12px;
+  padding: 25px 15px;
+  border-radius: 0 0 20px 20px;
   color: white;
-  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
 .header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 30px;
   font-weight: bold;
+  letter-spacing: 1px;
 }
 
 .header p {
-  margin: 5px 0;
+  margin: 6px 0;
   font-size: 16px;
+  opacity: 0.95;
 }
 
 .header .team {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 18px;
   font-weight: bold;
   color: #ffdf00;
   text-shadow: 0 0 6px #000;
 }
 
-main {
-  display: flex;
-  justify-content: space-between;
+/* ===============================
+   Setup Section
+================================= */
+.setup {
+  background: #161b22;
+  margin: 20px;
   padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
 
-section {
-  background: #1e293b;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.4);
-  width: 45%;
-}
-
-input, button {
+.setup label {
   display: block;
-  width: 100%;
-  margin: 8px 0;
-  padding: 8px;
-  border-radius: 8px;
-  border: none;
-}
-
-button {
-  cursor: pointer;
-  font-weight: bold;
-}
-
-#startBtn {
-  background: #22c55e;
-  color: #fff;
-}
-
-#stopBtn {
-  background: #ef4444;
-  color: #fff;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.feed {
-  background: #0f172a;
-  padding: 10px;
-  border-radius: 8px;
-  height: 200px;
-  overflow-y: auto;
+  margin-bottom: 6px;
   font-size: 14px;
+  color: #c9d1d9;
+}
+
+.setup input[type="text"],
+.setup input[type="number"],
+.setup input[type="file"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+  border: 1px solid #30363d;
+  background: #0d1117;
+  color: #fff;
+  font-size: 14px;
+}
+
+.setup input:focus {
+  outline: none;
+  border-color: #00c2ff;
+  box-shadow: 0 0 6px #00c2ff;
+}
+
+/* ===============================
+   Buttons
+================================= */
+button.start {
+  background: #00c853;
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: 0.3s;
+}
+
+button.start:hover {
+  background: #00e676;
+  box-shadow: 0 0 10px #00c853;
+}
+
+button.stop {
+  background: #d50000;
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+button.stop:hover {
+  background: #ff1744;
+  box-shadow: 0 0 10px #d50000;
+}
+
+/* ===============================
+   Live Feed & Stats
+================================= */
+.stats {
+  background: #161b22;
+  margin: 20px;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.stats h2 {
+  margin-top: 0;
+  font-size: 20px;
+  color: #00c2ff;
+}
+
+.stat-boxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.stat-box {
+  background: #0d1117;
+  padding: 15px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 14px;
+  border: 1px solid #30363d;
+  transition: 0.3s;
+}
+
+.stat-box:hover {
+  border-color: #00c2ff;
+  box-shadow: 0 0 8px #00c2ff;
+}
+
+/* ===============================
+   Responsive (Mobile Friendly)
+================================= */
+@media (max-width: 600px) {
+  .header h1 {
+    font-size: 22px;
+  }
+  .header p {
+    font-size: 13px;
+  }
+  .header .team {
+    font-size: 15px;
+  }
 }
