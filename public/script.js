@@ -1,3 +1,18 @@
+// =======================
+// ✅ Auto load UserID
+// =======================
+async function loadUserId() {
+  try {
+    const res = await fetch("/session");
+    const data = await res.json();
+    document.getElementById("userIdBox").innerText = data.id;
+  } catch (err) {
+    document.getElementById("userIdBox").innerText = "❌ Failed to load";
+  }
+}
+
+window.onload = loadUserId;
+
 // ---- Live log helpers
 const logBox = document.getElementById("logBox");
 const warnBox = document.getElementById("warnBox");
