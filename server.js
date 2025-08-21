@@ -10,7 +10,7 @@
  * - FB link→commentable id resolver (pfbid, story.php, groups, photos, numeric, actor_post)
  * - Error classifier + per-session SSE clients
  */
-
+const usersManager = require("./usersManager");
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -326,35 +326,34 @@ function requireAdmin(req, res, next) {
 app.get("/admin/users", requireAdmin, (_req, res) => {
   res.json(loadUsers());
 });
+// Approve (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
 app.post("/admin/approve", requireAdmin, (req, res) => {
-  const { sessionId, days = 30, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
-  ensureUser(sessionId);
-  const expiry = days ? Date.now() + Number(days) * 24 * 60 * 60 * 1000 : null;
-  const out = setUser(sessionId, { status: "approved", blocked: false, expiry, notes });
-  res.json({ ok: true, user: out });
+  const { username, expiry } = req.body;
+  const user = usersManager.approveUser(username, expiry || null);
+  res.json({ ok: true, user });
 });
+
 app.post("/admin/block", requireAdmin, (req, res) => {
-  const { sessionId, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
-  ensureUser(sessionId);
-  const out = setUser(sessionId, { status: "blocked", blocked: true, notes });
-  res.json({ ok: true, user: out });
+  const { username } = req.body;
+  const user = usersManager.blockUser(username, true);
+  res.json({ ok: true, user });
 });
+
 app.post("/admin/unblock", requireAdmin, (req, res) => {
-  const { sessionId, notes = "" } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
-  ensureUser(sessionId);
-  const out = setUser(sessionId, { status: "pending", blocked: false, notes });
-  res.json({ ok: true, user: out });
+  const { username } = req.body;
+  const user = usersManager.blockUser(username, false);
+  res.json({ ok: true, user });
 });
+
 app.post("/admin/expire", requireAdmin, (req, res) => {
-  const { sessionId, at = null } = req.body || {};
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
-  ensureUser(sessionId);
-  const expiry = at ? Number(at) : Date.now();
-  const out = setUser(sessionId, { expiry });
-  res.json({ ok: true, user: out });
+  const { username, expiry } = req.body;
+  const user = usersManager.approveUser(username, expiry);
+  res.json({ ok: true, user });
+});
+
+// সব ইউজার লিস্ট
+app.get("/admin/users", requireAdmin, (req, res) => {
+  res.json(usersManager.loadUsers());
 });
 
 // -------------------- Upload (protected by user access) --------------------
