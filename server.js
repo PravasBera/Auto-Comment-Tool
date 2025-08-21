@@ -1,58 +1,60 @@
 // server.js
 /**
- * Facebook Auto Comment Tool (v1.6-fix)
+ * Facebook Auto Comment Tool (v1.6)
  * - tokens/comments/postlinks txt + manual fields (UI অপরিবর্তিত)
- * - pfbid/various links → numeric ID resolver (improved)
+ * - pfbid/various links → numeric ID resolver
  * - real Graph API comments + delay/limit/shuffle + stop + SSE logs
  * - error/warning classification
  */
 
 const express = require("express");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
-const fetch = require("node-fetch");
+const multer  = require("multer");
+const fs      = require("fs");
+const path    = require("path");
+const fetch   = require("node-fetch");
+const cors    = require("cors");
 
-const app = express();
+// -------------------- App setup --------------------
+const app  = express();
 const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: "uploads/" });
 
-// ---------- Middleware ----------
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "public"))); // /style.css, /script.js
+app.use(express.static(path.join(__dirname, "public")));
 if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
 
-// ---------- Serve index ----------
+// Serve index.html (তোমার index views/index.html এ আছে)
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
-// ============ SSE state ============
+// -------------------- SSE state --------------------
 let currentJob = { running: false, abort: false, clients: new Set() };
 
-function sseBroadcast(line) {
-  const payload = `data: ${JSON.stringify(line)}\n\n`;
+function sseBroadcast(payloadObj) {
+  const payload = `data: ${JSON.stringify(payloadObj)}\n\n`;
   for (const res of currentJob.clients) {
     try { res.write(payload); } catch {}
   }
 }
+
 function sseLine(type, text, extra = {}) {
   sseBroadcast({ t: Date.now(), type, text, ...extra });
 }
 
-// ============ Utils ============
+// -------------------- Helpers --------------------
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-function cleanLines(text) {
-  return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-}
+const cleanLines = (txt) => txt.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-// ---- QUICK parser (no network) → id-like
+// QUICK parser (no network) → id-like
 function tryExtractGraphPostId(raw) {
+  if (!raw) return null;
+
   // already numeric or actor_post
   if (/^\d+$/.test(raw) || /^\d+_\d+$/.test(raw)) return raw;
 
-  // try URL parse
   try {
     const u = new URL(raw);
 
@@ -82,20 +84,20 @@ function tryExtractGraphPostId(raw) {
   }
 }
 
-// ---- GRAPH lookup (?id=link) → prefer og_object.id, else id
+// GRAPH lookup (?id=link) → prefer og_object.id, else id
 async function resolveViaGraphLookup(link, token) {
   const api = `https://graph.facebook.com/v19.0/?id=${encodeURIComponent(link)}&access_token=${encodeURIComponent(token)}`;
   const res = await fetch(api);
   const json = await res.json();
   if (json?.og_object?.id) return String(json.og_object.id);
-  if (json?.id) return String(json.id);
+  if (json?.id)             return String(json.id);
   return null;
 }
 
-// ---- refine: id → comment target (photo হলে object_id তে comment করা ভাল)
+// refine: id → comment target (photo হলে object_id তে comment করা ভাল)
 async function refineCommentTarget(id, token) {
   try {
-    // actor_post (###_###) হলে সাধারণত সরাসরি id তেই কাজ হয়
+    // actor_post (######_######) হলে সাধারণত সরাসরি id তেই কাজ হয়
     if (/^\d+_\d+$/.test(id)) return id;
 
     const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(id)}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
@@ -106,13 +108,13 @@ async function refineCommentTarget(id, token) {
       // photo/video attachment হলে object_id তে comment করা reliable
       return String(json.object_id);
     }
-    return id; // fallback
+    return id;
   } catch {
     return id;
   }
 }
 
-// ---- master resolver: anything → final commentable id
+// master resolver: anything → final commentable id
 async function resolveAnyToCommentId(raw, token) {
   // 1) quick parse first (no network)
   let pid = tryExtractGraphPostId(raw);
@@ -127,7 +129,7 @@ async function resolveAnyToCommentId(raw, token) {
   return finalId;
 }
 
-// ---- name for token (for UI log)
+// name for token (for UI log)
 async function getAccountName(token) {
   try {
     const res = await fetch(`https://graph.facebook.com/v19.0/me?fields=name&access_token=${encodeURIComponent(token)}`);
@@ -138,32 +140,37 @@ async function getAccountName(token) {
   }
 }
 
-// ---- real comment call
+// real comment call
 async function postComment({ token, postId, message }) {
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(postId)}/comments`;
+  const url  = `https://graph.facebook.com/v19.0/${encodeURIComponent(postId)}/comments`;
   const body = new URLSearchParams({ message, access_token: token });
-  const res = await fetch(url, { method: "POST", body });
+  const res  = await fetch(url, { method: "POST", body });
   const json = await res.json();
   if (!res.ok || json?.error) {
-    throw (json?.error || { message: `HTTP ${res.status}` });
+    const err = json?.error || { message: `HTTP ${res.status}` };
+    throw err;
   }
   if (!json?.id) throw { message: "Comment id missing in response" };
-  return json;
+  return json; // { id: "<comment_id>" }
 }
 
-// ---- error classifier (UI friendly)
+// error classifier (UI friendly)
 function classifyError(err) {
   const code = err?.code || err?.error_subcode || 0;
-  const msg = (err?.message || "").toLowerCase();
-  if (code === 190 || msg.includes("expired")) return { kind: "INVALID_TOKEN", human: "Invalid or expired token" };
-  if (msg.includes("permission") || msg.includes("insufficient")) return { kind: "NO_PERMISSION", human: "Missing permission to comment" };
-  if (msg.includes("not found") || msg.includes("unsupported") || msg.includes("cannot be accessed")) return { kind: "WRONG_POST_ID", human: "Wrong or inaccessible post id/link" };
-  if (msg.includes("temporarily blocked") || msg.includes("rate limit") || msg.includes("reduced")) return { kind: "COMMENT_BLOCKED", human: "Comment blocked or rate limited" };
-  if (msg.includes("checkpoint") || msg.includes("locked")) return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
+  const msg  = (err?.message || "").toLowerCase();
+  if (code === 190 || msg.includes("expired")) return { kind: "INVALID_TOKEN",   human: "Invalid or expired token" };
+  if (msg.includes("permission") || msg.includes("insufficient"))
+    return { kind: "NO_PERMISSION",   human: "Missing permission to comment" };
+  if (msg.includes("not found") || msg.includes("unsupported") || msg.includes("cannot be accessed"))
+    return { kind: "WRONG_POST_ID",   human: "Wrong or inaccessible post id/link" };
+  if (msg.includes("temporarily blocked") || msg.includes("rate limit") || msg.includes("reduced"))
+    return { kind: "COMMENT_BLOCKED", human: "Comment blocked or rate limited" };
+  if (msg.includes("checkpoint") || msg.includes("locked"))
+    return { kind: "ID_LOCKED",       human: "Account locked/checkpoint" };
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
-// ============ Routes ============
+// -------------------- Routes --------------------
 
 // SSE for live logs
 app.get("/events", (req, res) => {
@@ -173,33 +180,55 @@ app.get("/events", (req, res) => {
     "Connection": "keep-alive"
   });
   res.flushHeaders();
-  // small handshake (optional)
-  res.write("event: ready\ndata: ok\n\n");
 
+  // client add
   currentJob.clients.add(res);
-  req.on("close", () => currentJob.clients.delete(res));
+  // handshake
+  sseLine("ready", "SSE connected");
+
+  req.on("close", () => {
+    currentJob.clients.delete(res);
+  });
 });
 
 // Upload tokens/comments/postlinks
-app.post("/upload", upload.fields([
-  { name: "tokens", maxCount: 1 },
-  { name: "comments", maxCount: 1 },
-  { name: "postlinks", maxCount: 1 },
-]), (req, res) => {
-  try {
-    if (req.files?.tokens?.[0])   fs.renameSync(req.files.tokens[0].path,   path.join("uploads", "token.txt"));
-    if (req.files?.comments?.[0]) fs.renameSync(req.files.comments[0].path, path.join("uploads", "comment.txt"));
-    if (req.files?.postlinks?.[0])fs.renameSync(req.files.postlinks[0].path,path.join("uploads", "postlink.txt"));
-    res.json({ ok: true, message: "Files uploaded successfully" });
-  } catch (e) {
-    res.status(500).json({ ok: false, message: "Upload failed", error: e.message });
+app.post(
+  "/upload",
+  upload.fields([
+    { name: "tokens",    maxCount: 1 },
+    { name: "comments",  maxCount: 1 },
+    { name: "postlinks", maxCount: 1 },
+  ]),
+  (req, res) => {
+    try {
+      if (req.files?.tokens?.[0])
+        fs.renameSync(req.files.tokens[0].path,   path.join("uploads", "token.txt"));
+      if (req.files?.comments?.[0])
+        fs.renameSync(req.files.comments[0].path, path.join("uploads", "comment.txt"));
+      if (req.files?.postlinks?.[0])
+        fs.renameSync(req.files.postlinks[0].path, path.join("uploads", "postlink.txt"));
+
+      const tCount = fs.existsSync("uploads/token.txt")
+        ? cleanLines(fs.readFileSync("uploads/token.txt", "utf-8")).length : 0;
+      const cCount = fs.existsSync("uploads/comment.txt")
+        ? cleanLines(fs.readFileSync("uploads/comment.txt", "utf-8")).length : 0;
+      const pCount = fs.existsSync("uploads/postlink.txt")
+        ? cleanLines(fs.readFileSync("uploads/postlink.txt", "utf-8")).length : 0;
+
+      sseLine("info", `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount})`);
+      res.json({ ok: true, tokens: tCount, comments: cCount, postlinks: pCount });
+    } catch (e) {
+      sseLine("error", `Upload failed: ${e.message}`);
+      res.status(500).json({ ok: false, message: "Upload failed", error: e.message });
+    }
   }
-});
+);
 
 // Stop job
 app.post("/stop", (_req, res) => {
   if (currentJob.running) {
     currentJob.abort = true;
+    sseLine("warn", "Stop requested by user");
     return res.json({ ok: true, message: "Stopping..." });
   }
   res.json({ ok: true, message: "No active job" });
@@ -207,9 +236,19 @@ app.post("/stop", (_req, res) => {
 
 // Start job
 app.post("/start", async (req, res) => {
-  if (currentJob.running) return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
+  if (currentJob.running) {
+    return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
+  }
 
-  const { postId = "", link1 = "", link2 = "", link3 = "", delay = "5", limit = "0", useShuffle = "false" } = req.body;
+  const {
+    postId = "",
+    link1 = "",
+    link2 = "",
+    link3 = "",
+    delay = "5",
+    limit = "0",
+    useShuffle = "false"
+  } = req.body;
 
   // ACK immediately
   res.json({ ok: true, message: "Started" });
@@ -217,16 +256,16 @@ app.post("/start", async (req, res) => {
   (async () => {
     try {
       currentJob.running = true;
-      currentJob.abort = false;
+      currentJob.abort   = false;
 
-      sseLine("info", "Job started (v1.6-fix)");
+      sseLine("info", "Job started (v1.6)");
 
       // Load txt files
-      const pToken  = path.join("uploads", "token.txt");
-      const pCmt    = path.join("uploads", "comment.txt");
-      const pLinks  = path.join("uploads", "postlink.txt");
+      const pToken = path.join("uploads", "token.txt");
+      const pCmt   = path.join("uploads", "comment.txt");
+      const pLinks = path.join("uploads", "postlink.txt");
 
-      if (!fs.existsSync(pToken))  { sseLine("error", "token.txt missing. Upload first."); return; }
+      if (!fs.existsSync(pToken))  { sseLine("error", "token.txt missing. Upload first.");  return; }
       if (!fs.existsSync(pCmt))    { sseLine("error", "comment.txt missing. Upload first."); return; }
 
       let tokens   = cleanLines(fs.readFileSync(pToken, "utf-8"));
@@ -235,9 +274,9 @@ app.post("/start", async (req, res) => {
       let filelnk  = fs.existsSync(pLinks) ? cleanLines(fs.readFileSync(pLinks, "utf-8")) : [];
       let inputs   = [...manual, ...filelnk];
 
-      if (!tokens.length)  { sseLine("error", "No tokens in token.txt"); return; }
-      if (!comments.length){ sseLine("error", "No comments in comment.txt"); return; }
-      if (!inputs.length)  { sseLine("error", "No Post ID/Link provided (form or postlink.txt)"); return; }
+      if (!tokens.length)   { sseLine("error", "No tokens in token.txt");   return; }
+      if (!comments.length) { sseLine("error", "No comments in comment.txt"); return; }
+      if (!inputs.length)   { sseLine("error", "No Post ID/Link provided (form or postlink.txt)"); return; }
 
       // Resolve account names
       sseLine("info", `Resolving account names for ${tokens.length} token(s)...`);
@@ -246,7 +285,7 @@ app.post("/start", async (req, res) => {
         if (currentJob.abort) { sseLine("warn", "Aborted while resolving names."); return; }
         try { tokenName[tokens[i]] = await getAccountName(tokens[i]); }
         catch { tokenName[tokens[i]] = `Account#${i+1}`; }
-        await sleep(120);
+        await sleep(150);
       }
 
       // Resolve links → final comment ids
@@ -257,6 +296,7 @@ app.post("/start", async (req, res) => {
 
       for (const raw of inputs) {
         if (currentJob.abort) { sseLine("warn", "Aborted while resolving posts."); return; }
+
         let finalId = null;
 
         // quick path
@@ -276,7 +316,7 @@ app.post("/start", async (req, res) => {
           wrongLinks.push(raw);
           sseLine("warn", `Unresolved link: ${raw}`);
         }
-        await sleep(100);
+        await sleep(120);
       }
 
       if (!resolvedPosts.length) {
@@ -288,7 +328,7 @@ app.post("/start", async (req, res) => {
       if (wrongLinks.length) sseLine("warn", `Wrong/unsupported link(s): ${wrongLinks.length}`);
 
       // shuffle comments?
-      const doShuffle = String(useShuffle).toLowerCase() === "true" || String(useShuffle).toLowerCase() === "on";
+      const doShuffle = String(useShuffle) === "true";
       if (doShuffle) {
         for (let i = comments.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -296,7 +336,7 @@ app.post("/start", async (req, res) => {
         }
       }
 
-      const delayMs = Math.max(0, parseInt(delay, 10) || 0) * 1000;
+      const delayMs  = Math.max(0, parseInt(delay, 10) || 0) * 1000;
       const maxCount = Math.max(0, parseInt(limit, 10) || 0);
 
       let sent = 0, okCount = 0, failCount = 0;
@@ -304,7 +344,7 @@ app.post("/start", async (req, res) => {
 
       sseLine("info", `Delay: ${delayMs/1000}s, Limit: ${maxCount || "∞"}`);
 
-      // Main loop: posts × tokens × comments
+      // Main loop
       outer:
       for (let pi = 0; pi < resolvedPosts.length; pi++) {
         for (let ti = 0; ti < tokens.length; ti++) {
@@ -338,13 +378,13 @@ app.post("/start", async (req, res) => {
       sseLine("error", `Fatal: ${e.message || e}`);
     } finally {
       currentJob.running = false;
-      currentJob.abort = false;
+      currentJob.abort   = false;
       sseLine("info", "Job closed");
     }
   })();
 });
 
-// ---------- Start ----------
+// -------------------- Boot --------------------
 app.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
