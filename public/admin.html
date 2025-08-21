@@ -5,98 +5,201 @@
   <title>Admin • Facebook Auto Comment Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 20px; }
-    input, button, textarea { padding: 8px; font-size: 14px; }
-    label { font-weight: 600; display:block; margin:8px 0 6px; }
-    .row { display:flex; gap:12px; flex-wrap: wrap; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      margin: 0; padding: 0;
+      background: #f3f4f6;
+    }
+    header {
+      background: #111827; color: white; padding: 12px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { margin: 0; font-size: 18px; }
+    header button { background:#ef4444; border:none; color:white; padding:6px 12px; border-radius:6px; cursor:pointer; }
+    main { padding:20px; }
+    input, button, textarea {
+      padding: 8px; font-size: 14px; border:1px solid #ccc; border-radius:6px;
+    }
+    button {
+      background:#2563eb; color:white; border:none; cursor:pointer;
+    }
+    button:hover { background:#1e40af; }
+    .row { display:flex; gap:16px; flex-wrap: wrap; }
     .col { flex:1 1 300px; min-width: 280px; }
-    .box { border: 1px solid #ddd; border-radius:8px; padding: 12px; background: #fafafa; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .box {
+      border: 1px solid #ddd; border-radius:8px;
+      padding: 14px; background: white;
+      box-shadow:0 1px 3px rgba(0,0,0,0.05);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top:8px; }
     th, td { border-bottom: 1px solid #eee; text-align:left; padding:6px 8px; }
     .muted { color:#666; font-size: 12px; }
-    .log { white-space: pre-wrap; background:white; border:1px solid #eee; border-radius:6px; padding:8px; }
+    .log {
+      white-space: pre-wrap; background:white; border:1px solid #eee;
+      border-radius:6px; padding:8px; height:240px; overflow:auto;
+    }
+    /* Login Page */
+    #loginBox {
+      display:flex; justify-content:center; align-items:center; height:100vh;
+    }
+    #loginForm {
+      background:white; padding:20px; border-radius:8px; border:1px solid #ddd;
+      width:300px; box-shadow:0 1px 4px rgba(0,0,0,0.1);
+    }
+    #loginForm h2 { margin-top:0; }
   </style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
-  <div class="row">
-    <div class="col">
-      <div class="box">
-        <h3 style="margin-top:0;">User Actions</h3>
-        <label>USERID (sessionId)</label>
-        <input id="sid" type="text" placeholder="paste USERID here" />
 
-        <label>Notes</label>
-        <textarea id="notes" rows="3" placeholder="optional notes"></textarea>
-
-        <div class="row" style="margin-top:8px;">
-          <div class="col">
-            <label>Approve days</label>
-            <input id="days" type="number" min="0" value="30" />
-          </div>
-          <div class="col">
-            <label>Expire (ISO / epoch ms)</label>
-            <input id="expireAt" type="text" placeholder="leave blank to keep" />
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button onclick="approve()">Approve</button>
-          <button onclick="block()">Block</button>
-          <button onclick="unblock()">Unblock</button>
-          <button onclick="expire()">Set Expiry</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="col">
-      <div class="box">
-        <h3 style="margin-top:0;">All Users</h3>
-        <button onclick="reload()">Reload</button>
-        <div id="usersTable" style="margin-top:10px;"></div>
-      </div>
-    </div>
+  <!-- 🔑 Login Screen -->
+  <div id="loginBox">
+    <form id="loginForm" onsubmit="return doLogin(event)">
+      <h2>Admin Login</h2>
+      <label>Username</label>
+      <input id="username" type="text" required style="width:100%;" />
+      <label style="margin-top:8px;">Password</label>
+      <input id="password" type="password" required style="width:100%;" />
+      <button type="submit" style="margin-top:12px;width:100%;">Login</button>
+      <p id="loginMsg" class="muted"></p>
+    </form>
   </div>
 
-  <div class="box" style="margin-top:16px;">
-    <h3 style="margin-top:0;">Logs</h3>
-    <div id="log" class="log" style="height:240px; overflow:auto;"></div>
+  <!-- 🖥️ Admin Dashboard -->
+  <div id="dashboard" style="display:none;">
+    <header>
+      <h1>⚙️ Admin Panel</h1>
+      <button onclick="logout()">Logout</button>
+    </header>
+    <main>
+      <div class="row">
+        <div class="col">
+          <div class="box">
+            <h3>User Actions</h3>
+            <label>USERID (sessionId)</label>
+            <input id="sid" type="text" placeholder="paste USERID here" style="width:100%;" />
+
+            <label>Notes</label>
+            <textarea id="notes" rows="3" placeholder="optional notes" style="width:100%;"></textarea>
+
+            <div class="row" style="margin-top:8px;">
+              <div class="col">
+                <label>Approve days</label>
+                <input id="days" type="number" min="0" value="30" style="width:100%;" />
+              </div>
+              <div class="col">
+                <label>Expire (ISO / epoch ms)</label>
+                <input id="expireAt" type="text" placeholder="leave blank to keep" style="width:100%;" />
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+              <button onclick="approve()">Approve</button>
+              <button onclick="block()">Block</button>
+              <button onclick="unblock()">Unblock</button>
+              <button onclick="expire()">Set Expiry</button>
+              <button onclick="lifetime()">Lifetime</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="box">
+            <h3>All Users</h3>
+            <button onclick="reload()">Reload</button>
+            <div id="usersTable" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top:16px;">
+        <h3>Logs</h3>
+        <div id="log" class="log"></div>
+      </div>
+    </main>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const logEl = $("log");
+
+    // ---------- Login System ----------
+    async function doLogin(e) {
+      e.preventDefault();
+      const u = $("username").value.trim();
+      const p = $("password").value.trim();
+      try {
+        const res = await fetch("/admin/login", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ username:u, password:p })
+        });
+        const j = await res.json();
+        if (j.ok) {
+          sessionStorage.setItem("admintoken", j.token);
+          $("loginBox").style.display="none";
+          $("dashboard").style.display="block";
+          reload();
+        } else {
+          $("loginMsg").innerText = j.message || "Login failed";
+        }
+      } catch(err) {
+        $("loginMsg").innerText = "Server error";
+      }
+    }
+    function logout() {
+      sessionStorage.removeItem("admintoken");
+      $("dashboard").style.display="none";
+      $("loginBox").style.display="flex";
+    }
+
+    // ---------- Logs ----------
     function log(msg) {
       const time = new Date().toLocaleTimeString();
       logEl.textContent += `[${time}] ${msg}\n`;
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    // ---------- User Management ----------
     async function reload() {
-      const res = await fetch("/admin/users");
-      const db = await res.json();
-      const rows = Object.values(db).sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0)).map(u => {
-        const ex = u.expiry ? new Date(Number(u.expiry)).toLocaleString() : "∞";
-        return `<tr>
-          <td><code>${u.sessionId}</code></td>
-          <td>${u.status}${u.blocked ? " (blocked)" : ""}</td>
-          <td>${ex}</td>
-          <td class="muted">${u.notes||""}</td>
-          <td class="muted">${new Date(u.createdAt).toLocaleString()}</td>
-          <td class="muted">${new Date(u.updatedAt).toLocaleString()}</td>
-        </tr>`;
-      }).join("");
+      try {
+        const res = await fetch("/admin/users", {
+          headers:{ "Authorization":"Bearer "+sessionStorage.getItem("admintoken") }
+        });
+        const db = await res.json();
+        const rows = Object.values(db)
+          .sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0))
+          .map(u => {
+            const ex = u.expiry ? new Date(Number(u.expiry)).toLocaleString() : "∞";
+            return `<tr>
+              <td><code>${u.sessionId}</code></td>
+              <td>${u.status}${u.blocked ? " (blocked)" : ""}</td>
+              <td>${ex}</td>
+              <td class="muted">${u.notes||""}</td>
+              <td class="muted">${new Date(u.createdAt).toLocaleString()}</td>
+              <td class="muted">${new Date(u.updatedAt).toLocaleString()}</td>
+            </tr>`;
+          }).join("");
+        $("usersTable").innerHTML = `
+          <table>
+            <thead><tr>
+              <th>USERID</th><th>Status</th><th>Expiry</th>
+              <th>Notes</th><th>Created</th><th>Updated</th>
+            </tr></thead>
+            <tbody>${rows || ""}</tbody>
+          </table>`;
+      } catch(err) {
+        $("usersTable").innerHTML = "<p style='color:red;'>Failed to load users</p>";
+      }
+    }
 
-      $("usersTable").innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>USERID</th><th>Status</th><th>Expiry</th><th>Notes</th><th>Created</th><th>Updated</th>
-            </tr>
-          </thead>
-          <tbody>${rows || ""}</tbody>
-        </table>
-      `;
+    async function api(path, body) {
+      const res = await fetch(path, {
+        method:"POST", headers:{ 
+          "Content-Type":"application/json",
+          "Authorization":"Bearer "+sessionStorage.getItem("admintoken")
+        },
+        body: JSON.stringify(body)
+      });
+      return res.json();
     }
 
     async function approve() {
@@ -104,36 +207,23 @@
       if (!sid) return alert("USERID required");
       const days = Number($("days").value || 30);
       const notes = $("notes").value;
-      const res = await fetch("/admin/approve", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ sessionId:sid, days, notes })
-      });
-      const j = await res.json();
-      log(`approve(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      const j = await api("/admin/approve", { sessionId:sid, days, notes });
+      log(`approve(${sid}) → ${j.ok?"OK":j.message}`);
       reload();
     }
     async function block() {
       const sid = $("sid").value.trim();
       if (!sid) return alert("USERID required");
       const notes = $("notes").value;
-      const res = await fetch("/admin/block", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ sessionId:sid, notes })
-      });
-      const j = await res.json();
-      log(`block(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      const j = await api("/admin/block", { sessionId:sid, notes });
+      log(`block(${sid}) → ${j.ok?"OK":j.message}`);
       reload();
     }
     async function unblock() {
       const sid = $("sid").value.trim();
       if (!sid) return alert("USERID required");
-      const notes = $("notes").value;
-      const res = await fetch("/admin/unblock", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ sessionId:sid, notes })
-      });
-      const j = await res.json();
-      log(`unblock(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      const j = await api("/admin/unblock", { sessionId:sid });
+      log(`unblock(${sid}) → ${j.ok?"OK":j.message}`);
       reload();
     }
     async function expire() {
@@ -141,16 +231,18 @@
       if (!sid) return alert("USERID required");
       const atStr = $("expireAt").value.trim();
       const at = atStr ? (isNaN(Number(atStr)) ? Date.parse(atStr) : Number(atStr)) : Date.now();
-      const res = await fetch("/admin/expire", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ sessionId:sid, at })
-      });
-      const j = await res.json();
-      log(`expire(${sid}) → ${j.ok ? "OK" : (j.message||"ERR")}`);
+      const j = await api("/admin/expire", { sessionId:sid, at });
+      log(`expire(${sid}) → ${j.ok?"OK":j.message}`);
       reload();
     }
-
-    reload();
+    async function lifetime() {
+      const sid = $("sid").value.trim();
+      if (!sid) return alert("USERID required");
+      const notes = $("notes").value;
+      const j = await api("/admin/approve", { sessionId:sid, days:999999, notes });
+      log(`lifetime(${sid}) → ${j.ok?"OK":j.message}`);
+      reload();
+    }
   </script>
 </body>
 </html>
