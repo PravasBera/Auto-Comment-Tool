@@ -2,25 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facebook Auto Comment Tool</title>
-  <link rel="stylesheet" href="/style.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f3f4f6;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(90deg, #9333ea, #ec4899);
+      color: white;
+      text-align: center;
+      padding: 20px 10px;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .header h1 { font-size: 1.6rem; margin: 0; }
+    .header p { font-size: 0.85rem; margin-top: 5px; }
+    .team { margin-top: 6px; font-weight: bold; color: #fff700; }
+
+    /* Container */
+    .container { max-width: 800px; margin: 20px auto; padding: 15px; }
+
+    /* Card */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .card h2 { font-size: 1.2rem; margin-bottom: 10px; color: #4f46e5; }
+
+    /* Inputs */
+    .input-group { margin-bottom: 15px; }
+    .input-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+    .input-group input, .input-group textarea {
+      width: 100%; padding: 10px; border: 1px solid #d1d5db;
+      border-radius: 8px; outline: none; transition: 0.2s;
+    }
+    .input-group input:focus, .input-group textarea:focus {
+      border-color: #9333ea; box-shadow: 0 0 0 2px rgba(147,51,234,0.3);
+    }
+
+    button {
+      background: linear-gradient(90deg, #9333ea, #ec4899);
+      color: white; border: none; padding: 10px 20px;
+      border-radius: 8px; font-weight: 600; cursor: pointer;
+    }
+
+    /* Logs */
+    .logs {
+      height: 200px; overflow-y: auto; background: #f9fafb;
+      border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px;
+      font-size: 0.9rem; line-height: 1.4;
+    }
+
+    /* Log Colors */
+    .success { color: #16a34a; font-weight: 600; }
+    .error { color: #dc2626; font-weight: 600; }
+    .warning { color: #ca8a04; font-weight: 600; }
+
+    /* Footer */
+    .footer { text-align: center; padding: 15px; font-size: 0.8rem; color: #6b7280; }
+  </style>
 </head>
 <body>
-  <header>
-    <h1>Facebook Auto Comment Tool</h1>
-    <p>
-      Version: <span id="version"></span> | 
-      Author: <span id="author"></span> | 
-      Team: <span id="team"></span> | 
-      Country: <span id="country"></span>
-    </p>
-  </header>
 
-  <main>
-    <h2>Comment Logs</h2>
-    <div id="logs"></div>
-  </main>
+  <!-- Header -->
+  <div class="header">
+    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+    <p>👤 Author: PRAVAS BERA | 🔄 Version: 1.5 | 🌍 Country: INDIA</p>
+    <div class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</div>
+  </div>
 
-  <script src="/script.js"></script>
+  <!-- Main Container -->
+  <div class="container">
+
+    <!-- Inputs -->
+    <div class="card">
+      <h2>Enter Details</h2>
+      <div class="input-group">
+        <label>Post ID</label>
+        <input type="text" id="postId" placeholder="Enter Facebook Post ID">
+      </div>
+      <div class="input-group">
+        <label>Access Token</label>
+        <input type="text" id="token" placeholder="Enter Access Token">
+      </div>
+      <div class="input-group">
+        <label>Comment Text</label>
+        <textarea id="comment" rows="3" placeholder="Type your comment here..."></textarea>
+      </div>
+      <button onclick="startComment()">Start Commenting</button>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+      <h2>Comment Logs</h2>
+      <div class="logs" id="logBox"></div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    © 2025 | Facebook Auto Comment Tool | Developed by PRAVAS BERA
+  </div>
+
+  <!-- JS -->
+  <script>
+    function addLog(message, type="normal") {
+      const logBox = document.getElementById("logBox");
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      div.className = type;
+      div.innerHTML = `[${time}] ${message}`;
+      logBox.appendChild(div);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function startComment() {
+      let postId = document.getElementById("postId").value.trim();
+      let token = document.getElementById("token").value.trim();
+      let comment = document.getElementById("comment").value.trim();
+
+      // Dummy Validation for Demo
+      if (!token) {
+        addLog("Invalid Token ❌", "error");
+        return;
+      }
+      if (!postId) {
+        addLog("Wrong Post ID ⚠️", "warning");
+        return;
+      }
+      if (token === "locked") {
+        addLog("ID Locked 🚫", "error");
+        return;
+      }
+      if (token === "blocked") {
+        addLog("ID Comment Blocked ⛔", "warning");
+        return;
+      }
+
+      // Success
+      addLog("Comment Posted Successfully ✅", "success");
+    }
+  </script>
+
 </body>
 </html>
