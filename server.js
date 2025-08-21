@@ -27,11 +27,6 @@ let COMMENTS = [];
 let POSTLINKS = [];
 
 // --------- Utils ---------
-function sseLine(event, data, extra = {}) {
-  let payload = { event, data, ...extra };
-  return `data: ${JSON.stringify(payload)}\n\n`;
-}
-
 function classifyError(err) {
   let msg = err.message || String(err);
   if (/expired|invalid token/i.test(msg)) return { kind: "token", human: "❌ Invalid/Expired Token" };
@@ -117,6 +112,11 @@ app.get("/events", (req, res) => {
   let failCount = 0;
   let counters = {};
 
+  // keep-alive heartbeat (every 15s)
+  const keepAlive = setInterval(() => {
+    res.write(`event: ping\ndata: "💓 keep-alive"\n\n`);
+  }, 15000);
+
   (async () => {
     try {
       for (let token of TOKENS) {
@@ -128,29 +128,41 @@ app.get("/events", (req, res) => {
             if (!rawId) throw new Error("Cannot resolve ID from link");
 
             let finalId = await refineCommentTarget(rawId, token);
-            console.log("[DEBUG] Final targetId after refine:", finalId, "raw:", rawId);
 
             // 2. choose comment
             let msg = COMMENTS[Math.floor(Math.random() * COMMENTS.length)];
 
             // 3. post comment
-            console.log("[DEBUG] Final targetId before commenting:", finalId);
             const out = await postComment({ token, postId: finalId, message: msg });
             okCount++; sent++;
 
-            res.write(sseLine("log", `✔ ${acc} → "${msg}" on ${finalId}`, { account: acc, comment: msg, postId: finalId, resultId: out.id || null }));
+            res.write(`event: log\ndata: ${JSON.stringify({
+              account: acc,
+              comment: msg,
+              postId: finalId,
+              resultId: out.id || null,
+              status: "success"
+            })}\n\n`);
+
           } catch (err) {
             failCount++; sent++;
             const cls = classifyError(err);
             counters[cls.kind] = (counters[cls.kind] || 0) + 1;
-            res.write(sseLine("error", `✖ ${acc} → ${cls.human}`, { account: acc, errKind: cls.kind, errMsg: err.message || String(err) }));
+
+            res.write(`event: error\ndata: ${JSON.stringify({
+              account: acc,
+              errKind: cls.kind,
+              errMsg: err.message || String(err),
+              status: "failed"
+            })}\n\n`);
           }
         }
       }
     } catch (e) {
-      res.write(sseLine("fatal", "Server crashed: " + (e.message || e)));
+      res.write(`event: fatal\ndata: ${JSON.stringify({ msg: e.message || String(e) })}\n\n`);
     } finally {
-      res.write(sseLine("summary", { sent, okCount, failCount, counters }));
+      clearInterval(keepAlive);
+      res.write(`event: summary\ndata: ${JSON.stringify({ sent, okCount, failCount, counters })}\n\n`);
       res.end();
     }
   })();
