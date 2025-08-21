@@ -1,184 +1,136 @@
 // server.js
 const express = require("express");
 const multer = require("multer");
-const fetch = require("node-fetch");
-const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const fetch = require("node-fetch");
 
 const app = express();
-const upload = multer({ dest: "uploads/" });
-app.use(cors());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(express.static("public"));
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
+const PORT = process.env.PORT || 3000;
 
-// ===== PFID → POSTID Converter =====
-function decodePfbid(pfbid) {
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (let char of pfbid) {
-    num = num * BigInt(58) + BigInt(alphabet.indexOf(char));
-  }
-  const postId = (num >> BigInt(64)).toString();
-  return postId;
+// -------- Middleware --------
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public")); // style.css, script.js এখান থেকে লোড হবে
+
+// -------- Serve index.html --------
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// -------- File upload --------
+const upload = multer({ dest: "uploads/" });
+
+let TOKENS = [];
+let COMMENTS = [];
+let POSTLINKS = [];
+
+// -------- Helper --------
+function sseLine(event, data, extra = {}) {
+  let payload = { event, data, ...extra };
+  return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
-function extractPostIdFromLink(url) {
-  try {
-    if (url.includes("pfbid")) {
-      const match = url.match(/pfbid([A-Za-z0-9]+)/);
-      if (match) {
-        const pfbid = match[1];
-        return decodePfbid(pfbid);
-      }
-    } else if (url.includes("/posts/")) {
-      return url.split("/posts/")[1].split("/")[0];
-    }
-  } catch (e) {
-    return null;
-  }
+function classifyError(err) {
+  let msg = err.message || String(err);
+  if (/expired|invalid token/i.test(msg)) return { kind: "token", human: "❌ Invalid/Expired Token" };
+  if (/limit/i.test(msg)) return { kind: "limit", human: "⚠ Rate Limit" };
+  return { kind: "other", human: msg };
+}
+
+// -------- Resolve Post Link --------
+async function resolveViaGraphLookup(link, token) {
+  const api = `https://graph.facebook.com/v19.0/?id=${encodeURIComponent(link)}&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(api);
+  const json = await res.json();
+
+  if (json?.og_object?.id) return String(json.og_object.id);
+  if (json?.id) return String(json.id);
   return null;
 }
 
-// ===== Global Vars =====
-let tokens = [];
-let comments = [];
-let postLinks = [];
-let running = false;
-let delay = 5;
-let limit = 0;
-let useShuffle = false;
-let processed = 0;
-
-// ===== Serve UI =====
-app.get("/", (req, res) => {
-  res.render("index"); // তোমার views/index.ejs বা index.html
-});
-
-// ===== Upload Handler =====
-app.post(
-  "/upload",
-  upload.fields([
-    { name: "tokens", maxCount: 1 },
-    { name: "comments", maxCount: 1 },
-    { name: "postlinks", maxCount: 1 },
-  ]),
-  (req, res) => {
-    if (req.files["tokens"]) {
-      tokens = fs
-        .readFileSync(req.files["tokens"][0].path, "utf8")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
+async function refineCommentTarget(id, token) {
+  try {
+    if (/^\d+_\d+$/.test(id)) return id;
+    const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(id)}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
+    const res = await fetch(ep);
+    const json = await res.json();
+    if (json?.object_id && /^\d+$/.test(String(json.object_id))) {
+      return String(json.object_id);
     }
-    if (req.files["comments"]) {
-      comments = fs
-        .readFileSync(req.files["comments"][0].path, "utf8")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-    }
-    if (req.files["postlinks"]) {
-      postLinks = fs
-        .readFileSync(req.files["postlinks"][0].path, "utf8")
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-    }
-    res.json({ success: true, tokens: tokens.length, comments: comments.length, postLinks: postLinks.length });
-  }
-);
-
-// ===== Start Commenting =====
-app.post("/start", async (req, res) => {
-  if (running) return res.json({ success: false, msg: "Already running" });
-
-  let { postId, link1, link2, link3, delay: d, limit: l, useShuffle: s } = req.body;
-
-  delay = parseInt(d) || 5;
-  limit = parseInt(l) || 0;
-  useShuffle = !!s;
-
-  postLinks = [...postLinks, link1, link2, link3].filter(Boolean);
-
-  if (postId) postLinks.push(postId);
-
-  // Convert PFID → PostID
-  postLinks = postLinks.map((link) => {
-    if (link.startsWith("http")) {
-      const converted = extractPostIdFromLink(link);
-      return converted ? converted : link;
-    }
-    if (link.startsWith("pfbid")) {
-      const converted = decodePfbid(link.replace("pfbid", ""));
-      return converted;
-    }
-    return link;
-  });
-
-  if (!tokens.length || !comments.length || !postLinks.length) {
-    return res.json({ success: false, msg: "Upload files or provide inputs first!" });
-  }
-
-  running = true;
-  processed = 0;
-  runBot();
-
-  res.json({ success: true, msg: "Bot started" });
-});
-
-// ===== Stop =====
-app.post("/stop", (req, res) => {
-  running = false;
-  res.json({ success: true, msg: "Bot stopped" });
-});
-
-// ===== Bot Logic =====
-async function runBot() {
-  while (running) {
-    for (let token of tokens) {
-      for (let link of postLinks) {
-        if (!running) return;
-
-        let comment =
-          useShuffle && Math.random() > 0.5
-            ? comments[Math.floor(Math.random() * comments.length)]
-            : comments[processed % comments.length];
-
-        try {
-          const url = `https://graph.facebook.com/${link}/comments`;
-          const resp = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: comment, access_token: token }),
-          });
-          const data = await resp.json();
-
-          if (data.error) {
-            console.log("❌ Error:", data.error.message);
-          } else {
-            console.log(`✅ Commented: ${comment}`);
-          }
-        } catch (e) {
-          console.log("⚠ Exception:", e.message);
-        }
-
-        processed++;
-        if (limit > 0 && processed >= limit) {
-          running = false;
-          console.log("⏹ Limit reached, stopped.");
-          return;
-        }
-
-        await new Promise((r) => setTimeout(r, delay * 1000));
-      }
-    }
+    return id;
+  } catch {
+    return id;
   }
 }
 
-// ===== Start Server =====
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+async function postComment({ token, postId, message }) {
+  const url = `https://graph.facebook.com/v19.0/${postId}/comments`;
+  const body = new URLSearchParams({ message, access_token: token });
+  const res = await fetch(url, { method: "POST", body });
+  const json = await res.json();
+  if (!res.ok || json.error) throw new Error(json.error?.message || "Unknown error");
+  return json;
+}
+
+// -------- Upload Route --------
+app.post("/upload", upload.fields([{ name: "tokens" }, { name: "comments" }, { name: "postlinks" }]), (req, res) => {
+  if (req.files.tokens) {
+    TOKENS = fs.readFileSync(req.files.tokens[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  if (req.files.comments) {
+    COMMENTS = fs.readFileSync(req.files.comments[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  if (req.files.postlinks) {
+    POSTLINKS = fs.readFileSync(req.files.postlinks[0].path, "utf8").split("\n").map(l => l.trim()).filter(Boolean);
+  }
+  res.json({ tokens: TOKENS.length, comments: COMMENTS.length, postlinks: POSTLINKS.length });
+});
+
+// -------- SSE events --------
+app.get("/events", (req, res) => {
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive"
+  });
+  res.flushHeaders();
+
+  let sent = 0, okCount = 0, failCount = 0, counters = {};
+
+  (async () => {
+    try {
+      for (let token of TOKENS) {
+        const acc = token.slice(0, 10) + "...";
+        for (let link of POSTLINKS) {
+          try {
+            let rawId = await resolveViaGraphLookup(link, token);
+            if (!rawId) throw new Error("Cannot resolve ID from link");
+            let finalId = await refineCommentTarget(rawId, token);
+
+            let msg = COMMENTS[Math.floor(Math.random() * COMMENTS.length)];
+            const out = await postComment({ token, postId: finalId, message: msg });
+
+            okCount++; sent++;
+            res.write(sseLine("log", `✔ ${acc} → "${msg}" on ${finalId}`, { account: acc, comment: msg, postId: finalId, resultId: out.id || null }));
+          } catch (err) {
+            failCount++; sent++;
+            const cls = classifyError(err);
+            counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+            res.write(sseLine("error", `✖ ${acc} → ${cls.human}`, { account: acc, errKind: cls.kind, errMsg: err.message || String(err) }));
+          }
+        }
+      }
+    } catch (e) {
+      res.write(sseLine("fatal", "Server crashed: " + (e.message || e)));
+    } finally {
+      res.write(sseLine("summary", { sent, okCount, failCount, counters }));
+      res.end();
+    }
+  })();
+});
+
+// -------- Start --------
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
