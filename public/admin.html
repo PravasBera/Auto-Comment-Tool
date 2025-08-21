@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
   <title>Admin Panel</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    .hidden { display: none; }
-    .user-card { border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 6px; }
+    .login-box, .panel { max-width: 500px; margin: auto; }
+    .user { border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 5px; }
     .pending { background: #fff3cd; }
     .approved { background: #d4edda; }
     .blocked { background: #f8d7da; }
@@ -14,135 +14,129 @@
   </style>
 </head>
 <body>
+  <h2>Admin Panel</h2>
 
-  <!-- Login -->
-  <div id="login">
-    <h2>Admin Login</h2>
-    <input id="username" placeholder="Username"><br>
-    <input id="password" type="password" placeholder="Password"><br>
+  <!-- Login Form -->
+  <div class="login-box" id="loginBox">
+    <h3>Login</h3>
+    <input id="username" placeholder="Username"><br><br>
+    <input id="password" type="password" placeholder="Password"><br><br>
     <button onclick="login()">Login</button>
-    <p id="loginMsg"></p>
+    <p id="loginMsg" style="color:red"></p>
   </div>
 
   <!-- Panel -->
-  <div id="panel" class="hidden">
-    <h2>Admin Panel</h2>
+  <div class="panel" id="panel" style="display:none">
     <button onclick="logout()">Logout</button>
+
     <h3>Pending Users</h3>
     <div id="pending"></div>
+
     <h3>Approved Users</h3>
     <div id="approved"></div>
+
     <h3>Blocked Users</h3>
     <div id="blocked"></div>
   </div>
 
 <script>
-  const API = (path, body, method="POST") => {
-    const token = localStorage.getItem("token");
-    return fetch(path, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + token
-      },
-      body: body ? JSON.stringify(body) : undefined
-    }).then(r => r.json());
-  };
+// token save করো login এর পর
+function saveToken(t){ localStorage.setItem("token", t); }
+function getToken(){ return localStorage.getItem("token"); }
+function clearToken(){ localStorage.removeItem("token"); }
 
-  async function login() {
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
-    const res = await fetch("/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password })
-    }).then(r => r.json());
+// generic API helper
+async function api(path, body){
+  const token = getToken();
+  return fetch(path, {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer " + token
+    },
+    body: JSON.stringify(body || {})
+  }).then(r=>r.json());
+}
 
-    if (res.ok) {
-      localStorage.setItem("token", res.token);
-      document.getElementById("login").classList.add("hidden");
-      document.getElementById("panel").classList.remove("hidden");
-      loadUsers();
-    } else {
-      document.getElementById("loginMsg").innerText = res.message || "Login failed";
-    }
+// GET helper (users list)
+async function apiGet(path){
+  const token = getToken();
+  return fetch(path, {
+    headers:{ "Authorization":"Bearer " + token }
+  }).then(r=>r.json());
+}
+
+// login
+async function login(){
+  const u=document.getElementById("username").value;
+  const p=document.getElementById("password").value;
+  const res=await fetch("/admin/login",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:u,password:p})
+  }).then(r=>r.json());
+  if(res.token){
+    saveToken(res.token);
+    document.getElementById("loginBox").style.display="none";
+    document.getElementById("panel").style.display="block";
+    loadUsers();
+  }else{
+    document.getElementById("loginMsg").innerText="Login failed";
   }
+}
 
-  function logout() {
-    localStorage.removeItem("token");
-    document.getElementById("panel").classList.add("hidden");
-    document.getElementById("login").classList.remove("hidden");
-  }
+function logout(){
+  clearToken();
+  document.getElementById("panel").style.display="none";
+  document.getElementById("loginBox").style.display="block";
+}
 
-  async function loadUsers() {
-    const res = await API("/admin/users", null, "GET");
-    if (!res) return alert("Failed to load users");
-
-    const pendingDiv = document.getElementById("pending");
-    const approvedDiv = document.getElementById("approved");
-    const blockedDiv = document.getElementById("blocked");
-    pendingDiv.innerHTML = approvedDiv.innerHTML = blockedDiv.innerHTML = "";
-
-    Object.values(res).forEach(u => {
-      const div = document.createElement("div");
-      div.className = "user-card " + u.status;
-      div.innerHTML = `
-        <b>${u.sessionId}</b><br>
-        Status: ${u.status}<br>
-        Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "Lifetime"}<br>
-        Notes: ${u.notes || ""}<br>
-        <button onclick="approve('${u.sessionId}')">Approve</button>
-        <button onclick="lifetime('${u.sessionId}')">Lifetime</button>
-        <button onclick="setExpiry('${u.sessionId}')">Set Expiry</button>
-        <button onclick="block('${u.sessionId}')">Block</button>
-        <button onclick="unblock('${u.sessionId}')">Unblock</button>
-      `;
-
-      if (u.status === "pending") pendingDiv.appendChild(div);
-      else if (u.status === "approved" && !u.blocked) approvedDiv.appendChild(div);
-      else if (u.status === "blocked" || u.blocked) blockedDiv.appendChild(div);
-    });
-  }
-
-  async function approve(username) {
-    const res = await API("/admin/approve", { username });
-    alert("Approved: " + username);
+// user actions
+async function approve(username){ await api("/admin/approve",{username}); loadUsers(); }
+async function lifetime(username){ await api("/admin/approve",{username,expiry:null}); loadUsers(); }
+async function setExpiry(username){
+  const days=prompt("Enter expiry in days:");
+  if(days){
+    const expiry=Date.now() + (parseInt(days)*24*60*60*1000);
+    await api("/admin/expire",{username,expiry});
     loadUsers();
   }
+}
+async function block(username){ await api("/admin/block",{username}); loadUsers(); }
+async function unblock(username){ await api("/admin/unblock",{username}); loadUsers(); }
 
-  async function lifetime(username) {
-    const res = await API("/admin/approve", { username, expiry: null });
-    alert("Lifetime access: " + username);
-    loadUsers();
-  }
+// load users
+async function loadUsers(){
+  const data=await apiGet("/admin/users");
+  const pending=document.getElementById("pending");
+  const approved=document.getElementById("approved");
+  const blocked=document.getElementById("blocked");
+  pending.innerHTML=""; approved.innerHTML=""; blocked.innerHTML="";
+  data.forEach(u=>{
+    const div=document.createElement("div");
+    div.className="user "+u.status;
+    div.innerHTML=`
+      <b>${u.username}</b><br>
+      Status: ${u.status}<br>
+      Expiry: ${u.expiry || "Lifetime"}<br>
+      <button onclick="approve('${u.username}')">Approve</button>
+      <button onclick="lifetime('${u.username}')">Lifetime</button>
+      <button onclick="setExpiry('${u.username}')">Set Expiry</button>
+      <button onclick="block('${u.username}')">Block</button>
+      <button onclick="unblock('${u.username}')">Unblock</button>
+    `;
+    if(u.status==="pending") pending.appendChild(div);
+    else if(u.status==="approved") approved.appendChild(div);
+    else if(u.status==="blocked") blocked.appendChild(div);
+  });
+}
 
-  async function setExpiry(username) {
-    const days = prompt("Enter days until expiry:");
-    if (!days) return;
-    const expiry = Date.now() + (parseInt(days) * 24 * 60 * 60 * 1000);
-    const res = await API("/admin/expire", { username, expiry });
-    alert("Expiry updated: " + username);
-    loadUsers();
-  }
-
-  async function block(username) {
-    const res = await API("/admin/block", { username });
-    alert("Blocked: " + username);
-    loadUsers();
-  }
-
-  async function unblock(username) {
-    const res = await API("/admin/unblock", { username });
-    alert("Unblocked: " + username);
-    loadUsers();
-  }
-
-  // Auto-login if token exists
-  if (localStorage.getItem("token")) {
-    document.getElementById("login").classList.add("hidden");
-    document.getElementById("panel").classList.remove("hidden");
-    loadUsers();
-  }
+// auto-login if token exists
+if(getToken()){
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("panel").style.display="block";
+  loadUsers();
+}
 </script>
 </body>
 </html>
