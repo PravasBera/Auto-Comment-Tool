@@ -6,6 +6,7 @@
  * - real Graph API comments + delay/limit/shuffle + stop + SSE logs
  * - error/warning classification
  * - Multi-user sessions via sessionId (per-SSE connection)
+ * - Access Control: USERID auto-generate on first use, admin approve/block/expiry
  */
 
 const express = require("express");
@@ -30,6 +31,98 @@ if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
 // Serve index.html (তোমার index views/index.html এ আছে)
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"));
+});
+
+// -------------------- Access Control (Admin) --------------------
+// data store
+const DATA_DIR = path.join(__dirname, "data");
+const USERS_DB = path.join(DATA_DIR, "users.json");
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}), "utf-8");
+
+function loadUsers() {
+  try { return JSON.parse(fs.readFileSync(USERS_DB, "utf-8")); }
+  catch { return {}; }
+}
+function saveUsers(db) {
+  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
+}
+function ensureUser(sessionId) {
+  const db = loadUsers();
+  if (!db[sessionId]) {
+    const now = Date.now();
+    db[sessionId] = {
+      sessionId,
+      status: "pending",     // pending | approved | blocked
+      blocked: false,        // quick flag (redundant with status but handy)
+      expiry: null,          // timestamp (ms) or null
+      notes: "",
+      createdAt: now,
+      updatedAt: now
+    };
+    saveUsers(db);
+  }
+  return db[sessionId];
+}
+function getUser(sessionId) {
+  const db = loadUsers();
+  return db[sessionId] || null;
+}
+function setUser(sessionId, patch = {}) {
+  const db = loadUsers();
+  if (!db[sessionId]) return null;
+  db[sessionId] = { ...db[sessionId], ...patch, updatedAt: Date.now() };
+  saveUsers(db);
+  return db[sessionId];
+}
+function isUserAllowed(u) {
+  if (!u) return { ok: false, reason: "UNKNOWN_USER" };
+  if (u.status === "blocked" || u.blocked) return { ok: false, reason: "BLOCKED" };
+  if (u.status !== "approved") return { ok: false, reason: "PENDING" };
+  if (u.expiry && Date.now() > Number(u.expiry)) return { ok: false, reason: "EXPIRED" };
+  return { ok: true };
+}
+
+// Admin APIs
+app.get("/admin/users", (_req, res) => {
+  res.json(loadUsers());
+});
+app.post("/admin/approve", (req, res) => {
+  const { sessionId, days = 30, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const expiry = days ? Date.now() + Number(days) * 24*60*60*1000 : null;
+  const out = setUser(sessionId, { status: "approved", blocked: false, expiry, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/block", (req, res) => {
+  const { sessionId, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const out = setUser(sessionId, { status: "blocked", blocked: true, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/unblock", (req, res) => {
+  const { sessionId, notes = "" } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  // unblock -> back to pending (admin later approves)
+  const out = setUser(sessionId, { status: "pending", blocked: false, notes });
+  res.json({ ok:true, user: out });
+});
+app.post("/admin/expire", (req, res) => {
+  const { sessionId, at = null } = req.body || {};
+  if (!sessionId) return res.status(400).json({ ok:false, message:"sessionId required" });
+  ensureUser(sessionId);
+  const expiry = at ? Number(at) : Date.now(); // default: expire now
+  const out = setUser(sessionId, { expiry });
+  res.json({ ok:true, user: out });
+});
+app.get("/whoami", (req, res) => {
+  const sessionId = req.query.sessionId || null;
+  if (!sessionId) return res.json({ ok:false, message:"sessionId required" });
+  const u = ensureUser(sessionId);
+  res.json({ ok:true, user:u });
 });
 
 // -------------------- Multi-user SSE state --------------------
@@ -113,7 +206,7 @@ function tryExtractGraphPostId(raw) {
     let m = u.pathname.match(/^\/(\d+)\/posts\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
 
-    // groups permalink: /groups/<groupId>/permalink/<postId>
+    // groups permalink: /groups\/(\d+)\/permalink\/(\d+)
     m = u.pathname.match(/^\/groups\/(\d+)\/permalink\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
 
@@ -223,6 +316,9 @@ app.get("/events", (req, res) => {
   const sessionId = req.query.sessionId || randomUUID();
   const job = getJob(sessionId);
 
+  // ensure user exists in DB (first-time user becomes pending)
+  const user = ensureUser(sessionId);
+
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -232,8 +328,18 @@ app.get("/events", (req, res) => {
 
   job.clients.add(res);
 
+  // always send session + user status to UI
   res.write(`event: session\n`);
   res.write(`data: ${sessionId}\n\n`);
+
+  res.write(`event: user\n`);
+  res.write(`data: ${JSON.stringify({
+    sessionId,
+    status: user.status,
+    blocked: user.blocked,
+    expiry: user.expiry
+  })}\n\n`);
+
   sseLine(sessionId, "ready", "SSE connected");
 
   req.on("close", () => {
@@ -251,6 +357,14 @@ app.post(
   ]),
   (req, res) => {
     const sessionId = req.query.sessionId || req.body.sessionId || null;
+    if (!sessionId) return res.status(400).json({ ok:false, message: "sessionId required" });
+
+    const user = ensureUser(sessionId);
+    const allowed = isUserAllowed(user);
+    if (!allowed.ok) {
+      sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
+      return res.status(403).json({ ok:false, message: "Not allowed", reason: allowed.reason });
+    }
 
     try {
       if (req.files?.tokens?.[0])
@@ -267,10 +381,10 @@ app.post(
       const pCount = fs.existsSync("uploads/postlink.txt")
         ? cleanLines(fs.readFileSync("uploads/postlink.txt", "utf-8")).length : 0;
 
-      if (sessionId) sseLine(sessionId, "info", `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount})`);
+      sseLine(sessionId, "info", `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount})`);
       res.json({ ok: true, tokens: tCount, comments: cCount, postlinks: pCount });
     } catch (e) {
-      if (sessionId) sseLine(sessionId, "error", `Upload failed: ${e.message}`);
+      sseLine(sessionId, "error", `Upload failed: ${e.message}`);
       res.status(500).json({ ok: false, message: "Upload failed", error: e.message });
     }
   }
@@ -294,6 +408,14 @@ app.post("/stop", (req, res) => {
 app.post("/start", async (req, res) => {
   const { sessionId } = req.body || {};
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+
+  // access control gate
+  const user = ensureUser(sessionId);
+  const allowed = isUserAllowed(user);
+  if (!allowed.ok) {
+    sseLine(sessionId, "error", `Access denied: ${allowed.reason}`);
+    return res.status(403).json({ ok:false, message:"Not allowed", reason: allowed.reason });
+  }
 
   const job = getJob(sessionId);
   if (job.running) {
