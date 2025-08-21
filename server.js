@@ -297,7 +297,7 @@ app.get("/events", (req, res) => {
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123"; // CHANGE in production
 const ADMIN_USER = {
   username: "admin",
-  passwordHash: "$2b$10$2hk7IBoOBmHv.R7jx0.a9eQ1RSxklhQ7isPqNoA3zjk8siRMAitmS" // 👉 এখানে তোমার hash বসাও
+  passwordHash: "$2b$10$kUfGBUU8k.2NX9awGnnFvObnJdy1p/oZ3tdPWn1zid5cDPM2Lnv.q" // 👉 এখানে তোমার hash বসাও
 };
 
 app.post("/admin/login", async (req, res) => {
