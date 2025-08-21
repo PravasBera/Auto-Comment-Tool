@@ -1,6 +1,6 @@
 {
   "name": "facebook-auto-comment-tool",
-  "version": "1.6.0",
+  "version": "2.0",
   "main": "server.js",
   "scripts": { "start": "node server.js" },
   "dependencies": {
