@@ -1,229 +1,420 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Panel</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      background: #0f172a;
-      color: #e2e8f0;
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-    h1 {
-      font-size: 24px;
-    }
-    .card {
-      background: #1e293b;
-      padding: 15px;
-      border-radius: 10px;
-      margin-bottom: 15px;
-      cursor: pointer;
-    }
-    .card.selected {
-      border: 2px solid #38bdf8;
-    }
-    button {
-      display: block;
-      width: 100%;
-      margin: 5px 0;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .approve { background: #22c55e; }
-    .lifetime { background: #16a34a; }
-    .expiry { background: #eab308; }
-    .block { background: #ef4444; }
-    .unblock { background: #3b82f6; }
-    .reload { background: #64748b; }
-    .logout { background: #f87171; margin-top: 10px; }
-    input {
-      width: 100%;
-      padding: 8px;
-      margin: 5px 0;
-      border-radius: 6px;
-      border: none;
-    }
-    .login-box {
-      max-width: 300px;
-      margin: auto;
-      padding: 20px;
-      background: #1e293b;
-      border-radius: 10px;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin Panel — FB Auto Comment</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#14182a; --accent:#6c9ef8; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --muted:#9aa3b2; --text:#e7ebf3;
+    --chip:#1b2140; --chip2:#1a2039; --br:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0e1120 0%,#0b0f1c 100%);color:var(--text);font:14.5px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+  .card{background:var(--panel);border:1px solid #1b2140;border-radius:var(--br);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  header.card{padding:18px 18px}
+  header h1{margin:0;font-size:20px;display:flex;gap:10px;align-items:center}
+  header .right{margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .pill{background:var(--chip);border:1px solid #243055;padding:8px 10px;border-radius:999px;color:#c9d4f4}
+  .btn{border:1px solid #26355c;background:#1a2446;border-radius:10px;padding:9px 12px;color:#dfe7ff;cursor:pointer}
+  .btn:hover{filter:brightness(1.12)}
+  .btn.acc{background:linear-gradient(90deg,#5d86ff,#7aa2ff);border-color:#567ff7;color:#fff}
+  .btn.good{background:#12381f;border-color:#1c5a31}
+  .btn.bad{background:#3c1114;border-color:#5e1f23}
+  .btn.warn{background:#3c2a12;border-color:#73551b}
+  .btn.ghost{background:transparent}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:920px){.g3{grid-template-columns:1fr}}
+  .stat{padding:16px;border-radius:14px;background:linear-gradient(180deg,#151a33,#121730);border:1px solid #1e2747}
+  .stat b{display:block;font-size:22px;margin-top:4px}
+  .toolbar{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--chip2);border:1px solid #243055;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .toolbar input, .toolbar select{background:#0f1427;border:1px solid #27335b;color:#dfe7ff;border-radius:10px;padding:9px 10px;outline:none}
+  .toolbar label{display:flex;align-items:center;gap:8px}
+  .tablewrap{margin-top:14px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{background:#111732;color:#aab8e5;font-weight:600;text-align:left;padding:12px;border-top-left-radius:10px;border-top-right-radius:10px;border-bottom:1px solid #223058}
+  tbody td{padding:12px;border-bottom:1px solid #1b2344;vertical-align:top}
+  tbody tr:hover{background:#10162c}
+  .rowbtns{display:flex;gap:6px;flex-wrap:wrap}
+  .chiptext{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #2a3763;background:#0f1631}
+  .status-pending{color:#f59e0b}
+  .status-approved{color:#22c55e}
+  .status-blocked{color:#ef4444}
+  .hide{display:none !important}
+  .login{max-width:420px;margin:90px auto;padding:22px}
+  .login h2{margin:0 0 14px 0}
+  .note{color:#9aa8cd}
+  .foot{margin-top:12px;color:#90a0c8}
+  .toast{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:9}
+  .toast .t{background:#141a33;border:1px solid #2a3763;padding:10px 12px;border-radius:10px}
+  .tag{font-size:12px;opacity:.85}
+</style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
-  <div id="loginBox" class="login-box">
-    <h3>Admin Login</h3>
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="login()">Login</button>
+<div class="wrap">
+
+  <!-- LOGIN VIEW -->
+  <div id="loginView" class="card login">
+    <h2>Admin Login</h2>
+    <div class="note">সার্ভার: <code>/admin/login</code></div>
+    <div style="display:grid;gap:10px;margin-top:12px">
+      <input id="lgUser" placeholder="Username (default: admin)" />
+      <input id="lgPass" type="password" placeholder="Password" />
+      <button class="btn acc" id="btnLogin">Login</button>
+      <div class="foot">লগইন হলে টোকেন লোকালস্টোরেজে সেভ হবে।</div>
+    </div>
   </div>
 
-  <div id="panel" style="display:none;">
-    <div style="text-align:right;">
-      <span>Logged in</span>
-      <button class="logout" onclick="logout()">Logout</button>
+  <!-- APP VIEW -->
+  <div id="appView" class="hide">
+
+    <header class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <h1>Admin Panel <span class="tag">v2.0 (client only)</span></h1>
+        <div class="right">
+          <span class="pill">JWT: <span id="jwtShort">—</span></span>
+          <button class="btn ghost" id="btnRefresh">Refresh</button>
+          <button class="btn" id="btnLogout">Logout</button>
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:12px">
+        <div class="stat">
+          Pending <b id="stPending">0</b>
+        </div>
+        <div class="stat">
+          Approved <b id="stApproved">0</b>
+        </div>
+        <div class="stat">
+          Blocked <b id="stBlocked">0</b>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <input id="search" placeholder="Search sessionId / notes…" />
+        <select id="filterStatus">
+          <option value="">All status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="blocked">Blocked</option>
+        </select>
+
+        <label title="Auto approve new pending users (client-side)">
+          <input type="checkbox" id="autoApprove" />
+          Auto-Approve
+        </label>
+
+        <label title="Auto-approve করলে যত দিন মেয়াদ দিতে চাও (0 = Lifetime)">
+          Expiry (days): <input type="number" min="0" step="1" id="autoDays" style="width:90px" />
+        </label>
+
+        <label title="Bulk expiry set করার জন্য তারিখ/সময় (local)">
+          Expiry DateTime: <input type="datetime-local" id="dtExpiry" />
+        </label>
+
+        <button class="btn good" id="btnApproveSel">Approve Selected</button>
+        <button class="btn warn" id="btnSetExpirySel">Set Expiry</button>
+        <button class="btn" id="btnLifetimeSel" title="expiry=null">Lifetime</button>
+        <button class="btn bad" id="btnBlockSel">Block</button>
+        <button class="btn" id="btnUnblockSel">Unblock</button>
+      </div>
+    </header>
+
+    <div class="tablewrap card" style="margin-top:16px;padding:6px 10px 10px 10px">
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="selAll" /></th>
+            <th>Session ID</th>
+            <th>Status</th>
+            <th>Expiry</th>
+            <th>Created</th>
+            <th>Updated</th>
+            <th>Notes</th>
+            <th style="width:360px">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
 
-    <h2>Quick Actions</h2>
-    <input id="daysInput" placeholder="Number of days (e.g. 30)">
-    <button class="approve" onclick="approveDays()">Approve (days)</button>
-    <button class="lifetime" onclick="approveLifetime()">Lifetime</button>
-    <input id="expiryInput" placeholder="Set expiry (ISO or epoch ms)">
-    <button class="expiry" onclick="setExpiry()">Set Expiry</button>
-    <button class="block" onclick="blockUser()">Block</button>
-    <button class="unblock" onclick="unblockUser()">Unblock</button>
-    <button class="reload" onclick="loadUsers()">Reload</button>
-
-    <p id="selectedInfo">No user selected</p>
-
-    <h3>Pending Users</h3>
-    <div id="pending"></div>
-    <h3>Approved Users</h3>
-    <div id="approved"></div>
-    <h3>Blocked Users</h3>
-    <div id="blocked"></div>
   </div>
+</div>
 
-  <script>
-    let selectedUser = null;
+<div class="toast" id="toast"></div>
 
-    function getToken() {
-      return localStorage.getItem("token");
+<script>
+  // ----------------- Helpers -----------------
+  const $ = (s, r=document)=>r.querySelector(s);
+  const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
+  const toastBox = $("#toast");
+  function toast(msg){ const d=document.createElement("div"); d.className="t"; d.textContent=msg; toastBox.appendChild(d); setTimeout(()=>d.remove(), 3500); }
+  function shortToken(t){ if(!t) return "—"; return t.slice(0,12)+"…"+t.slice(-8); }
+  function fmtTime(ts){ if(!ts) return "—"; try{ return new Date(Number(ts)).toLocaleString(); }catch{ return String(ts); } }
+  function isExpired(ts){ return ts && Date.now() > Number(ts); }
+  function statusClass(s){
+    if(s==="approved") return "status-approved";
+    if(s==="blocked") return "status-blocked";
+    return "status-pending";
+  }
+
+  // fetch with JWT
+  async function api(path, {method="GET", body=null}={}){
+    const token = localStorage.getItem("adminToken") || "";
+    const opt = { method, headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token } };
+    if(body) opt.body = JSON.stringify(body);
+    const res = await fetch(path, opt);
+    if(res.status===401){ // invalid token
+      localStorage.removeItem("adminToken");
+      showLogin();
+      throw new Error("Unauthorized");
     }
+    return res.json();
+  }
 
-    function setToken(t) {
-      localStorage.setItem("token", t);
+  // ----------------- Login flow -----------------
+  const loginView = $("#loginView");
+  const appView = $("#appView");
+
+  function showLogin(){ loginView.classList.remove("hide"); appView.classList.add("hide"); }
+  function showApp(){ loginView.classList.add("hide"); appView.classList.remove("hide"); }
+
+  async function tryBoot(){
+    const t = localStorage.getItem("adminToken");
+    if(!t){ showLogin(); return; }
+    $("#jwtShort").textContent = shortToken(t);
+    try{
+      await loadUsers(); // will 401 if bad
+      showApp();
+    }catch{
+      showLogin();
     }
+  }
 
-    function logout() {
-      localStorage.removeItem("token");
-      document.getElementById("panel").style.display = "none";
-      document.getElementById("loginBox").style.display = "block";
+  $("#btnLogin").addEventListener("click", async ()=>{
+    const username = $("#lgUser").value || "admin";
+    const password = $("#lgPass").value || "";
+    const res = await fetch("/admin/login", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ username, password })
+    }).then(r=>r.json());
+    if(res?.ok){
+      localStorage.setItem("adminToken", res.token);   // ✅ save token
+      $("#jwtShort").textContent = shortToken(res.token);
+      toast("Login success");
+      showApp();
+      loadUsers();
+    }else{
+      toast(res?.message || "Login failed");
     }
+  });
 
-    async function login() {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+  $("#btnLogout").addEventListener("click", ()=>{
+    localStorage.removeItem("adminToken");
+    toast("Logged out");
+    showLogin();
+  });
 
-      const res = await fetch("/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+  // ----------------- Users table -----------------
+  let USERS_DB = {};   // raw object from /admin/users
+  let FILTER = { q:"", status:"" };
+
+  $("#search").addEventListener("input", (e)=>{ FILTER.q = e.target.value.toLowerCase(); renderUsers(); });
+  $("#filterStatus").addEventListener("change", (e)=>{ FILTER.status = e.target.value; renderUsers(); });
+
+  $("#btnRefresh").addEventListener("click", ()=> loadUsers(true));
+  $("#selAll").addEventListener("change", (e)=> {
+    $$("#usersTable tbody input[type=checkbox]").forEach(cb => cb.checked = e.target.checked);
+  });
+
+  async function loadUsers(showToast){
+    const db = await api("/admin/users");
+    USERS_DB = db || {};
+    if(showToast) toast("Users reloaded");
+    updateStats();
+    renderUsers();
+  }
+
+  function updateStats(){
+    const vals = Object.values(USERS_DB);
+    const p = vals.filter(x=>x.status==="pending").length;
+    const a = vals.filter(x=>x.status==="approved" && !x.blocked).length;
+    const b = vals.filter(x=>x.status==="blocked" || x.blocked).length;
+    $("#stPending").textContent = p;
+    $("#stApproved").textContent = a;
+    $("#stBlocked").textContent = b;
+  }
+
+  function renderUsers(){
+    const tbody = $("#usersTable tbody");
+    tbody.innerHTML = "";
+    const list = Object.values(USERS_DB)
+      .sort((x,y)=> (y.updatedAt||0)-(x.updatedAt||0))
+      .filter(u=>{
+        if(FILTER.status && u.status!==FILTER.status) return false;
+        if(!FILTER.q) return true;
+        const q = FILTER.q;
+        return (u.sessionId||"").toLowerCase().includes(q)
+            || (u.notes||"").toLowerCase().includes(q);
       });
-      const data = await res.json();
-      if (data.token) {
-        setToken(data.token);
-        document.getElementById("loginBox").style.display = "none";
-        document.getElementById("panel").style.display = "block";
-        loadUsers();
-      } else {
-        alert("Login failed");
+
+    for(const u of list){
+      const tr = document.createElement("tr");
+      const exp = u.expiry ? fmtTime(u.expiry) : "Lifetime";
+      const expChip = u.expiry ? (isExpired(u.expiry) ? `<span class="chiptext" style="color:#fca5a5;border-color:#5a2a2e;background:#2a1316">Expired</span>` : `<span class="chiptext" style="color:#8fe2b4;border-color:#2b5a46;background:#10261d">Active</span>`) : `<span class="chiptext">Lifetime</span>`;
+      tr.innerHTML = `
+        <td><input type="checkbox" data-id="${u.sessionId}"></td>
+        <td><code>${u.sessionId}</code></td>
+        <td class="${statusClass(u.status)}">${u.status}${u.blocked ? ' (blocked)' : ''}</td>
+        <td>${exp} ${expChip}</td>
+        <td>${fmtTime(u.createdAt)}</td>
+        <td>${fmtTime(u.updatedAt)}</td>
+        <td>${u.notes ? u.notes : ""}</td>
+        <td>
+          <div class="rowbtns">
+            <button class="btn good" data-act="approve" data-id="${u.sessionId}">Approve</button>
+            <button class="btn warn" data-act="expiry" data-id="${u.sessionId}">Set Expiry</button>
+            <button class="btn" data-act="lifetime" data-id="${u.sessionId}">Lifetime</button>
+            <button class="btn bad" data-act="block" data-id="${u.sessionId}">Block</button>
+            <button class="btn" data-act="unblock" data-id="${u.sessionId}">Unblock</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // Row actions (event delegation)
+  $("#usersTable").addEventListener("click", async (e)=>{
+    const btn = e.target.closest("button[data-act]");
+    if(!btn) return;
+    const id = btn.getAttribute("data-id");
+    const act = btn.getAttribute("data-act");
+    try{
+      if(act==="approve"){
+        await api("/admin/approve", { method:"POST", body:{ username:id, expiry:null } });
+        toast("Approved "+id);
+      }else if(act==="expiry"){
+        const ms = readExpiryInput();
+        if(ms===undefined){ toast("Pick an expiry (datetime) first"); return; }
+        await api("/admin/expire", { method:"POST", body:{ username:id, expiry: ms } });
+        toast("Expiry set for "+id);
+      }else if(act==="lifetime"){
+        await api("/admin/approve", { method:"POST", body:{ username:id, expiry:null } });
+        toast("Lifetime set for "+id);
+      }else if(act==="block"){
+        await api("/admin/block", { method:"POST", body:{ username:id } });
+        toast("Blocked "+id);
+      }else if(act==="unblock"){
+        await api("/admin/unblock", { method:"POST", body:{ username:id } });
+        toast("Unblocked "+id);
       }
+      await loadUsers();
+    }catch(err){ toast(err.message||"Action failed"); }
+  });
+
+  function selectedIds(){
+    return $$("#usersTable tbody input[type=checkbox]:checked").map(cb=>cb.getAttribute("data-id"));
+  }
+  function readExpiryInput(){
+    const val = $("#dtExpiry").value;
+    if(!val) return undefined;
+    // datetime-local → ms
+    const ms = new Date(val).getTime();
+    return isNaN(ms) ? undefined : ms;
+  }
+
+  // Bulk buttons
+  $("#btnApproveSel").addEventListener("click", async ()=>{
+    const ids = selectedIds(); if(!ids.length) return toast("No selection");
+    for(const id of ids){
+      await api("/admin/approve", { method:"POST", body:{ username:id, expiry:null } });
     }
+    toast("Approved "+ids.length+" user(s)");
+    loadUsers();
+  });
 
-    async function api(path, body) {
-      const token = getToken();
-      const res = await fetch(path, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + token
-        },
-        body: JSON.stringify(body || {})
-      });
-      return res.json();
+  $("#btnSetExpirySel").addEventListener("click", async ()=>{
+    const ids = selectedIds(); if(!ids.length) return toast("No selection");
+    const ms = readExpiryInput();
+    if(ms===undefined) return toast("Pick an expiry (datetime) first");
+    for(const id of ids){
+      await api("/admin/expire", { method:"POST", body:{ username:id, expiry: ms } });
     }
+    toast("Expiry set for "+ids.length+" user(s)");
+    loadUsers();
+  });
 
-    async function loadUsers() {
-      const token = getToken();
-      const res = await fetch("/admin/users", {
-        headers: { "Authorization": "Bearer " + token }
-      });
-      const users = await res.json();
-      renderUsers(users);
+  $("#btnLifetimeSel").addEventListener("click", async ()=>{
+    const ids = selectedIds(); if(!ids.length) return toast("No selection");
+    for(const id of ids){
+      await api("/admin/approve", { method:"POST", body:{ username:id, expiry:null } });
     }
+    toast("Lifetime set for "+ids.length+" user(s)");
+    loadUsers();
+  });
 
-    function renderUsers(users) {
-      const pendingDiv = document.getElementById("pending");
-      const approvedDiv = document.getElementById("approved");
-      const blockedDiv = document.getElementById("blocked");
-
-      pendingDiv.innerHTML = "";
-      approvedDiv.innerHTML = "";
-      blockedDiv.innerHTML = "";
-
-      users.forEach(u => {
-        const div = document.createElement("div");
-        div.className = "card";
-        div.innerHTML = `
-          <b>${u.username}</b><br>
-          Status: ${u.status}<br>
-          Expiry: ${u.expiry || "None"}<br>
-          Created: ${u.created}<br>
-          Updated: ${u.updated}
-        `;
-        div.onclick = () => {
-          document.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
-          div.classList.add("selected");
-          selectedUser = u.username;
-          document.getElementById("selectedInfo").innerText = "Selected: " + u.username;
-        };
-
-        if (u.status === "pending") pendingDiv.appendChild(div);
-        else if (u.status === "approved") approvedDiv.appendChild(div);
-        else if (u.status === "blocked") blockedDiv.appendChild(div);
-      });
+  $("#btnBlockSel").addEventListener("click", async ()=>{
+    const ids = selectedIds(); if(!ids.length) return toast("No selection");
+    for(const id of ids){
+      await api("/admin/block", { method:"POST", body:{ username:id } });
     }
+    toast("Blocked "+ids.length+" user(s)");
+    loadUsers();
+  });
 
-    async function approveDays() {
-      if (!selectedUser) return alert("No user selected");
-      const days = parseInt(document.getElementById("daysInput").value);
-      if (!days) return alert("Enter valid days");
-      const expiry = Date.now() + days * 24*60*60*1000;
-      await api("/admin/approve", { username: selectedUser, expiry });
-      loadUsers();
+  $("#btnUnblockSel").addEventListener("click", async ()=>{
+    const ids = selectedIds(); if(!ids.length) return toast("No selection");
+    for(const id of ids){
+      await api("/admin/unblock", { method:"POST", body:{ username:id } });
     }
+    toast("Unblocked "+ids.length+" user(s)");
+    loadUsers();
+  });
 
-    async function approveLifetime() {
-      if (!selectedUser) return alert("No user selected");
-      await api("/admin/approve", { username: selectedUser });
-      loadUsers();
-    }
+  // ----------------- Auto-Approve (client-side automation) -----------------
+  const autoChk = $("#autoApprove");
+  const autoDays = $("#autoDays");
 
-    async function setExpiry() {
-      if (!selectedUser) return alert("No user selected");
-      const expiry = document.getElementById("expiryInput").value;
-      if (!expiry) return alert("Enter expiry");
-      await api("/admin/expire", { username: selectedUser, expiry });
-      loadUsers();
-    }
+  // restore prefs
+  autoChk.checked = localStorage.getItem("aa_on")==="1";
+  autoDays.value = localStorage.getItem("aa_days") ?? "0";
 
-    async function blockUser() {
-      if (!selectedUser) return alert("No user selected");
-      await api("/admin/block", { username: selectedUser });
-      loadUsers();
-    }
+  autoChk.addEventListener("change", ()=>{
+    localStorage.setItem("aa_on", autoChk.checked ? "1":"0");
+    toast("Auto-Approve "+(autoChk.checked?"ON":"OFF"));
+  });
+  autoDays.addEventListener("change", ()=>{
+    localStorage.setItem("aa_days", String(Number(autoDays.value)||0));
+  });
 
-    async function unblockUser() {
-      if (!selectedUser) return alert("No user selected");
-      await api("/admin/unblock", { username: selectedUser });
-      loadUsers();
+  async function autoApproveTick(){
+    try{
+      if(!autoChk.checked) return;
+      const db = await api("/admin/users");
+      const pend = Object.values(db).filter(u=>u.status==="pending");
+      if(!pend.length) return;
+      const days = Number(localStorage.getItem("aa_days") || "0");
+      let expiry = null;
+      if(days>0){
+        expiry = Date.now() + days*24*60*60*1000;
+      }
+      for(const u of pend){
+        await api("/admin/approve", { method:"POST", body:{ username: u.sessionId, expiry } });
+        toast("Auto-approved "+u.sessionId+(expiry?` (${days}d)`: " (lifetime)"));
+      }
+      await loadUsers();
+    }catch(e){
+      // ignore 401 (will switch to login), else show one toast
+      if(e.message!=="Unauthorized") toast("Auto-approve error: "+(e.message||e));
     }
+  }
+  setInterval(autoApproveTick, 5000);
 
-    // Auto-login if token exists
-    if (getToken()) {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("panel").style.display = "block";
-      loadUsers();
-    }
-  </script>
+  // ----------------- Boot -----------------
+  tryBoot();
+</script>
 </body>
 </html>
