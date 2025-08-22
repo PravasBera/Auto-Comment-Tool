@@ -6,43 +6,52 @@
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-  <div class="container">
-    <h1>Admin Panel</h1>
-    <p style="text-align:right;">Logged in <button class="action-btn delete">Logout</button></p>
+  <div class="login-container" id="loginBox">
+    <h2>Admin Login</h2>
+    <input type="text" id="adminUser" placeholder="Username">
+    <input type="password" id="adminPass" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p id="loginMsg"></p>
+  </div>
 
-    <!-- Quick Actions -->
-    <h2>Quick Actions</h2>
-    <div class="form">
-      <input type="number" id="days" placeholder="Enter days">
-      <button onclick="approveUser()" class="action-btn">Approve (days)</button>
-      <button onclick="lifetimeUser()" class="action-btn">Lifetime</button>
+  <div class="panel-container hidden" id="panelBox">
+    <header>
+      <h1>Admin Panel</h1>
+      <button onclick="logout()">Logout</button>
+    </header>
+
+    <div class="actions">
+      <select id="userSelect"></select>
+      <input type="date" id="expiryDate">
+      <button onclick="approveUser()">Approve</button>
+      <button onclick="expireUser()">Set Expiry</button>
+      <button onclick="blockUser()">Block</button>
+      <button onclick="unblockUser()">Unblock</button>
     </div>
 
-    <div class="form">
-      <input type="text" id="expiry" placeholder="Set expiry (ISO or epoch ms)">
-      <button onclick="setExpiry()" class="action-btn">Set Expiry</button>
-    </div>
-
-    <div class="form">
-      <button onclick="blockUser()" class="action-btn delete">Block</button>
-      <button onclick="unblockUser()" class="action-btn">Unblock</button>
-      <button onclick="reloadUsers()" class="action-btn">Reload</button>
-    </div>
-
-    <!-- Selected User -->
-    <p id="selectedUser">Selected: None</p>
-
-    <!-- Pending Users -->
-    <h2>Pending Users</h2>
-    <div id="pendingUsers"></div>
-
-    <!-- Approved Users -->
     <h2>Approved Users</h2>
-    <div id="approvedUsers"></div>
+    <table id="approvedUsers">
+      <thead>
+        <tr><th>Username</th><th>Approved At</th><th>Expiry</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-    <!-- Blocked Users -->
+    <h2>Pending Users</h2>
+    <table id="pendingUsers">
+      <thead>
+        <tr><th>Username</th><th>Requested At</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
     <h2>Blocked Users</h2>
-    <div id="blockedUsers"></div>
+    <table id="blockedUsers">
+      <thead>
+        <tr><th>Username</th><th>Blocked At</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
   <script src="admin.js"></script>
