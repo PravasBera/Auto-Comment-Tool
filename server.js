@@ -10,13 +10,7 @@
  * - FB link→commentable id resolver (pfbid, story.php, groups, photos, numeric, actor_post)
  * - Error classifier + per-session SSE clients
  */
-const {
-  approveUser,
-  blockUser,
-  unblockUser,
-  deleteUser,
-  getAllUsers
-} = require("./usersManager");
+const usersManager = require("./usersManager");
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -47,9 +41,7 @@ if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 if (!fs.existsSync(VIEWS_DIR)) fs.mkdirSync(VIEWS_DIR, { recursive: true });
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-if (!fs.existsSync(USERS_DB)) {
-  fs.writeFileSync(USERS_DB, JSON.stringify({ users: [] }, null, 2), "utf-8");
-}
+if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}), "utf-8");
 
 app.use(express.static(PUBLIC_DIR));
 
@@ -65,6 +57,53 @@ app.get("/admin", (_req, res) => {
 
 // -------------------- Upload setup --------------------
 const upload = multer({ dest: UPLOAD_DIR });
+
+// -------------------- User DB helpers --------------------
+function loadUsers() {
+  try {
+    return JSON.parse(fs.readFileSync(USERS_DB, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+function saveUsers(db) {
+  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
+}
+function ensureUser(sessionId) {
+  const db = loadUsers();
+  if (!db[sessionId]) {
+    const now = Date.now();
+    db[sessionId] = {
+      sessionId,
+      status: "pending", // pending | approved | blocked
+      blocked: false,
+      expiry: null,      // ms timestamp or null
+      notes: "",
+      createdAt: now,
+      updatedAt: now
+    };
+    saveUsers(db);
+  }
+  return db[sessionId];
+}
+function setUser(sessionId, patch = {}) {
+  const db = loadUsers();
+  if (!db[sessionId]) return null;
+  db[sessionId] = { ...db[sessionId], ...patch, updatedAt: Date.now() };
+  saveUsers(db);
+  return db[sessionId];
+}
+function getUser(sessionId) {
+  const db = loadUsers();
+  return db[sessionId] || null;
+}
+function isUserAllowed(u) {
+  if (!u) return { ok: false, reason: "UNKNOWN_USER" };
+  if (u.status === "blocked" || u.blocked) return { ok: false, reason: "BLOCKED" };
+  if (u.status !== "approved") return { ok: false, reason: "PENDING" };
+  if (u.expiry && Date.now() > Number(u.expiry)) return { ok: false, reason: "EXPIRED" };
+  return { ok: true };
+}
 
 // -------------------- Cookie session --------------------
 app.use((req, res, next) => {
@@ -183,23 +222,6 @@ function classifyError(err) {
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
-// -------------------- User helpers --------------------
-function ensureUser(username) {
-  const all = usersManager.getAllUsers();
-  let user = all.find(u => u.username === username);
-  if (!user) {
-    user = usersManager.approveUser(username, null); // default approve
-  }
-  return user;
-}
-
-function isUserAllowed(user) {
-  if (!user) return { ok: false, reason: "Unknown user" };
-  if (user.status === "blocked") return { ok: false, reason: "User is blocked" };
-  if (user.expiry && new Date(user.expiry) < new Date()) return { ok: false, reason: "Expired access" };
-  return { ok: true };
-}
-
 // -------------------- SSE state per session --------------------
 /** Map<sessionId, { running:boolean, abort:boolean, clients:Set<res> }> */
 const jobs = new Map();
@@ -301,97 +323,37 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------- Admin protected APIs --------------------
-// Approve user (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
+app.get("/admin/users", requireAdmin, (_req, res) => {
+  res.json(loadUsers());
+});
+// Approve (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
 app.post("/admin/approve", requireAdmin, (req, res) => {
   const { username, expiry } = req.body;
-  const user = approveUser(username, expiry || null);
+  const user = usersManager.approveUser(username, expiry || null);
   res.json({ ok: true, user });
 });
 
 app.post("/admin/block", requireAdmin, (req, res) => {
   const { username } = req.body;
-  const user = blockUser(username);
+  const user = usersManager.blockUser(username, true);
   res.json({ ok: true, user });
 });
 
 app.post("/admin/unblock", requireAdmin, (req, res) => {
   const { username } = req.body;
-  const user = unblockUser(username);
+  const user = usersManager.blockUser(username, false);
   res.json({ ok: true, user });
 });
 
-app.post("/admin/delete", requireAdmin, (req, res) => {
-  const { username } = req.body;
-  deleteUser(username);
-  res.json({ ok: true });
+app.post("/admin/expire", requireAdmin, (req, res) => {
+  const { username, expiry } = req.body;
+  const user = usersManager.approveUser(username, expiry);
+  res.json({ ok: true, user });
 });
 
-// সব ইউসার লিস্ট
+// সব ইউজার লিস্ট
 app.get("/admin/users", requireAdmin, (req, res) => {
-  res.json(getAllUsers());
-});
-
-// ----------------- FB Link Resolver -----------------
-function base58Decode(str) {
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let num = BigInt(0);
-  for (let char of str) {
-    num = num * BigInt(58) + BigInt(alphabet.indexOf(char));
-  }
-  return num.toString();
-}
-
-function pfbidToPostId(pfbid) {
-  let clean = pfbid.replace(/^pfbid/, "");
-  clean = clean.replace(/[_-]/g, "");
-  let decoded = base58Decode(clean);
-  return decoded.slice(-16); // আসল numeric post id
-}
-
-// API route
-app.post("/resolveLink", async (req, res) => {
-  try {
-    const { link } = req.body;
-
-    if (!link) return res.json({ success: false, error: "No link provided" });
-
-    let postId = null, userId = null;
-
-    if (link.includes("pfbid")) {
-      // example: https://www.facebook.com/.../posts/pfbidxxxxx
-      const match = link.match(/(pfbid[A-Za-z0-9]+)/);
-      if (match) {
-        postId = pfbidToPostId(match[1]);
-      }
-      // user id থাকলে বের করো
-      const uidMatch = link.match(/facebook\.com\/(\d+)/);
-      if (uidMatch) userId = uidMatch[1];
-
-    } else if (link.includes("story.php")) {
-      // example: story.php?story_fbid=XXX&id=YYY
-      const url = new URL(link);
-      postId = url.searchParams.get("story_fbid");
-      userId = url.searchParams.get("id");
-
-    } else if (link.includes("/posts/")) {
-      // example: /userid/posts/postid
-      const parts = link.split("/");
-      const idx = parts.indexOf("posts");
-      if (idx !== -1) {
-        userId = parts[idx - 1];
-        postId = parts[idx + 1];
-      }
-    }
-
-    if (!postId) {
-      return res.json({ success: false, error: "Could not resolve post id" });
-    }
-
-    res.json({ success: true, postId, userId });
-  } catch (err) {
-    console.error("resolveLink error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+  res.json(usersManager.loadUsers());
 });
 
 // -------------------- Upload (protected by user access) --------------------
