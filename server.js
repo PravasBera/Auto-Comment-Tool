@@ -17,7 +17,6 @@ const {
   deleteUser,
   getAllUsers
 } = require("./usersManager");
-const usersManager = require("./usersManager");
 const { approveUser, blockUser, unblockUser, deleteUser, getAllUsers } = usersManager;
 const express = require("express");
 const multer = require("multer");
