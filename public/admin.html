@@ -87,6 +87,19 @@
         <p class="muted" style="margin-top:10px">নিচে যেকোনো ইউজার কার্ডে ট্যাপ করলে সেটাই “selected” হবে। উপরের অ্যাকশনগুলো selected user-এর উপর চলবে।</p>
         <div id="selectedUser" class="tag" style="margin-top:6px">No user selected</div>
       </div>
+      <!-- Expire User -->
+<div class="card">
+  <h3>Expire User</h3>
+  <form id="expireForm">
+    <label>Username:</label>
+    <input type="text" name="username" required />
+
+    <label>Expiry (timestamp or ISO date):</label>
+    <input type="text" name="expiry" placeholder="2025-09-01T00:00:00" required />
+
+    <button type="submit">Set Expiry</button>
+  </form>
+</div>
 
       <div class="col-8">
         <div class="sections">
@@ -296,7 +309,44 @@
     if (!j.ok) return alert(j.message||"Failed");
     await loadUsers();
   };
+  // ---- Expire Form ----
+document.getElementById("expireForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = new URLSearchParams(new FormData(form));
 
+  try {
+    const res = await fetch("/admin/expire", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: data.toString()
+    });
+    const json = await res.json();
+    alert(json.message || "Expiry set");
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+})
+  
+// ---- Expire Form ----
+document.getElementById("expireForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = new URLSearchParams(new FormData(form));
+
+  try {
+    const res = await fetch("/admin/expire", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: data.toString()
+    });
+    const json = await res.json();
+    alert(json.message || "Expiry set");
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+});
+  
   // ---------- boot ----------
   if (TOKEN) showPanel(); else showLogin();
 </script>
