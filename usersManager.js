@@ -1,77 +1,85 @@
+// usersManager.js
 const fs = require("fs");
 const path = require("path");
 
-const usersFile = path.join(__dirname, "users.json");
+const USERS_FILE = path.join(__dirname, "users.json");
 
-// users.json পড়া
-function readUsers() {
-  if (!fs.existsSync(usersFile)) {
-    fs.writeFileSync(usersFile, JSON.stringify({}, null, 2));
-  }
-  const data = fs.readFileSync(usersFile);
+// Ensure file exists
+function loadUsers() {
   try {
+    if (!fs.existsSync(USERS_FILE)) {
+      fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }, null, 2));
+    }
+    const data = fs.readFileSync(USERS_FILE, "utf8");
     return JSON.parse(data);
   } catch (err) {
-    return {}; // ভুল হলে খালি object রিটার্ন করবে
+    console.error("Error loading users:", err);
+    return { users: [] };
   }
 }
 
-// users.json এ লেখা
-function writeUsers(users) {
-  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+function saveUsers(data) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
 }
 
-// সব ইউজার পাওয়া
-function getAllUsers() {
-  const users = readUsers();
-  return Object.values(users);
+// Approve user
+function approveUser(username, expiry) {
+  const db = loadUsers();
+  let user = db.users.find((u) => u.username === username);
+
+  if (!user) {
+    user = { username, approvedAt: new Date().toISOString(), expiry, status: "approved" };
+    db.users.push(user);
+  } else {
+    user.approvedAt = new Date().toISOString();
+    user.expiry = expiry;
+    user.status = "approved";
+  }
+
+  saveUsers(db);
+  return user;
 }
 
-// নতুন ইউজার add/update করা
-function addUser(username, { expiry = null, status = "approved" }) {
-  const users = readUsers();
-  users[username] = {
-    username,
-    approvedAt: new Date().toISOString(),
-    expiry,
-    status,
-  };
-  writeUsers(users);
-  return users[username];
-}
-
-// ইউজার block করা
+// Block user
 function blockUser(username) {
-  const users = readUsers();
-  if (users[username]) {
-    users[username].status = "blocked";
-    writeUsers(users);
-    return true;
+  const db = loadUsers();
+  const user = db.users.find((u) => u.username === username);
+  if (user) {
+    user.status = "blocked";
+    saveUsers(db);
   }
-  return false;
+  return user;
 }
 
-// ইউজার মুছে ফেলা
-function removeUser(username) {
-  const users = readUsers();
-  if (users[username]) {
-    delete users[username];
-    writeUsers(users);
-    return true;
+// Unblock user
+function unblockUser(username) {
+  const db = loadUsers();
+  const user = db.users.find((u) => u.username === username);
+  if (user) {
+    user.status = "approved";
+    saveUsers(db);
   }
-  return false;
+  return user;
 }
 
-// এক ইউজারের ডিটেইল পাওয়া
-function getUser(username) {
-  const users = readUsers();
-  return users[username] || null;
+// Delete user
+function deleteUser(username) {
+  const db = loadUsers();
+  db.users = db.users.filter((u) => u.username !== username);
+  saveUsers(db);
+  return true;
+}
+
+// Get all users
+function getAllUsers() {
+  const db = loadUsers();
+  return db.users;
 }
 
 module.exports = {
-  getAllUsers,
-  addUser,
+  approveUser,
   blockUser,
-  removeUser,
-  getUser,
+  unblockUser,
+  deleteUser,
+  getAllUsers,
 };
