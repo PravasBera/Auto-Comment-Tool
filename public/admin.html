@@ -1,131 +1,144 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Admin Panel</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <title>Admin Panel — FB Auto Comment Tool</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .login-box, .panel { border:1px solid #ccc; padding:20px; border-radius:6px; max-width:600px; }
-    table { border-collapse: collapse; width:100%; margin-top:10px; }
-    th, td { border:1px solid #ddd; padding:8px; text-align:center; }
-    th { background:#f2f2f2; }
-    button { margin:2px; padding:4px 8px; }
-    .hidden { display:none; }
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+    .tag{padding:.15rem .5rem;border-radius:999px;font-size:.8rem;border:1px solid #e5e7eb}
+    .tag.approved{background:#e7f9ef;border-color:#b7ebcd}
+    .tag.pending{background:#fff6e5;border-color:#ffdf9c}
+    .tag.blocked{background:#ffe7e7;border-color:#ffc2c2}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border-bottom:1px solid #eee;padding:.6rem;text-align:left;vertical-align:top}
+    .danger{background:#e74c3c;color:#fff}
+    .ok{background:#16a34a;color:#fff}
+    .warn{background:#f59e0b;color:#000}
+    .muted{opacity:.8}
+    .login-card{max-width:420px;margin:2rem auto}
+    #logsPanel{white-space:pre-wrap;background:#0b1220;color:#eaeefb;padding:10px;border-radius:8px;height:300px;overflow:auto}
+    #warnPanel{background:#fff7ed;border:1px dashed #fdba74;padding:8px;border-radius:8px;max-height:200px;overflow:auto}
+    details{background:#f8f9fb;border-radius:8px;padding:.5rem .8rem}
+    summary{cursor:pointer;font-weight:600}
+    .actions button{margin-right:.35rem;margin-bottom:.3rem}
+    .row{display:flex;gap:1rem;flex-wrap:wrap}
+    .card h3{margin-top:0}
+    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .6rem}
+    .ghost{background:#fff;border:1px solid #e5e7eb}
+    .spacer{flex:1 1 auto}
+    .sel{width:1.2rem;height:1.2rem}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+    input[type="datetime-local"]{padding:.35rem .5rem}
+    .kbd{border:1px solid #ddd;border-bottom-width:2px;border-radius:6px;padding:0 .35rem;background:#f9fafb}
+    .badge{font-size:.75rem;padding:.1rem .35rem;border-radius:6px;border:1px solid #e5e7eb}
   </style>
 </head>
 <body>
-  <h2>Admin Panel</h2>
+<header class="app-header">
+  <h1>⚙️ Admin Panel</h1>
+  <p>Approve / Block / Expire users & watch live logs</p>
+</header>
 
-  <!-- Login Form -->
-  <div class="login-box" id="loginBox">
-    <h3>Login</h3>
-    <input id="username" placeholder="Username" /><br/><br/>
-    <input id="password" placeholder="Password" type="password" /><br/><br/>
-    <button onclick="login()">Login</button>
-    <p id="loginMsg" style="color:red"></p>
-  </div>
+<main class="container">
+  <!-- Login -->
+  <section id="loginBox" class="card login-card">
+    <h2>Admin Login</h2>
+    <div class="grid2">
+      <div>
+        <label>Username</label>
+        <input id="u" type="text" placeholder="admin" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="p" type="password" placeholder="••••••••" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:.75rem">
+      <button id="loginBtn" class="ok">Login</button>
+      <div id="loginMsg" class="muted"></div>
+    </div>
+  </section>
 
-  <!-- User Management Panel -->
-  <div class="panel hidden" id="panel">
-    <h3>Users</h3>
-    <button onclick="loadUsers()">🔄 Refresh</button>
-    <table id="userTable">
+  <!-- Admin UI -->
+  <section id="adminBox" class="card" style="display:none">
+    <div class="toolbar">
+      <button id="refreshBtn" class="ghost">↻ Refresh</button>
+      <input id="q" type="text" placeholder="Search sessionId/status..." />
+      <select id="filterStatus">
+        <option value="">All</option>
+        <option value="approved">Approved</option>
+        <option value="pending">Pending</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      <label class="pill">Expiry before
+        <input id="filterExpiry" type="date" />
+      </label>
+      <div class="spacer"></div>
+      <span class="muted">Token: <code id="tokCut"></code></span>
+      <button id="logoutBtn" class="danger">Logout</button>
+    </div>
+
+    <!-- Bulk actions -->
+    <div class="toolbar">
+      <input id="selAll" class="sel" type="checkbox" />
+      <label for="selAll">Select all</label>
+      <button data-bulk="approve" class="ok">Approve</button>
+      <button data-bulk="expire" class="warn">Set Expiry</button>
+      <button data-bulk="block" class="danger">Block</button>
+      <button data-bulk="unblock" class="ghost">Unblock</button>
+      <button data-bulk="delete" class="danger">Delete</button>
+      <div class="spacer"></div>
+      <button id="exportBtn" class="ghost">Export Users (JSON)</button>
+      <button id="healthBtn" class="ghost">Health</button>
+      <span id="healthDot" class="badge">unknown</span>
+    </div>
+
+    <!-- Users table -->
+    <table class="table" id="userTable">
       <thead>
         <tr>
+          <th></th>
           <th>Session ID</th>
           <th>Status</th>
           <th>Expiry</th>
-          <th>Notes</th>
+          <th>Created</th>
+          <th>Updated</th>
           <th>Actions</th>
+          <th>Logs</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
-  </div>
 
-  <script>
-    let token = null;
+    <div class="row" style="margin-top:1rem">
+      <!-- Resolver Tester -->
+      <section class="card" style="flex:1 1 340px">
+        <h3>🔎 Resolver Tester</h3>
+        <input id="resInput" type="text" placeholder="Paste FB link or numeric id" />
+        <div class="row" style="margin-top:.5rem">
+          <button id="resBtn">Test /resolveLink</button>
+          <span id="resOut" class="muted"></span>
+        </div>
+      </section>
 
-    async function login() {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+      <!-- Live Logs -->
+      <section class="card" style="flex:2 1 520px">
+        <h3>📡 Live Logs (per user)</h3>
+        <div class="row">
+          <input id="logSession" type="text" placeholder="sessionId (or click Logs in table)" />
+          <button id="logConnectBtn" class="ghost">Connect</button>
+          <button id="logCloseBtn" class="ghost">Close</button>
+        </div>
+        <div id="logsPanel" style="margin-top:.5rem"></div>
+        <div id="warnPanel" class="logs" style="margin-top:.5rem"></div>
+      </section>
+    </div>
+  </section>
+</main>
 
-      const res = await fetch("/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
-      const j = await res.json();
-      if (j.ok) {
-        token = j.token;
-        document.getElementById("loginBox").classList.add("hidden");
-        document.getElementById("panel").classList.remove("hidden");
-        loadUsers();
-      } else {
-        document.getElementById("loginMsg").innerText = j.message || "Login failed";
-      }
-    }
-
-    async function loadUsers() {
-      const res = await fetch("/admin/users", {
-        headers: { "Authorization": "Bearer " + token }
-      });
-      const db = await res.json();
-      const tbody = document.querySelector("#userTable tbody");
-      tbody.innerHTML = "";
-
-      for (const [id, u] of Object.entries(db)) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${id}</td>
-          <td>${u.status}</td>
-          <td>${u.expiry ? new Date(u.expiry).toLocaleString() : "-"}</td>
-          <td>${u.notes || ""}</td>
-          <td>
-            <button onclick="approve('${id}')">Approve</button>
-            <button onclick="block('${id}')">Block</button>
-            <button onclick="unblock('${id}')">Unblock</button>
-            <button onclick="expire('${id}')">Expire(1d)</button>
-          </td>`;
-        tbody.appendChild(tr);
-      }
-    }
-
-    async function approve(username) {
-      const expiry = prompt("Expiry timestamp (leave blank = lifetime)", "");
-      await fetch("/admin/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify({ username, expiry: expiry || null })
-      });
-      loadUsers();
-    }
-    async function block(username) {
-      await fetch("/admin/block", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify({ username })
-      });
-      loadUsers();
-    }
-    async function unblock(username) {
-      await fetch("/admin/unblock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify({ username })
-      });
-      loadUsers();
-    }
-    async function expire(username) {
-      const expiry = Date.now() + 24*60*60*1000; // +1 day
-      await fetch("/admin/expire", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-        body: JSON.stringify({ username, expiry })
-      });
-      loadUsers();
-    }
-  </script>
+<footer class="footer">© 2025 | Admin Panel</footer>
+<script src="/admin.js"></script>
 </body>
 </html>
