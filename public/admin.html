@@ -1,354 +1,74 @@
-<!doctype html>
-<html lang="bn">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin • Facebook Auto Comment Tool</title>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
   <style>
-    :root{
-      --bg:#0f172a; --card:#111827; --muted:#9ca3af; --txt:#f8fafc; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --btn:#1f2937;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;padding:16px;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    h1{margin:0 0 14px}
-    .wrap{max-width:1100px;margin:0 auto}
-    .card{background:var(--card);border:1px solid #222;border-radius:14px;padding:14px}
-    .row{display:grid;gap:14px;grid-template-columns:repeat(12,minmax(0,1fr))}
-    .col-4{grid-column:span 4}
-    .col-8{grid-column:span 8}
-    @media (max-width:900px){.col-4,.col-8{grid-column:span 12}}
-    input,button,select,textarea{width:100%;padding:12px;border:1px solid #263041;background:#0b1220;color:var(--txt);border-radius:10px;font-size:15px}
-    button{cursor:pointer;background:var(--btn)}
-    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #2a364f;background:#0b1220;color:var(--txt);font-weight:600}
-    .btn.ok{border-color:#065f46}
-    .btn.warn{border-color:#7c5806}
-    .btn.err{border-color:#7f1d1d}
-    .btn.small{padding:8px 10px;font-size:13px}
-    .stack{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-    .user{background:#0b1220;border:1px solid #1f2a44;border-radius:12px;padding:12px;margin-bottom:10px}
-    .user h4{margin:0 0 6px;font-size:15px;word-break:break-all}
-    .muted{color:var(--muted);font-size:12px}
-    .tag{display:inline-block;background:#172033;border:1px solid #243147;padding:2px 8px;border-radius:999px;font-size:12px}
-    .sections{display:grid;gap:16px}
-    .sec h3{margin:0 0 10px}
-    .right{float:right}
-    .sep{height:1px;background:#1b243a;margin:10px 0}
-    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .hide{display:none}
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 20px; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
+    th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+    th { background: #333; color: #fff; }
+    button { padding: 5px 10px; margin: 2px; border: none; border-radius: 5px; cursor: pointer; }
+    .approve { background: #4CAF50; color: white; }
+    .block { background: #f44336; color: white; }
+    .unblock { background: #ff9800; color: white; }
+    .delete { background: #000; color: white; }
   </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topbar">
-    <h1>Admin Panel</h1>
-    <div class="stack">
-      <span id="adminUser" class="muted"></span>
-      <button class="btn small" id="logoutBtn">Logout</button>
-    </div>
-  </div>
+  <h1>Admin Panel</h1>
+  <table id="usersTable">
+    <thead>
+      <tr>
+        <th>UserID</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="usersBody"></tbody>
+  </table>
 
-  <!-- Login card -->
-  <div id="loginCard" class="card">
-    <div class="row">
-      <div class="col-4">
-        <label>Username</label>
-        <input id="lu" placeholder="admin" />
-      </div>
-      <div class="col-4">
-        <label>Password</label>
-        <input id="lp" type="password" placeholder="••••••••" />
-      </div>
-      <div class="col-4" style="display:flex;align-items:flex-end">
-        <button class="btn ok" id="loginBtn">Login</button>
-      </div>
-    </div>
-    <p id="loginMsg" class="muted" style="margin-top:8px"></p>
-  </div>
-
-  <!-- Panel card -->
-  <div id="panelCard" class="card hide">
-    <div class="row">
-      <div class="col-4">
-        <h3 style="margin-top:0">Quick Actions</h3>
-        <div class="stack" style="margin-bottom:10px">
-          <input id="days" type="number" min="0" placeholder="Approve for N days (optional)" />
-          <button class="btn small ok" id="approveDaysBtn">Approve (days)</button>
-          <button class="btn small ok" id="lifetimeBtn">Lifetime</button>
-        </div>
-        <div class="stack" style="margin-bottom:10px">
-          <input id="expiryAt" placeholder="Set expiry (ISO or epoch ms)" />
-          <button class="btn small warn" id="setExpiryBtn">Set Expiry</button>
-        </div>
-        <div class="stack">
-          <button class="btn small err" id="blockBtn">Block</button>
-          <button class="btn small" id="unblockBtn">Unblock</button>
-          <button class="btn small" id="reloadBtn">Reload</button>
-        </div>
-        <p class="muted" style="margin-top:10px">নিচে যেকোনো ইউজার কার্ডে ট্যাপ করলে সেটাই “selected” হবে। উপরের অ্যাকশনগুলো selected user-এর উপর চলবে।</p>
-        <div id="selectedUser" class="tag" style="margin-top:6px">No user selected</div>
-      </div>
-      <!-- Expire User -->
-<div class="card">
-  <h3>Expire User</h3>
-  <form id="expireForm">
-    <label>Username:</label>
-    <input type="text" name="username" required />
-
-    <label>Expiry (timestamp or ISO date):</label>
-    <input type="text" name="expiry" placeholder="2025-09-01T00:00:00" required />
-
-    <button type="submit">Set Expiry</button>
-  </form>
-</div>
-
-      <div class="col-8">
-        <div class="sections">
-          <div class="sec">
-            <h3>Pending Users</h3>
-            <div id="pending"></div>
-          </div>
-          <div class="sep"></div>
-          <div class="sec">
-            <h3>Approved Users</h3>
-            <div id="approved"></div>
-          </div>
-          <div class="sep"></div>
-          <div class="sec">
-            <h3>Blocked Users</h3>
-            <div id="blocked"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<script>
-  // ---------- helpers ----------
-  const $ = (id)=>document.getElementById(id);
-  const loginCard = $("loginCard");
-  const panelCard = $("panelCard");
-  const adminUserEl = $("adminUser");
-  const selectedUserEl = $("selectedUser");
-  let TOKEN = localStorage.getItem("token") || null;
-  let SELECTED = null;
-
-  function setSelected(u){
-    SELECTED = u;
-    selectedUserEl.textContent = u ? `Selected: ${u.username}` : "No user selected";
-  }
-
-  function headersJSON(){
-    const h = { "Content-Type":"application/json" };
-    if (TOKEN) h["Authorization"] = "Bearer " + TOKEN;
-    return h;
-  }
-
-  async function apiGET(path){
-    const r = await fetch(path, { headers: headersJSON() });
-    if (r.status === 401) throw new Error("unauth");
-    return r.json();
-  }
-  async function apiPOST(path, body){
-    const r = await fetch(path, { method:"POST", headers: headersJSON(), body: JSON.stringify(body||{}) });
-    if (r.status === 401) throw new Error("unauth");
-    return r.json();
-  }
-
-  function fmtExpiry(v){
-    if (!v) return "Lifetime";
-    const n = Number(v);
-    if (!Number.isFinite(n)) return String(v);
-    try { return new Date(n).toLocaleString(); } catch { return String(v); }
-  }
-
-  function normalizeUsers(db){
-    const arr = Array.isArray(db) ? db : Object.values(db||{});
-    // ensure fields
-    return arr.map(u => ({
-      username: u.username || u.sessionId || u.id || "",
-      status: u.status || (u.blocked ? "blocked" : "approved"),
-      blocked: !!u.blocked || u.status === "blocked",
-      expiry: (u.expiry ?? null),
-      notes: u.notes || "",
-      createdAt: u.createdAt || null,
-      updatedAt: u.updatedAt || null
-    }));
-  }
-
-  function renderLists(users){
-    const P = $("pending"), A = $("approved"), B = $("blocked");
-    P.innerHTML = A.innerHTML = B.innerHTML = "";
-    const mk = (u) => {
-      const div = document.createElement("div");
-      div.className = "user";
-      div.innerHTML = `
-        <h4>${u.username}</h4>
-        <div class="stack" style="margin-bottom:8px">
-          <span class="tag">${u.status}${u.blocked ? " (blocked)" : ""}</span>
-          <span class="tag">Expiry: ${fmtExpiry(u.expiry)}</span>
-          ${u.notes ? `<span class="tag">${u.notes}</span>` : ""}
-        </div>
-        <div class="muted">
-          ${u.createdAt ? "Created: " + new Date(u.createdAt).toLocaleString() : ""} 
-          ${u.updatedAt ? " • Updated: " + new Date(u.updatedAt).toLocaleString() : ""}
-        </div>
-      `;
-      div.onclick = ()=> setSelected(u);
-      return div;
-    };
-
-    users.forEach(u=>{
-      if (u.blocked || u.status === "blocked") B.appendChild(mk(u));
-      else if (u.status === "pending") P.appendChild(mk(u));
-      else A.appendChild(mk(u));
-    });
-  }
-
-  async function loadUsers(){
-    try{
-      const db = await apiGET("/admin/users");
-      renderLists(normalizeUsers(db));
-    }catch(e){
-      if (e.message === "unauth") {
-        TOKEN = null;
-        localStorage.removeItem("token");
-        showLogin();
-      } else {
-        alert("Failed to load users.");
-      }
-    }
-  }
-
-  function showLogin(){
-    loginCard.classList.remove("hide");
-    panelCard.classList.add("hide");
-    adminUserEl.textContent = "";
-    setSelected(null);
-  }
-  function showPanel(){
-    loginCard.classList.add("hide");
-    panelCard.classList.remove("hide");
-    adminUserEl.textContent = "Logged in";
-    loadUsers();
-  }
-
-  // ---------- login/logout ----------
-  $("loginBtn").onclick = async ()=>{
-    const username = $("lu").value.trim() || "admin";
-    const password = $("lp").value;
-    $("loginMsg").textContent = "Logging in…";
-    try{
-      const r = await fetch("/admin/login", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ username, password })
+  <script>
+    async function loadUsers() {
+      const res = await fetch("/admin/users");
+      const users = await res.json();
+      const tbody = document.getElementById("usersBody");
+      tbody.innerHTML = "";
+      users.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td>${u.status}</td>
+          <td>
+            <button class="approve" onclick="updateUser('${u.id}','approve')">Approve</button>
+            <button class="block" onclick="updateUser('${u.id}','block')">Block</button>
+            <button class="unblock" onclick="updateUser('${u.id}','unblock')">Unblock</button>
+            <button class="delete" onclick="updateUser('${u.id}','delete')">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
       });
-      const j = await r.json();
-      if (j.ok && j.token){
-        TOKEN = j.token;
-        localStorage.setItem("token", TOKEN);
-        $("loginMsg").textContent = "Success.";
-        showPanel();
-      } else {
-        $("loginMsg").textContent = j.message || "Login failed";
-      }
-    }catch{
-      $("loginMsg").textContent = "Network error";
     }
-  };
 
-  $("logoutBtn").onclick = ()=>{
-    TOKEN = null;
-    localStorage.removeItem("token");
-    showLogin();
-  };
+    async function updateUser(id, action) {
+      let url = "";
+      if (action === "approve") url = "/admin/approve";
+      if (action === "block") url = "/admin/block";
+      if (action === "unblock") url = "/admin/unblock";
+      if (action === "delete") url = "/admin/delete";
 
-  // ---------- actions using selected user ----------
-  $("reloadBtn").onclick = loadUsers;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      const json = await res.json();
+      alert(json.message || "Done");
+      loadUsers();
+    }
 
-  $("lifetimeBtn").onclick = async ()=>{
-    if (!SELECTED) return alert("Select a user first.");
-    const j = await apiPOST("/admin/approve", { username: SELECTED.username, expiry: null });
-    if (!j.ok) return alert(j.message||"Failed");
-    await loadUsers();
-  };
-
-  $("approveDaysBtn").onclick = async ()=>{
-    if (!SELECTED) return alert("Select a user first.");
-    const days = Number($("days").value || 0);
-    if (!days) return alert("Enter days > 0");
-    const expiry = Date.now() + days*24*60*60*1000;
-    const j = await apiPOST("/admin/approve", { username: SELECTED.username, expiry });
-    if (!j.ok) return alert(j.message||"Failed");
-    await loadUsers();
-  };
-
-  $("setExpiryBtn").onclick = async ()=>{
-    if (!SELECTED) return alert("Select a user first.");
-    const v = $("expiryAt").value.trim();
-    if (!v) return alert("Put an ISO date or epoch ms.");
-    const expiry = isNaN(Number(v)) ? Date.parse(v) : Number(v);
-    if (!expiry || !Number.isFinite(expiry)) return alert("Invalid date");
-    const j = await apiPOST("/admin/expire", { username: SELECTED.username, expiry });
-    if (!j.ok) return alert(j.message||"Failed");
-    await loadUsers();
-  };
-
-  $("blockBtn").onclick = async ()=>{
-    if (!SELECTED) return alert("Select a user first.");
-    const j = await apiPOST("/admin/block", { username: SELECTED.username });
-    if (!j.ok) return alert(j.message||"Failed");
-    await loadUsers();
-  };
-
-  $("unblockBtn").onclick = async ()=>{
-    if (!SELECTED) return alert("Select a user first.");
-    const j = await apiPOST("/admin/unblock", { username: SELECTED.username });
-    if (!j.ok) return alert(j.message||"Failed");
-    await loadUsers();
-  };
-  // ---- Expire Form ----
-document.getElementById("expireForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const data = new URLSearchParams(new FormData(form));
-
-  try {
-    const res = await fetch("/admin/expire", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: data.toString()
-    });
-    const json = await res.json();
-    alert(json.message || "Expiry set");
-  } catch (err) {
-    alert("Error: " + err.message);
-  }
-})
-  
-// ---- Expire Form ----
-document.getElementById("expireForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const data = new URLSearchParams(new FormData(form));
-
-  try {
-    const res = await fetch("/admin/expire", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: data.toString()
-    });
-    const json = await res.json();
-    alert(json.message || "Expiry set");
-  } catch (err) {
-    alert("Error: " + err.message);
-  }
-});
-  
-  // ---------- boot ----------
-  if (TOKEN) showPanel(); else showLogin();
-</script>
+    loadUsers();
+  </script>
 </body>
 </html>
