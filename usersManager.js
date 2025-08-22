@@ -4,13 +4,8 @@ const USERS_FILE = "./users.json";
 
 // 👉 ইউজার লোড
 function loadUsers() {
-  try {
-    if (!fs.existsSync(USERS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(USERS_FILE));
-  } catch (e) {
-    console.error("❌ users.json corrupted:", e);
-    return [];
-  }
+  if (!fs.existsSync(USERS_FILE)) return [];
+  return JSON.parse(fs.readFileSync(USERS_FILE));
 }
 
 // 👉 ইউজার সেভ
@@ -28,19 +23,11 @@ function findUser(username) {
 function approveUser(username, expiry = null) {
   let users = loadUsers();
   let user = users.find(u => u.username === username);
-
-  let isoExpiry = expiry ? new Date(expiry).toISOString() : null;
-
   if (!user) {
-    user = { 
-      username, 
-      approvedAt: new Date().toISOString(), 
-      expiry: isoExpiry, 
-      blocked: false 
-    };
+    user = { username, approvedAt: new Date(), expiry, blocked: false };
     users.push(user);
   } else {
-    user.expiry = isoExpiry;
+    user.expiry = expiry;
     user.blocked = false;
   }
   saveUsers(users);
@@ -67,4 +54,49 @@ function checkAccess(username) {
   return new Date(user.expiry) > new Date();
 }
 
-module.exports = { loadUsers, saveUsers, findUser, approveUser, blockUser, checkAccess };
+// ====================
+// 🆕 Admin Panel এর জন্য
+// ====================
+
+// 👉 সব ইউজার ফেচ করা
+function getAllUsers() {
+  return loadUsers();
+}
+
+// 👉 ইউজারের status আপডেট করা
+function updateUserStatus(username, status, expiry = null) {
+  let users = loadUsers();
+  let user = users.find(u => u.username === username);
+  if (!user) return null;
+
+  if (status === "approved") {
+    user.blocked = false;
+    user.expiry = expiry ? new Date(expiry).toISOString() : null;
+  } else if (status === "blocked") {
+    user.blocked = true;
+  }
+  saveUsers(users);
+  return user;
+}
+
+// 👉 pending/approved/blocked count
+function getCounts() {
+  let users = loadUsers();
+  return {
+    total: users.length,
+    approved: users.filter(u => !u.blocked).length,
+    blocked: users.filter(u => u.blocked).length,
+    pending: users.filter(u => !u.expiry && !u.blocked).length
+  };
+}
+
+module.exports = { 
+  loadUsers, 
+  saveUsers, 
+  approveUser, 
+  blockUser, 
+  checkAccess,
+  getAllUsers,
+  updateUserStatus,
+  getCounts
+};
