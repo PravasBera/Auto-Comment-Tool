@@ -1,74 +1,104 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
   <title>Admin Panel</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 20px; }
-    h1 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
-    th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
-    th { background: #333; color: #fff; }
-    button { padding: 5px 10px; margin: 2px; border: none; border-radius: 5px; cursor: pointer; }
-    .approve { background: #4CAF50; color: white; }
-    .block { background: #f44336; color: white; }
-    .unblock { background: #ff9800; color: white; }
-    .delete { background: #000; color: white; }
+    body { font-family: Arial, sans-serif; background:#f0f2f5; margin:0; }
+    header { background:#333; color:#fff; padding:15px; text-align:center; font-size:22px; }
+    .container { padding:20px; }
+    .controls { margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; }
+    input[type="text"] { padding:8px; width:250px; border-radius:5px; border:1px solid #ccc; }
+    select { padding:8px; border-radius:5px; border:1px solid #ccc; }
+    table { width:100%; border-collapse:collapse; background:white; border-radius:6px; overflow:hidden; }
+    th, td { border-bottom:1px solid #ddd; padding:12px; text-align:center; }
+    th { background:#444; color:white; }
+    tr:hover { background:#f9f9f9; }
+    button { margin:2px; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; }
+    .approve { background:green; color:white; }
+    .block { background:red; color:white; }
+    .unblock { background:orange; color:white; }
+    .delete { background:black; color:white; }
+    footer { text-align:center; padding:10px; margin-top:20px; color:#555; }
   </style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
-  <table id="usersTable">
-    <thead>
-      <tr>
-        <th>UserID</th>
-        <th>Status</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="usersBody"></tbody>
-  </table>
+  <header>⚡ Admin Panel ⚡</header>
+  <div class="container">
+
+    <!-- Search + Filter -->
+    <div class="controls">
+      <input type="text" id="searchBox" placeholder="🔍 Search UserID...">
+      <select id="filterStatus">
+        <option value="">All Status</option>
+        <option value="approved">Approved</option>
+        <option value="blocked">Blocked</option>
+        <option value="pending">Pending</option>
+      </select>
+    </div>
+
+    <!-- Users Table -->
+    <table id="userTable">
+      <thead>
+        <tr>
+          <th>UserID</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <footer>© 2025 | Admin Panel | Connected to Server.js</footer>
 
   <script>
+    let users = [];
+
     async function loadUsers() {
-      const res = await fetch("/admin/users");
-      const users = await res.json();
-      const tbody = document.getElementById("usersBody");
-      tbody.innerHTML = "";
-      users.forEach(u => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${u.id}</td>
-          <td>${u.status}</td>
-          <td>
-            <button class="approve" onclick="updateUser('${u.id}','approve')">Approve</button>
-            <button class="block" onclick="updateUser('${u.id}','block')">Block</button>
-            <button class="unblock" onclick="updateUser('${u.id}','unblock')">Unblock</button>
-            <button class="delete" onclick="updateUser('${u.id}','delete')">Delete</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
+      const res = await fetch("/api/admin/users");
+      users = await res.json();
+      renderTable();
     }
 
-    async function updateUser(id, action) {
-      let url = "";
-      if (action === "approve") url = "/admin/approve";
-      if (action === "block") url = "/admin/block";
-      if (action === "unblock") url = "/admin/unblock";
-      if (action === "delete") url = "/admin/delete";
+    function renderTable() {
+      const search = document.getElementById("searchBox").value.toLowerCase();
+      const filter = document.getElementById("filterStatus").value;
+      const tbody = document.querySelector("#userTable tbody");
+      tbody.innerHTML = "";
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      const json = await res.json();
-      alert(json.message || "Done");
+      users
+        .filter(u => (!filter || u.status === filter))
+        .filter(u => u.userId.toLowerCase().includes(search))
+        .forEach(u => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${u.userId}</td>
+            <td>${u.status}</td>
+            <td>
+              <button class="approve" onclick="action('approve','${u.userId}')">Approve</button>
+              <button class="block" onclick="action('block','${u.userId}')">Block</button>
+              <button class="unblock" onclick="action('unblock','${u.userId}')">Unblock</button>
+              <button class="delete" onclick="action('delete','${u.userId}')">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+    }
+
+    async function action(type, id) {
+      let url = `/api/admin/${type}/${id}`;
+      let options = { method: "POST" };
+      if (type === "delete") options.method = "DELETE";
+      await fetch(url, options);
       loadUsers();
     }
 
+    document.getElementById("searchBox").addEventListener("input", renderTable);
+    document.getElementById("filterStatus").addEventListener("change", renderTable);
+
     loadUsers();
+    setInterval(loadUsers, 8000); // auto refresh
   </script>
 </body>
 </html>
