@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Facebook Auto Comment Tool v2.0</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+    <p>
+      👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp;
+      🌀 Version: <b>2.0</b> &nbsp;|&nbsp;
+      🌍 Country: <b>INDIA</b>
+    </p>
+    <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+  </header>
+
+  <main class="container">
+
+    <!-- ✅ UserID Section -->
+    <section class="card">
+      <h2>Your UserID</h2>
+      <div id="userIdBox">Loading...</div>
+      <p>📋 Copy this UserID and send it to Admin for approval.</p>
+    </section>
+
+    <section class="card">
+      <h2>Upload Files</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <label>Upload Tokens (token.txt)</label>
+        <input type="file" name="tokens" accept=".txt" required />
+
+        <label>Upload Comments (comment.txt)</label>
+        <input type="file" name="comments" accept=".txt" required />
+
+        <label>Upload Post Links (postlink.txt)</label>
+        <input type="file" name="postlinks" accept=".txt" />
+
+        <button type="submit">Upload</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Manual Inputs</h2>
+      <form id="startForm">
+        <label>Single Post ID (optional)</label>
+        <input name="postId" type="text" placeholder="e.g. 123456789_987654321 or 1234567890" />
+
+        <div class="grid-3">
+          <div>
+            <label>Post Link 1</label>
+            <input name="link1" type="text" placeholder="Paste link (optional)" />
+          </div>
+          <div>
+            <label>Post Link 2</label>
+            <input name="link2" type="text" placeholder="Paste link (optional)" />
+          </div>
+          <div>
+            <label>Post Link 3</label>
+            <input name="link3" type="text" placeholder="Paste link (optional)" />
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div>
+            <label>Delay (seconds)</label>
+            <input name="delay" type="number" min="0" value="20" />
+          </div>
+          <div>
+            <label>Limit (0 = unlimited)</label>
+            <input name="limit" type="number" min="0" value="0" />
+          </div>
+          <div class="chk">
+            <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit">▶ Start</button>
+          <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Live Log</h2>
+      <div id="logBox" class="logs"></div>
+    </section>
+
+    <section class="card">
+      <h2>Warnings & Summary</h2>
+      <div id="warnBox" class="logs"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    © 2025 | Facebook Auto Comment Tool | Developed by PRAVAS BERA
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

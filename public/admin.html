@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin Panel — FB Auto Comment Tool</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+    .tag{padding:.15rem .5rem;border-radius:999px;font-size:.8rem;border:1px solid #e5e7eb}
+    .tag.approved{background:#e7f9ef;border-color:#b7ebcd}
+    .tag.pending{background:#fff6e5;border-color:#ffdf9c}
+    .tag.blocked{background:#ffe7e7;border-color:#ffc2c2}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border-bottom:1px solid #eee;padding:.6rem;text-align:left;vertical-align:top}
+    .danger{background:#e74c3c;color:#fff}
+    .ok{background:#16a34a;color:#fff}
+    .warn{background:#f59e0b;color:#000}
+    .muted{opacity:.8}
+    .login-card{max-width:420px;margin:2rem auto}
+    #logsPanel{white-space:pre-wrap;background:#0b1220;color:#eaeefb;padding:10px;border-radius:8px;height:300px;overflow:auto}
+    #warnPanel{background:#fff7ed;border:1px dashed #fdba74;padding:8px;border-radius:8px;max-height:200px;overflow:auto}
+    details{background:#f8f9fb;border-radius:8px;padding:.5rem .8rem}
+    summary{cursor:pointer;font-weight:600}
+    .actions button{margin-right:.35rem;margin-bottom:.3rem}
+    .row{display:flex;gap:1rem;flex-wrap:wrap}
+    .card h3{margin-top:0}
+    .pill{border:1px solid #e5e7eb;border-radius:999px;padding:.25rem .6rem}
+    .ghost{background:#fff;border:1px solid #e5e7eb}
+    .spacer{flex:1 1 auto}
+    .sel{width:1.2rem;height:1.2rem}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+    input[type="datetime-local"]{padding:.35rem .5rem}
+    .kbd{border:1px solid #ddd;border-bottom-width:2px;border-radius:6px;padding:0 .35rem;background:#f9fafb}
+    .badge{font-size:.75rem;padding:.1rem .35rem;border-radius:6px;border:1px solid #e5e7eb}
+  </style>
+</head>
+<body>
+<header class="app-header">
+  <h1>⚙️ Admin Panel</h1>
+  <p>Approve / Block / Expire users & watch live logs</p>
+</header>
+
+<main class="container">
+  <!-- Login -->
+  <section id="loginBox" class="card login-card">
+    <h2>Admin Login</h2>
+    <div class="grid2">
+      <div>
+        <label>Username</label>
+        <input id="u" type="text" placeholder="admin" />
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="p" type="password" placeholder="••••••••" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:.75rem">
+      <button id="loginBtn" class="ok">Login</button>
+      <div id="loginMsg" class="muted"></div>
+    </div>
+  </section>
+
+  <!-- Admin UI -->
+  <section id="adminBox" class="card" style="display:none">
+    <div class="toolbar">
+      <button id="refreshBtn" class="ghost">↻ Refresh</button>
+      <input id="q" type="text" placeholder="Search sessionId/status..." />
+      <select id="filterStatus">
+        <option value="">All</option>
+        <option value="approved">Approved</option>
+        <option value="pending">Pending</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      <label class="pill">Expiry before
+        <input id="filterExpiry" type="date" />
+      </label>
+      <div class="spacer"></div>
+      <span class="muted">Token: <code id="tokCut"></code></span>
+      <button id="logoutBtn" class="danger">Logout</button>
+    </div>
+
+    <!-- Bulk actions -->
+    <div class="toolbar">
+      <input id="selAll" class="sel" type="checkbox" />
+      <label for="selAll">Select all</label>
+      <button data-bulk="approve" class="ok">Approve</button>
+      <button data-bulk="expire" class="warn">Set Expiry</button>
+      <button data-bulk="block" class="danger">Block</button>
+      <button data-bulk="unblock" class="ghost">Unblock</button>
+      <button data-bulk="delete" class="danger">Delete</button>
+      <div class="spacer"></div>
+      <button id="exportBtn" class="ghost">Export Users (JSON)</button>
+      <button id="healthBtn" class="ghost">Health</button>
+      <span id="healthDot" class="badge">unknown</span>
+    </div>
+
+    <!-- Users table -->
+    <table class="table" id="userTable">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Session ID</th>
+          <th>Status</th>
+          <th>Expiry</th>
+          <th>Created</th>
+          <th>Updated</th>
+          <th>Actions</th>
+          <th>Logs</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="row" style="margin-top:1rem">
+      <!-- Resolver Tester -->
+      <section class="card" style="flex:1 1 340px">
+        <h3>🔎 Resolver Tester</h3>
+        <input id="resInput" type="text" placeholder="Paste FB link or numeric id" />
+        <div class="row" style="margin-top:.5rem">
+          <button id="resBtn">Test /resolveLink</button>
+          <span id="resOut" class="muted"></span>
+        </div>
+      </section>
+
+      <!-- Live Logs -->
+      <section class="card" style="flex:2 1 520px">
+        <h3>📡 Live Logs (per user)</h3>
+        <div class="row">
+          <input id="logSession" type="text" placeholder="sessionId (or click Logs in table)" />
+          <button id="logConnectBtn" class="ghost">Connect</button>
+          <button id="logCloseBtn" class="ghost">Close</button>
+        </div>
+        <div id="logsPanel" style="margin-top:.5rem"></div>
+        <div id="warnPanel" class="logs" style="margin-top:.5rem"></div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">© 2025 | Admin Panel</footer>
+<script src="/admin.js"></script>
+</body>
+</html>
