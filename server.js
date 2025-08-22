@@ -10,7 +10,7 @@
  * - FB link→commentable id resolver (pfbid, story.php, groups, photos, numeric, actor_post)
  * - Error classifier + per-session SSE clients
  */
-const { approveUser, blockUser, unblockUser, deleteUser, getAllUsers } = require("./usersManager");
+const usersManager = require("./usersManager");
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -28,7 +28,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -324,41 +323,37 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------- Admin protected APIs --------------------
+app.get("/admin/users", requireAdmin, (_req, res) => {
+  res.json(loadUsers());
+});
 // Approve (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
-// ---------------- Admin User Management Routes ----------------
-
-// Approve user
-app.post("/admin/users/:id/approve", (req, res) => {
-    const { id } = req.params;
-    approveUser(id);
-    res.json({ success: true, message: `User ${id} approved` });
+app.post("/admin/approve", requireAdmin, (req, res) => {
+  const { username, expiry } = req.body;
+  const user = usersManager.approveUser(username, expiry || null);
+  res.json({ ok: true, user });
 });
 
-// Block user
-app.post("/admin/users/:id/block", (req, res) => {
-    const { id } = req.params;
-    blockUser(id);
-    res.json({ success: true, message: `User ${id} blocked` });
+app.post("/admin/block", requireAdmin, (req, res) => {
+  const { username } = req.body;
+  const user = usersManager.blockUser(username, true);
+  res.json({ ok: true, user });
 });
 
-// Unblock user
-app.post("/admin/users/:id/unblock", (req, res) => {
-    const { id } = req.params;
-    unblockUser(id);
-    res.json({ success: true, message: `User ${id} unblocked` });
+app.post("/admin/unblock", requireAdmin, (req, res) => {
+  const { username } = req.body;
+  const user = usersManager.blockUser(username, false);
+  res.json({ ok: true, user });
 });
 
-// Delete user
-app.delete("/admin/users/:id", (req, res) => {
-    const { id } = req.params;
-    deleteUser(id);
-    res.json({ success: true, message: `User ${id} deleted` });
+app.post("/admin/expire", requireAdmin, (req, res) => {
+  const { username, expiry } = req.body;
+  const user = usersManager.approveUser(username, expiry);
+  res.json({ ok: true, user });
 });
 
-// Get all users
-app.get("/admin/users", (req, res) => {
-    const users = getAllUsers();
-    res.json(users);
+// সব ইউজার লিস্ট
+app.get("/admin/users", requireAdmin, (req, res) => {
+  res.json(usersManager.loadUsers());
 });
 
 // -------------------- Upload (protected by user access) --------------------
