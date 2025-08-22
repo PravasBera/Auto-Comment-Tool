@@ -12,7 +12,6 @@
  */
 const { approveUser, blockUser, unblockUser, deleteUser, getAllUsers } = require("./usersManager");
 const express = require("express");
-app.use(express.static("public"));
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -29,6 +28,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
