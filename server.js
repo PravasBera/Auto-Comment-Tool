@@ -12,6 +12,7 @@
  */
 const { approveUser, blockUser, unblockUser, deleteUser, getAllUsers } = require("./usersManager");
 const express = require("express");
+app.use(express.static("public"));
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
