@@ -3,86 +3,129 @@
 <head>
   <meta charset="UTF-8" />
   <title>Admin Panel</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
-    h1 { color: #0ff; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    table, th, td { border: 1px solid #555; }
-    th, td { padding: 10px; text-align: center; }
-    button { padding: 5px 10px; margin: 2px; border: none; border-radius: 4px; cursor: pointer; }
-    .approve { background: #0a0; color: #fff; }
-    .block { background: #a00; color: #fff; }
-    .delete { background: #333; color: #fff; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .login-box, .panel { border:1px solid #ccc; padding:20px; border-radius:6px; max-width:600px; }
+    table { border-collapse: collapse; width:100%; margin-top:10px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:center; }
+    th { background:#f2f2f2; }
+    button { margin:2px; padding:4px 8px; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
-  <h1>⚡ Admin Panel ⚡</h1>
-  <p>Manage approved / blocked users</p>
+  <h2>Admin Panel</h2>
 
-  <table id="usersTable">
-    <thead>
-      <tr>
-        <th>Username</th>
-        <th>Status</th>
-        <th>Expiry</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <!-- Login Form -->
+  <div class="login-box" id="loginBox">
+    <h3>Login</h3>
+    <input id="username" placeholder="Username" /><br/><br/>
+    <input id="password" placeholder="Password" type="password" /><br/><br/>
+    <button onclick="login()">Login</button>
+    <p id="loginMsg" style="color:red"></p>
+  </div>
+
+  <!-- User Management Panel -->
+  <div class="panel hidden" id="panel">
+    <h3>Users</h3>
+    <button onclick="loadUsers()">🔄 Refresh</button>
+    <table id="userTable">
+      <thead>
+        <tr>
+          <th>Session ID</th>
+          <th>Status</th>
+          <th>Expiry</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script>
-    async function fetchUsers() {
-      const res = await fetch("/api/admin/users");
-      const users = await res.json();
-      const tbody = document.querySelector("#usersTable tbody");
-      tbody.innerHTML = "";
-      users.forEach(u => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${u.username}</td>
-          <td>${u.status}</td>
-          <td>${u.expiry || "-"}</td>
-          <td>
-            <button class="approve" onclick="approveUser('${u.username}')">Approve</button>
-            <button class="block" onclick="blockUser('${u.username}')">Block</button>
-            <button class="delete" onclick="deleteUser('${u.username}')">Delete</button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
+    let token = null;
 
-    async function approveUser(username) {
-      const expiry = prompt("Enter expiry date (YYYY-MM-DD):");
-      await fetch("/api/admin/approve", {
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const res = await fetch("/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const j = await res.json();
+      if (j.ok) {
+        token = j.token;
+        document.getElementById("loginBox").classList.add("hidden");
+        document.getElementById("panel").classList.remove("hidden");
+        loadUsers();
+      } else {
+        document.getElementById("loginMsg").innerText = j.message || "Login failed";
+      }
+    }
+
+    async function loadUsers() {
+      const res = await fetch("/admin/users", {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      const db = await res.json();
+      const tbody = document.querySelector("#userTable tbody");
+      tbody.innerHTML = "";
+
+      for (const [id, u] of Object.entries(db)) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${id}</td>
+          <td>${u.status}</td>
+          <td>${u.expiry ? new Date(u.expiry).toLocaleString() : "-"}</td>
+          <td>${u.notes || ""}</td>
+          <td>
+            <button onclick="approve('${id}')">Approve</button>
+            <button onclick="block('${id}')">Block</button>
+            <button onclick="unblock('${id}')">Unblock</button>
+            <button onclick="expire('${id}')">Expire(1d)</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function approve(username) {
+      const expiry = prompt("Expiry timestamp (leave blank = lifetime)", "");
+      await fetch("/admin/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ username, expiry: expiry || null })
+      });
+      loadUsers();
+    }
+    async function block(username) {
+      await fetch("/admin/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ username })
+      });
+      loadUsers();
+    }
+    async function unblock(username) {
+      await fetch("/admin/unblock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ username })
+      });
+      loadUsers();
+    }
+    async function expire(username) {
+      const expiry = Date.now() + 24*60*60*1000; // +1 day
+      await fetch("/admin/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
         body: JSON.stringify({ username, expiry })
       });
-      fetchUsers();
+      loadUsers();
     }
-
-    async function blockUser(username) {
-      await fetch("/api/admin/block", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username })
-      });
-      fetchUsers();
-    }
-
-    async function deleteUser(username) {
-      await fetch("/api/admin/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username })
-      });
-      fetchUsers();
-    }
-
-    fetchUsers();
   </script>
 </body>
 </html>
