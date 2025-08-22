@@ -4,8 +4,13 @@ const USERS_FILE = "./users.json";
 
 // 👉 ইউজার লোড
 function loadUsers() {
-  if (!fs.existsSync(USERS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(USERS_FILE));
+  try {
+    if (!fs.existsSync(USERS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(USERS_FILE));
+  } catch (e) {
+    console.error("❌ users.json corrupted:", e);
+    return [];
+  }
 }
 
 // 👉 ইউজার সেভ
@@ -23,11 +28,19 @@ function findUser(username) {
 function approveUser(username, expiry = null) {
   let users = loadUsers();
   let user = users.find(u => u.username === username);
+
+  let isoExpiry = expiry ? new Date(expiry).toISOString() : null;
+
   if (!user) {
-    user = { username, approvedAt: new Date(), expiry, blocked: false };
+    user = { 
+      username, 
+      approvedAt: new Date().toISOString(), 
+      expiry: isoExpiry, 
+      blocked: false 
+    };
     users.push(user);
   } else {
-    user.expiry = expiry;
+    user.expiry = isoExpiry;
     user.blocked = false;
   }
   saveUsers(users);
@@ -54,4 +67,4 @@ function checkAccess(username) {
   return new Date(user.expiry) > new Date();
 }
 
-module.exports = { loadUsers, saveUsers, approveUser, blockUser, checkAccess };
+module.exports = { loadUsers, saveUsers, findUser, approveUser, blockUser, checkAccess };
