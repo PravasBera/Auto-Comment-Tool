@@ -1,102 +1,77 @@
-// usersManager.js
 const fs = require("fs");
-const USERS_FILE = "./users.json";
+const path = require("path");
 
-// 👉 ইউজার লোড
-function loadUsers() {
-  if (!fs.existsSync(USERS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(USERS_FILE));
-}
+const usersFile = path.join(__dirname, "users.json");
 
-// 👉 ইউজার সেভ
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-// 👉 ইউজার খুঁজে বের করা
-function findUser(username) {
-  let users = loadUsers();
-  return users.find(u => u.username === username);
-}
-
-// 👉 approve user (expiry = null মানে লাইফটাইম)
-function approveUser(username, expiry = null) {
-  let users = loadUsers();
-  let user = users.find(u => u.username === username);
-  if (!user) {
-    user = { username, approvedAt: new Date(), expiry, blocked: false };
-    users.push(user);
-  } else {
-    user.expiry = expiry;
-    user.blocked = false;
+// users.json পড়া
+function readUsers() {
+  if (!fs.existsSync(usersFile)) {
+    fs.writeFileSync(usersFile, JSON.stringify({}, null, 2));
   }
-  saveUsers(users);
-  return user;
-}
-
-// 👉 block/unblock
-function blockUser(username, blocked = true) {
-  let users = loadUsers();
-  let user = users.find(u => u.username === username);
-  if (user) {
-    user.blocked = blocked;
-    saveUsers(users);
+  const data = fs.readFileSync(usersFile);
+  try {
+    return JSON.parse(data);
+  } catch (err) {
+    return {}; // ভুল হলে খালি object রিটার্ন করবে
   }
-  return user;
 }
 
-// 👉 check access
-function checkAccess(username) {
-  let user = findUser(username);
-  if (!user) return false;
-  if (user.blocked) return false;
-  if (!user.expiry) return true; // লাইফটাইম
-  return new Date(user.expiry) > new Date();
+// users.json এ লেখা
+function writeUsers(users) {
+  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
 }
 
-// ====================
-// 🆕 Admin Panel এর জন্য
-// ====================
-
-// 👉 সব ইউজার ফেচ করা
+// সব ইউজার পাওয়া
 function getAllUsers() {
-  return loadUsers();
+  const users = readUsers();
+  return Object.values(users);
 }
 
-// 👉 ইউজারের status আপডেট করা
-function updateUserStatus(username, status, expiry = null) {
-  let users = loadUsers();
-  let user = users.find(u => u.username === username);
-  if (!user) return null;
-
-  if (status === "approved") {
-    user.blocked = false;
-    user.expiry = expiry ? new Date(expiry).toISOString() : null;
-  } else if (status === "blocked") {
-    user.blocked = true;
-  }
-  saveUsers(users);
-  return user;
-}
-
-// 👉 pending/approved/blocked count
-function getCounts() {
-  let users = loadUsers();
-  return {
-    total: users.length,
-    approved: users.filter(u => !u.blocked).length,
-    blocked: users.filter(u => u.blocked).length,
-    pending: users.filter(u => !u.expiry && !u.blocked).length
+// নতুন ইউজার add/update করা
+function addUser(username, { expiry = null, status = "approved" }) {
+  const users = readUsers();
+  users[username] = {
+    username,
+    approvedAt: new Date().toISOString(),
+    expiry,
+    status,
   };
+  writeUsers(users);
+  return users[username];
 }
 
-module.exports = { 
-  loadUsers, 
-  saveUsers, 
-  approveUser, 
-  blockUser, 
-  checkAccess,
+// ইউজার block করা
+function blockUser(username) {
+  const users = readUsers();
+  if (users[username]) {
+    users[username].status = "blocked";
+    writeUsers(users);
+    return true;
+  }
+  return false;
+}
+
+// ইউজার মুছে ফেলা
+function removeUser(username) {
+  const users = readUsers();
+  if (users[username]) {
+    delete users[username];
+    writeUsers(users);
+    return true;
+  }
+  return false;
+}
+
+// এক ইউজারের ডিটেইল পাওয়া
+function getUser(username) {
+  const users = readUsers();
+  return users[username] || null;
+}
+
+module.exports = {
   getAllUsers,
-  updateUserStatus,
-  getCounts
+  addUser,
+  blockUser,
+  removeUser,
+  getUser,
 };
