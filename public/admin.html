@@ -1,77 +1,132 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Panel - Facebook Auto Comment Tool</title>
+  <meta charset="utf-8"/>
+  <title>Admin Panel — Facebook Auto Comment Tool (Pro)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f6fa; color:#333; }
-    header { background:#2c3e50; color:#fff; padding:15px; font-size:20px; text-align:center; }
-    .container { max-width:1100px; margin:20px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-    h2 { margin-top:0; }
-    .login-box { max-width:350px; margin:80px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-    .login-box h2 { text-align:center; margin-bottom:20px; }
-    input[type=text], input[type=password], select {
-      width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:5px;
+    :root{
+      --bg:#0f172a;--panel:#0b1220;--muted:#1f2937;--text:#e5e7eb;--text-dim:#9ca3af;
+      --accent:#22d3ee;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--border:#233143;
+      --chip:#0a1322;
     }
-    button {
-      padding:8px 14px; border:none; border-radius:5px; cursor:pointer;
-      margin:3px; font-size:14px;
-    }
-    button.primary { background:#3498db; color:#fff; }
-    button.danger { background:#e74c3c; color:#fff; }
-    button.success { background:#27ae60; color:#fff; }
-    button.warning { background:#f39c12; color:#fff; }
-    table { width:100%; border-collapse:collapse; margin-top:15px; }
-    table th, table td { padding:8px; border:1px solid #ddd; text-align:center; }
-    table th { background:#f0f0f0; }
-    .actions button { padding:5px 8px; font-size:12px; }
-    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
-    .top-bar input { max-width:200px; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1220,#0f172a 40%,#0b1220);
+      color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .card{background:radial-gradient(900px 500px at 10% -10%,#0c1630 0%,transparent 60%),var(--panel);
+      border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .row{display:flex;gap:16px;flex-wrap:wrap}.col{flex:1 1 300px}
+    h1{margin:0 0 8px;font-size:26px} h2{margin:0 0 12px;font-size:18px;color:#cbd5e1}
+    .muted{color:var(--text-dim)} .pill{display:inline-block;padding:4px 10px;border-radius:999px;
+      border:1px solid var(--border);background:var(--chip);color:var(--text-dim);font-size:12px}
+    .btn{appearance:none;border:1px solid var(--border);background:linear-gradient(180deg,#121a2d,#0b1220);
+      color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform}
+    .btn:hover{transform:translateY(-1px)} .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn-primary{border-color:#155e75;color:#a5f3fc}
+    .btn-ok{border-color:#14532d;color:#bbf7d0}
+    .btn-warn{border-color:#7c2d12;color:#fed7aa}
+    .btn-err{border-color:#7f1d1d;color:#fecaca}
+    .btn-ghost{background:transparent}
+    .input,select{width:100%;border:1px solid var(--border);background:#081021;color:var(--text);
+      padding:10px 12px;border-radius:12px;outline:none}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    table{width:100%;border-collapse:collapse;margin-top:12px;overflow:hidden;border-radius:12px;border:1px solid var(--border)}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:14px}
+    th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1}
+    tr:hover td{background:#0b1628}
+    .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
+    .tag.ok{background:#072418;color:#86efac;border-color:#14532d}
+    .tag.block{background:#2a0b0b;color:#fecaca;border-color:#7f1d1d}
+    .tag.pending{background:#1e1b0b;color:#fde68a;border-color:#7c2d12}
+    .grid{display:grid;gap:12px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .right{margin-left:auto}.small{font-size:12px}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .statusline{display:flex;align-items:center;gap:10px;margin-top:8px}
+    .dot{width:8px;height:8px;border-radius:50%;background:#64748b;display:inline-block}
+    .dot.ok{background:var(--ok)} .dot.err{background:var(--err)} .dot.warn{background:var(--warn)}
+    .hidden{display:none !important}
+    .footer{margin-top:16px;font-size:12px;color:var(--text-dim);text-align:center}
+    .danger{color:#fecaca}.success{color:#bbf7d0}.warn{color:#fde68a}
+    /* empty state */
+    .empty{padding:22px;text-align:center;color:var(--text-dim)}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0a1322;border:1px solid var(--border);font-size:12px}
+    .kbd{border:1px solid var(--border);padding:0 6px;border-radius:6px;background:#0b1220;font-family:ui-monospace,Menlo,Consolas,monospace}
   </style>
 </head>
 <body>
-  <header>Admin Panel - Facebook Auto Comment Tool (Pro)</header>
+<div class="container">
 
-  <!-- Login Box -->
-  <div id="loginBox" class="login-box" style="display:none;">
-    <h2>Admin Login</h2>
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <button class="primary" onclick="login()">Sign In</button>
-    <p id="loginMsg" style="color:red;text-align:center;"></p>
+  <!-- HEADER -->
+  <div class="row" style="align-items:center">
+    <div class="col" style="flex:1 1 100%">
+      <h1>Admin Panel <span class="pill">Facebook Auto Comment Tool (Pro)</span></h1>
+      <div class="muted">Login → Manage Users (approve / block / unblock / expiry / delete)</div>
+    </div>
   </div>
 
-  <!-- Dashboard -->
-  <div id="dashboard" class="container" style="display:none;">
-    <div class="top-bar">
-      <h2>User Management</h2>
+  <!-- LOGIN -->
+  <div id="loginCard" class="card" style="margin-top:16px;">
+    <h2>Admin Login</h2>
+    <div class="grid grid-2">
       <div>
-        <input type="text" id="searchBox" placeholder="Search by ID / Status">
-        <button class="primary" onclick="loadUsers()">Refresh</button>
-        <button class="danger" onclick="logout()">Logout</button>
+        <label class="small muted">Username</label>
+        <input class="input" id="username" placeholder="e.g. Bullet" value="Bullet"/>
+      </div>
+      <div>
+        <label class="small muted">Password</label>
+        <input class="input" id="password" type="password" placeholder="•••••" value="00000"/>
+      </div>
+    </div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn btn-primary" id="btnLogin">Sign In</button>
+      <div class="statusline">
+        <span id="loginDot" class="dot"></span>
+        <span id="loginMsg" class="small muted">Use your admin credentials</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashCard" class="card hidden" style="margin-top:16px;">
+    <div class="toolbar">
+      <h2 style="margin-right:8px">User Management</h2>
+      <span id="authState" class="tag ok">Authenticated</span>
+      <div class="right"></div>
+
+      <input class="input" id="searchBox" placeholder="Search sessionId / status / blocked…" style="max-width:260px"/>
+      <button class="btn" id="btnSearch">Search</button>
+      <button class="btn" id="btnClear">Clear</button>
+
+      <button class="btn" id="btnRefresh">Refresh</button>
+      <button class="btn btn-ghost" id="btnLogout">Logout</button>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="col">
+        <div class="grid grid-2">
+          <div>
+            <label class="small muted">Approve with Expiry</label>
+            <input class="input" id="expiryInput" type="datetime-local"/>
+            <div class="small muted" style="margin-top:4px">Empty = lifetime access</div>
+          </div>
+          <div>
+            <label class="small muted">Quick Actions (selected rows)</label>
+            <div class="toolbar" style="margin-top:6px;flex-wrap:wrap">
+              <button class="btn btn-ok" id="bulkApprove">Approve</button>
+              <button class="btn btn-warn" id="bulkBlock">Block</button>
+              <button class="btn" id="bulkUnblock">Unblock</button>
+              <button class="btn" id="bulkExpire">Set Expiry</button>
+              <button class="btn btn-err" id="bulkDelete">Delete</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div>
-      <label>Approve with Expiry:
-        <select id="expirySelect">
-          <option value="">Lifetime</option>
-          <option value="1d">1 Day</option>
-          <option value="7d">7 Days</option>
-          <option value="30d">30 Days</option>
-        </select>
-      </label>
-      <button class="success" onclick="bulkAction('approve')">Approve</button>
-      <button class="warning" onclick="bulkAction('block')">Block</button>
-      <button onclick="bulkAction('unblock')">Unblock</button>
-      <button onclick="bulkExpiry()">Set Expiry</button>
-      <button class="danger" onclick="bulkAction('delete')">Delete</button>
-    </div>
-
-    <table id="userTable">
+    <table id="userTable" style="margin-top:8px">
       <thead>
         <tr>
-          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th style="width:38px"><input type="checkbox" id="checkAll"/></th>
           <th>Session ID</th>
           <th>Status</th>
           <th>Blocked</th>
@@ -81,110 +136,283 @@
           <th>Actions</th>
         </tr>
       </thead>
-      <tbody></tbody>
+      <tbody id="userTbody">
+        <tr><td colspan="8" class="empty">No users yet</td></tr>
+      </tbody>
     </table>
-    <p id="userCount"></p>
+
+    <div class="statusline">
+      <span id="dashDot" class="dot"></span>
+      <span id="dashMsg" class="small muted">Ready</span>
+      <span class="right chip small">Hint: press <span class="kbd">R</span> to refresh</span>
+    </div>
+
+    <div class="footer">Approvals, blocks & expiry save হয় <span class="mono">data/users.json</span> এ—server restart পরেও থাকবে।</div>
   </div>
+</div>
 
-  <script>
-    async function checkAuth() {
-      const res = await fetch("/api/checkAuth");
-      const data = await res.json();
-      if(data.authenticated){
-        document.getElementById("loginBox").style.display="none";
-        document.getElementById("dashboard").style.display="block";
-        loadUsers();
+<script>
+  // ===== CONFIG =====
+  const API_BASE = ""; // same-origin
+
+  // ===== STATE / ELEMENTS =====
+  let TOKEN = localStorage.getItem("admin_token") || "";
+  let USERS = [];
+  const els = {
+    loginCard: q("#loginCard"),
+    dashCard: q("#dashCard"),
+    username: q("#username"),
+    password: q("#password"),
+    btnLogin: q("#btnLogin"),
+    loginMsg: q("#loginMsg"),
+    loginDot: q("#loginDot"),
+
+    authState: q("#authState"),
+    btnLogout: q("#btnLogout"),
+    btnRefresh: q("#btnRefresh"),
+    searchBox: q("#searchBox"),
+    btnSearch: q("#btnSearch"),
+    btnClear: q("#btnClear"),
+    userTbody: q("#userTbody"),
+    checkAll: q("#checkAll"),
+    expiryInput: q("#expiryInput"),
+    bulkApprove: q("#bulkApprove"),
+    bulkBlock: q("#bulkBlock"),
+    bulkUnblock: q("#bulkUnblock"),
+    bulkExpire: q("#bulkExpire"),
+    bulkDelete: q("#bulkDelete"),
+    dashMsg: q("#dashMsg"),
+    dashDot: q("#dashDot"),
+  };
+
+  function q(s){ return document.querySelector(s); }
+
+  // ===== HELPERS =====
+  function setLoginStatus(ok, msg){
+    els.loginDot.className = "dot " + (ok ? "ok" : "err");
+    els.loginMsg.textContent = msg || (ok ? "Authenticated" : "Authentication failed");
+  }
+  function setDashStatus(type, msg){
+    els.dashDot.className = "dot " + (type || "");
+    els.dashMsg.textContent = msg || "";
+  }
+  function fmtTime(ts){
+    if (!ts) return "—";
+    const d = new Date(Number(ts) || ts);
+    return isNaN(d.getTime()) ? "—" : d.toLocaleString();
+  }
+  function badgeStatus(u){
+    if ((u.status === "approved") && !u.blocked) return '<span class="tag ok">approved</span>';
+    if (u.status === "blocked" || u.blocked) return '<span class="tag block">blocked</span>';
+    return '<span class="tag pending">pending</span>';
+  }
+  function withAuth(init={}){
+    init.headers = Object.assign({}, init.headers || {}, {
+      "Content-Type":"application/json",
+      "Authorization":"Bearer " + TOKEN
+    });
+    return init;
+  }
+  async function api(path, opts){
+    const res = await fetch(API_BASE + path, opts);
+    if (res.status === 401){ logout(true); throw new Error("Unauthorized"); }
+    return res.json();
+  }
+  function show(view){
+    if (view === "dash"){
+      els.loginCard.classList.add("hidden");
+      els.dashCard.classList.remove("hidden");
+      els.authState.textContent = "Authenticated";
+      els.authState.className = "tag ok";
+    } else {
+      els.dashCard.classList.add("hidden");
+      els.loginCard.classList.remove("hidden");
+    }
+  }
+  function selectedRows(){
+    return Array.from(document.querySelectorAll(".rowcheck:checked")).map(c => c.dataset.id);
+  }
+
+  // ===== LOGIN / LOGOUT =====
+  async function login(){
+    const username = els.username.value.trim();
+    const password = els.password.value;
+    els.btnLogin.disabled = true; setLoginStatus(false, "Signing in...");
+    try{
+      const data = await fetch(API_BASE + "/admin/login", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({username, password})
+      }).then(r=>r.json());
+      if (data.ok && data.token){
+        TOKEN = data.token;
+        localStorage.setItem("admin_token", TOKEN);
+        setLoginStatus(true, "Login success");
+        show("dash"); await loadUsers();
       } else {
-        document.getElementById("loginBox").style.display="block";
-        document.getElementById("dashboard").style.display="none";
+        setLoginStatus(false, data.message || "Login failed");
       }
-    }
+    }catch(e){ setLoginStatus(false, e.message || "Network error"); }
+    finally{ els.btnLogin.disabled = false; }
+  }
+  function logout(silent){
+    TOKEN = ""; localStorage.removeItem("admin_token");
+    if (!silent) alert("Logged out"); show("login");
+  }
 
-    async function login(){
-      const username=document.getElementById("username").value;
-      const password=document.getElementById("password").value;
-      const res=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
-      const data=await res.json();
-      if(data.success){ checkAuth(); } else { document.getElementById("loginMsg").innerText="Invalid login"; }
-    }
+  // ===== USERS TABLE =====
+  async function loadUsers(){
+    setDashStatus("","Loading users...");
+    try{
+      const data = await api("/admin/users", withAuth());
+      if (!data.ok) throw new Error("Failed to fetch users");
+      USERS = data.users || [];
+      renderUsers();
+      setDashStatus("ok", `Loaded ${USERS.length} user(s)`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
+  function renderUsers(){
+    const q = (els.searchBox.value || "").toLowerCase().trim();
+    const list = USERS.filter(u=>{
+      if (!q) return true;
+      const fields = [
+        String(u.sessionId||""),
+        String(u.status||""),
+        String(u.blocked ? "blocked" : "unblocked"),
+        String(u.expiry||""),
+      ].join(" ").toLowerCase();
+      return fields.includes(q);
+    });
 
-    async function logout(){
-      await fetch("/api/logout");
-      checkAuth();
-    }
-
-    async function loadUsers(){
-      const q=document.getElementById("searchBox").value;
-      const res=await fetch("/api/users?q="+encodeURIComponent(q));
-      const users=await res.json();
-      const tbody=document.querySelector("#userTable tbody");
-      tbody.innerHTML="";
-      users.forEach(u=>{
-        const tr=document.createElement("tr");
-        tr.innerHTML=`
-          <td><input type="checkbox" value="${u.id}"></td>
-          <td>${u.id}</td>
-          <td>${u.status}</td>
-          <td>${u.blocked}</td>
-          <td>${u.expiry || "-"}</td>
-          <td>${u.approvedAt || "-"}</td>
-          <td>${u.updated || "-"}</td>
-          <td class="actions">
-            <button class="success" onclick="updateUser('${u.id}','approved')">Approve</button>
-            <button class="warning" onclick="updateUser('${u.id}','blocked')">Block</button>
-            <button onclick="updateUser('${u.id}','unblocked')">Unblock</button>
-            <button onclick="setExpiry('${u.id}')">Set Expiry</button>
-            <button class="danger" onclick="updateUser('${u.id}','delete')">Delete</button>
+    const rows = list.map(u=>{
+      const exp = u.expiry ? fmtTime(u.expiry) : "—";
+      const appAt = u.approvedAt ? new Date(u.approvedAt).toLocaleString() : "—";
+      const upd = u.updatedAt ? fmtTime(u.updatedAt) : "—";
+      return `
+        <tr>
+          <td><input type="checkbox" class="rowcheck" data-id="${u.sessionId}"/></td>
+          <td class="mono small">${u.sessionId}</td>
+          <td>${badgeStatus(u)}</td>
+          <td>${u.blocked ? '<span class="danger">true</span>' : '<span class="success">false</span>'}</td>
+          <td class="small">${exp}</td>
+          <td class="small">${appAt}</td>
+          <td class="small">${upd}</td>
+          <td>
+            <div class="toolbar">
+              <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
+              <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
+              <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
+              <button class="btn" onclick="actExpire('${u.sessionId}')">Set Expiry</button>
+              <button class="btn btn-err" onclick="actDelete('${u.sessionId}')">Delete</button>
+            </div>
           </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      document.getElementById("userCount").innerText="Loaded "+users.length+" user(s)";
-    }
+        </tr>
+      `;
+    }).join("");
 
-    async function updateUser(id, action){
-      const body={id};
-      if(action==="approved"){
-        body.status="approved";
-        const expiry=document.getElementById("expirySelect").value;
-        if(expiry) body.expiry=expiry;
-      }
-      if(action==="blocked"){ body.status="blocked"; }
-      if(action==="unblocked"){ body.status="approved"; }
-      if(action==="delete"){ body.delete=true; }
-      await fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-      loadUsers();
-    }
+    els.userTbody.innerHTML = rows || `<tr><td colspan="8" class="empty">No matching users</td></tr>`;
+    els.checkAll.checked = false;
+  }
 
-    async function setExpiry(id){
-      const expiry=prompt("Enter expiry date (YYYY-MM-DD):");
-      if(!expiry)return;
-      await fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,expiry})});
-      loadUsers();
-    }
+  // ===== SINGLE ACTIONS =====
+  async function actApprove(id){
+    const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
+    setDashStatus("", `Approving ${id}...`);
+    try{
+      const data = await api("/admin/approve", withAuth({method:"POST", body: JSON.stringify({username:id, expiry})}));
+      if (!data.ok) throw new Error(data.message || "Failed");
+      await loadUsers();
+      setDashStatus("ok", `Approved ${id}`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
+  async function actBlock(id){
+    setDashStatus("", `Blocking ${id}...`);
+    try{
+      const data = await api("/admin/block", withAuth({method:"POST", body: JSON.stringify({username:id})}));
+      if (!data.ok) throw new Error(data.message || "Failed");
+      await loadUsers(); setDashStatus("ok", `Blocked ${id}`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
+  async function actUnblock(id){
+    setDashStatus("", `Unblocking ${id}...`);
+    try{
+      const data = await api("/admin/unblock", withAuth({method:"POST", body: JSON.stringify({username:id})}));
+      if (!data.ok) throw new Error(data.message || "Failed");
+      await loadUsers(); setDashStatus("ok", `Unblocked ${id}`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
+  async function actExpire(id){
+    const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
+    setDashStatus("", `Setting expiry for ${id}...`);
+    try{
+      const data = await api("/admin/expire", withAuth({method:"POST", body: JSON.stringify({username:id, expiry})}));
+      if (!data.ok) throw new Error(data.message || "Failed");
+      await loadUsers(); setDashStatus("ok", `Expiry set for ${id}`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
+  async function actDelete(id){
+    if (!confirm(`Delete user ${id}?`)) return;
+    setDashStatus("", `Deleting ${id}...`);
+    try{
+      const data = await api("/admin/delete", withAuth({method:"POST", body: JSON.stringify({username:id})}));
+      if (!data.ok) throw new Error(data.message || "Failed");
+      await loadUsers(); setDashStatus("ok", `Deleted ${id}`);
+    }catch(e){ setDashStatus("err", e.message || "Failed"); }
+  }
 
-    function toggleAll(cb){
-      document.querySelectorAll("#userTable tbody input[type=checkbox]").forEach(c=>c.checked=cb.checked);
-    }
+  // expose inline
+  window.actApprove = actApprove;
+  window.actBlock   = actBlock;
+  window.actUnblock = actUnblock;
+  window.actExpire  = actExpire;
+  window.actDelete  = actDelete;
 
-    function getSelectedIds(){
-      return Array.from(document.querySelectorAll("#userTable tbody input[type=checkbox]:checked")).map(c=>c.value);
+  // ===== BULK =====
+  async function bulk(kind){
+    const ids = selectedRows();
+    if (!ids.length){ alert("Select at least one row"); return; }
+    if (kind === "delete" && !confirm(`Delete ${ids.length} user(s)?`)) return;
+    for (const id of ids){
+      if (kind==="approve") await actApprove(id);
+      else if (kind==="block") await actBlock(id);
+      else if (kind==="unblock") await actUnblock(id);
+      else if (kind==="expire") await actExpire(id);
+      else if (kind==="delete") await actDelete(id);
     }
+  }
 
-    function bulkAction(action){
-      const ids=getSelectedIds();
-      ids.forEach(id=>updateUser(id,action));
+  // ===== EVENTS =====
+  els.btnLogin.addEventListener("click", login);
+  els.btnRefresh.addEventListener("click", loadUsers);
+  els.btnLogout.addEventListener("click", ()=>logout(false));
+
+  els.btnSearch.addEventListener("click", renderUsers);
+  els.btnClear.addEventListener("click", ()=>{ els.searchBox.value=""; renderUsers(); });
+  els.searchBox.addEventListener("keydown", (e)=>{ if(e.key==="Enter") renderUsers(); });
+
+  els.checkAll.addEventListener("change",(e)=>{
+    document.querySelectorAll(".rowcheck").forEach(ch => ch.checked = e.target.checked);
+  });
+
+  els.bulkApprove.addEventListener("click", ()=>bulk("approve"));
+  els.bulkBlock.addEventListener("click",   ()=>bulk("block"));
+  els.bulkUnblock.addEventListener("click", ()=>bulk("unblock"));
+  els.bulkExpire.addEventListener("click",  ()=>bulk("expire"));
+  els.bulkDelete.addEventListener("click",  ()=>bulk("delete"));
+
+  window.addEventListener("keydown",(e)=>{
+    const k = e.key.toLowerCase();
+    if (k==="r" && !e.metaKey && !e.ctrlKey){ e.preventDefault(); loadUsers(); }
+  });
+
+  // ===== BOOT =====
+  (async function init(){
+    if (TOKEN){
+      try{ show("dash"); await loadUsers(); setLoginStatus(true,"Session restored"); }
+      catch{ logout(true); setLoginStatus(false,"Session expired"); }
+    } else {
+      show("login");
     }
-
-    function bulkExpiry(){
-      const ids=getSelectedIds();
-      const expiry=prompt("Enter expiry date (YYYY-MM-DD):");
-      if(!expiry)return;
-      ids.forEach(id=>fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,expiry})}));
-      loadUsers();
-    }
-
-    checkAuth();
-  </script>
+  })();
+</script>
 </body>
 </html>
