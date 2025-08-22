@@ -1,338 +1,164 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
   <title>Admin Panel</title>
-  <style>
-    :root{
-      --bg:#0f172a; --panel:#111827; --muted:#334155; --text:#e5e7eb; --soft:#94a3b8;
-      --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --info:#3b82f6; --chip:#1f2937;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    h1{font-size:28px;margin:8px 0 16px}
-    .row{display:grid;grid-template-columns:1fr;gap:16px}
-    @media(min-width:880px){.row{grid-template-columns:300px 1fr}}
-    .card{background:var(--panel);border:1px solid #1f2937;border-radius:14px;padding:14px}
-    .muted{color:var(--soft)}
-    .btn{appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;transition:.15s;background:#1f2937;color:#e5e7eb}
-    .btn:hover{filter:brightness(1.12)}
-    .btn.ok{background:var(--ok)}
-    .btn.warn{background:var(--warn)}
-    .btn.err{background:var(--err)}
-    .btn.info{background:var(--info)}
-    .btn.ghost{background:#0b1220;border:1px solid #223049}
-    .stack{display:flex;gap:8px;flex-wrap:wrap}
-    input,select{width:100%;background:#0b1220;border:1px solid #223049;color:#e5e7eb;border-radius:10px;padding:10px}
-    .field{display:flex;gap:8px;align-items:center}
-    .grid{width:100%;border-collapse:separate;border-spacing:0 10px}
-    .grid th{font-weight:700;text-align:left;padding:6px 8px}
-    .grid td{padding:8px 8px;background:#0b1220;border-top:1px solid #1e2636;border-bottom:1px solid #1e2636}
-    .grid tr>td:first-child{border-left:1px solid #1e2636;border-radius:10px 0 0 10px}
-    .grid tr>td:last-child{border-right:1px solid #1e2636;border-radius:0 10px 10px 0}
-    .chip{display:inline-block;padding:4px 8px;border-radius:999px;background:var(--chip);font-size:12px}
-    .status-pending{background:#3f2b00}
-    .status-approved{background:#00371f}
-    .status-blocked{background:#3a0101}
-    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .badge{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1220;border:1px dashed #2a3a55;padding:6px 8px;border-radius:8px}
-    .footer{color:var(--soft);font-size:12px;margin-top:24px}
-    .msg{white-space:pre-wrap;background:#0b1220;border:1px solid #223049;border-radius:10px;padding:10px}
-  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="wrap">
-    <h1>Admin Panel</h1>
-    <div class="row">
-      <!-- Left column: auth & quick actions -->
-      <section class="card" id="authCard">
-        <h3>Auth</h3>
-        <div class="stack" id="authed" style="display:none">
-          <span class="badge" id="jwtPreview">JWT: –</span>
-          <button class="btn ghost" id="btnRefresh">Refresh</button>
-          <button class="btn err" id="btnLogout">Logout</button>
-        </div>
-        <div id="loginBox">
-          <div class="field" style="margin:6px 0">
-            <input id="username" placeholder="Username" value="admin" />
-          </div>
-          <div class="field" style="margin:6px 0">
-            <input id="password" placeholder="Password" type="password" />
-          </div>
-          <button class="btn ok" id="btnLogin" style="width:100%">Login</button>
-        </div>
-        <hr style="border:0;border-top:1px solid #1e2636;margin:14px 0">
-        <div class="stack">
-          <div>
-            <div class="muted" style="margin-bottom:6px">Counters</div>
-            <div class="stack">
-              <span class="chip">Pending: <b id="cntPending">0</b></span>
-              <span class="chip">Approved: <b id="cntApproved">0</b></span>
-              <span class="chip">Blocked: <b id="cntBlocked">0</b></span>
-            </div>
-          </div>
-        </div>
-        <hr style="border:0;border-top:1px solid #1e2636;margin:14px 0">
-        <div>
-          <div class="muted" style="margin-bottom:6px">Bulk actions</div>
-          <div class="toolbar">
-            <input id="bulkSearch" placeholder="Search sessionId or notes..." style="flex:1">
-            <select id="bulkStatus" style="width:160px">
-              <option value="all">All status</option>
-              <option value="pending">Pending only</option>
-              <option value="approved">Approved only</option>
-              <option value="blocked">Blocked only</option>
-            </select>
-          </div>
-          <div class="toolbar" style="margin-top:8px">
-            <input id="bulkDays" type="number" placeholder="Approve days (0=Lifetime)" style="width:230px">
-            <button class="btn ok" id="btnBulkApprove">Approve Selected</button>
-            <button class="btn warn" id="btnBulkSetExpiry">Set Expiry</button>
-            <button class="btn" id="btnBulkLifetime">Lifetime</button>
-            <button class="btn err" id="btnBulkBlock">Block</button>
-            <button class="btn" id="btnBulkUnblock">Unblock</button>
-          </div>
-        </div>
-      </section><!-- Right column: users table -->
-  <section class="card">
-    <div class="toolbar" style="justify-content:space-between">
-      <div class="muted">Users</div>
-      <div class="stack">
-        <button class="btn ghost" id="btnReload">Reload</button>
+<body class="bg-gray-100 font-sans">
+  <div class="max-w-6xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">⚙️ Admin Panel</h1>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-4 mb-6" id="stats">
+      <div class="bg-white p-4 rounded shadow text-center">
+        <h2 class="text-lg font-bold">Pending</h2>
+        <p id="pending-count" class="text-2xl text-yellow-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded shadow text-center">
+        <h2 class="text-lg font-bold">Approved</h2>
+        <p id="approved-count" class="text-2xl text-green-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded shadow text-center">
+        <h2 class="text-lg font-bold">Blocked</h2>
+        <p id="blocked-count" class="text-2xl text-red-600">0</p>
       </div>
     </div>
-    <div id="tableWrap" style="margin-top:10px;overflow:auto">
-      <table class="grid" id="tbl">
+
+    <!-- Users Table -->
+    <div class="bg-white p-4 rounded shadow mb-6">
+      <h2 class="text-xl font-bold mb-4">Users</h2>
+      <table class="w-full border-collapse">
         <thead>
-          <tr>
-            <th style="width:36px"><input type="checkbox" id="chkAll"></th>
-            <th>Session ID</th>
-            <th>Status</th>
-            <th>Expiry</th>
-            <th>Created</th>
-            <th>Updated</th>
-            <th>Notes</th>
-            <th style="width:290px">Actions</th>
+          <tr class="bg-gray-200">
+            <th class="border p-2">Username</th>
+            <th class="border p-2">Status</th>
+            <th class="border p-2">Expiry</th>
+            <th class="border p-2">Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="users-table"></tbody>
       </table>
     </div>
-    <div id="msg" class="msg" style="display:none;margin-top:10px"></div>
-  </section>
-</div>
 
-<div class="footer">v2 • Works with server routes: <code>/admin/login</code>, <code>/admin/users</code>, <code>/admin/approve</code>, <code>/admin/block</code>, <code>/admin/unblock</code>, <code>/admin/expire</code>.</div>
+    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">Logout</button>
+  </div>
 
-  </div><script>
-(() => {
-  const $ = (sel, el=document) => el.querySelector(sel);
-  const $$ = (sel, el=document) => [...el.querySelectorAll(sel)];
-  const fmtTime = ts => ts? new Date(Number(ts)).toLocaleString() : '—';
-  const el = {
-    loginBox: $('#loginBox'),
-    authed: $('#authed'),
-    jwtPreview: $('#jwtPreview'),
-    tbl: $('#tbl'),
-    tbody: $('#tbody'),
-    msg: $('#msg'),
-    cntPending: $('#cntPending'), cntApproved: $('#cntApproved'), cntBlocked: $('#cntBlocked'),
-  };
+  <!-- Approve Modal -->
+  <div id="approve-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white p-6 rounded shadow w-96">
+      <h2 class="text-lg font-bold mb-4">Approve User</h2>
+      <p id="approve-username" class="mb-4 font-mono text-blue-600"></p>
+      
+      <label class="block mb-2">Select Access Type:</label>
+      <select id="approve-type" class="w-full border p-2 rounded">
+        <option value="lifetime">Lifetime</option>
+        <option value="7">7 Days</option>
+        <option value="30">30 Days</option>
+        <option value="90">90 Days</option>
+      </select>
+      
+      <div class="flex justify-end mt-4">
+        <button onclick="closeModal()" class="bg-gray-400 px-3 py-1 rounded mr-2">Cancel</button>
+        <button onclick="confirmApprove()" class="bg-green-500 px-3 py-1 text-white rounded">Confirm</button>
+      </div>
+    </div>
+  </div>
 
-  // ---- Auth helpers ----
-  const TOKEN_KEY = 'admin.jwt';
-  const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
-  const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
-  const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+  <script>
+    const API_BASE = "/admin";
+    let approveTarget = null;
 
-  function uiAuth() {
-    const t = getToken();
-    if (t) {
-      el.authed.style.display = '';
-      el.loginBox.style.display = 'none';
-      el.jwtPreview.textContent = 'JWT: ' + t.slice(0, 24) + '…';
-    } else {
-      el.authed.style.display = 'none';
-      el.loginBox.style.display = '';
-    }
-  }
-
-  // ---- Fetch wrapper: force JSON or readable error ----
-  async function api(path, {method='GET', body, expectJson=true}={}) {
-    const headers = {};
-    const t = getToken();
-    if (t) headers['Authorization'] = 'Bearer ' + t;
-    if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
-    const res = await fetch(path, {method, headers, body: body ? (body instanceof FormData? body: JSON.stringify(body)) : undefined});
-
-    const ct = res.headers.get('content-type') || '';
-    if (!res.ok) {
-      let msg = res.status + ' ' + res.statusText;
-      if (ct.includes('application/json')) {
-        try { const j = await res.json(); msg = j.message || msg; } catch {}
-      } else {
-        try { const txt = await res.text(); msg = (txt||'').slice(0,140); } catch {}
+    async function refreshData() {
+      // Counts
+      let countsRes = await fetch(API_BASE + "/counts");
+      let countsData = await countsRes.json();
+      if (countsData.success) {
+        document.getElementById("pending-count").innerText = countsData.counts.pending;
+        document.getElementById("approved-count").innerText = countsData.counts.approved;
+        document.getElementById("blocked-count").innerText = countsData.counts.blocked;
       }
-      throw new Error(msg);
-    }
-    if (expectJson) {
-      if (!ct.includes('application/json')) {
-        const text = await res.text();
-        throw new Error('Expected JSON, got: ' + text.slice(0,140));
-      }
-      return res.json();
-    }
-    return res.text();
-  }
 
-  async function loadUsers() {
-    try {
-      const db = await api('/admin/users');
-      render(db);
-      el.msg.style.display='none';
-    } catch (e) {
-      el.msg.textContent = 'Load failed: ' + e.message;
-      el.msg.style.display='block';
-      if (String(e.message).includes('token')) {
-        // token expired -> logout UI
-        clearToken(); uiAuth();
+      // Users
+      let res = await fetch(API_BASE + "/users");
+      let data = await res.json();
+      if (data.success) {
+        let html = "";
+        data.users.forEach(u => {
+          html += `
+            <tr>
+              <td class="border p-2">${u.username}</td>
+              <td class="border p-2">${u.blocked ? "Blocked" : (u.approvedAt ? "Approved" : "Pending")}</td>
+              <td class="border p-2">${u.expiry ? new Date(u.expiry).toLocaleDateString() : "Lifetime"}</td>
+              <td class="border p-2">
+                ${u.blocked 
+                  ? `<button onclick="unblockUser('${u.username}')" class="bg-green-500 text-white px-2 py-1 rounded">Unblock</button>` 
+                  : `<button onclick="openApproveModal('${u.username}')" class="bg-blue-500 text-white px-2 py-1 rounded">Approve</button>
+                     <button onclick="blockUser('${u.username}')" class="bg-red-500 text-white px-2 py-1 rounded">Block</button>`}
+              </td>
+            </tr>
+          `;
+        });
+        document.getElementById("users-table").innerHTML = html;
       }
     }
-  }
 
-  function usersArray(db){
-    return Object.values(db||{}).sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0));
-  }
-
-  function render(db){
-    const arr = usersArray(db);
-    const counts = {pending:0, approved:0, blocked:0};
-    el.tbody.innerHTML = '';
-    for (const u of arr){
-      counts[u.status] = (counts[u.status]||0)+1;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><input type="checkbox" class="chk" data-id="${u.sessionId}"></td>
-        <td style="font-family:ui-monospace,Menlo,Consolas">${u.sessionId}</td>
-        <td>
-          <span class="chip status-${u.status}">${u.status}</span>
-          ${u.blocked? ' <span class="chip status-blocked">blocked</span>':''}
-        </td>
-        <td>${u.expiry? new Date(Number(u.expiry)).toLocaleString() : '<span class="muted">Lifetime</span>'}</td>
-        <td>${fmtTime(u.createdAt)}</td>
-        <td>${fmtTime(u.updatedAt)}</td>
-        <td>${(u.notes||'').replace(/</g,'&lt;')}</td>
-        <td>
-          <div class="stack">
-            <button class="btn ok act-approve" data-id="${u.sessionId}">Approve</button>
-            <button class="btn warn act-expiry" data-id="${u.sessionId}">Set Expiry</button>
-            <button class="btn act-life" data-id="${u.sessionId}">Lifetime</button>
-            ${u.blocked||u.status==='blocked' ?
-              `<button class="btn act-unblock" data-id="${u.sessionId}">Unblock</button>` :
-              `<button class="btn err act-block" data-id="${u.sessionId}">Block</button>`}
-          </div>
-        </td>`;
-      el.tbody.appendChild(tr);
+    function openApproveModal(username) {
+      approveTarget = username;
+      document.getElementById("approve-username").innerText = username;
+      document.getElementById("approve-modal").classList.remove("hidden");
     }
-    el.cntPending.textContent = counts.pending||0;
-    el.cntApproved.textContent = counts.approved||0;
-    el.cntBlocked.textContent = counts.blocked||0;
-  }
 
-  // ---- row actions ----
-  async function approveOne(id, days){
-    const expiry = days && Number(days)>0 ? Date.now()+ Number(days)*24*3600*1000 : null;
-    const body = expiry? {username:id, expiry} : {username:id};
-    await api('/admin/approve', {method:'POST', body});
-  }
-  async function setExpiryOne(id){
-    const val = prompt('Set expiry (ISO like 2025-12-31T23:59 or epoch ms). Blank cancels.');
-    if (val==null) return;
-    let expiry = null;
-    if (/^\d+$/.test(val.trim())) expiry = Number(val.trim());
-    else {
-      const d = new Date(val);
-      if (!isNaN(d)) expiry = d.getTime();
+    function closeModal() {
+      document.getElementById("approve-modal").classList.add("hidden");
+      approveTarget = null;
     }
-    if (!expiry) { alert('Invalid date'); return; }
-    await api('/admin/expire', {method:'POST', body:{username:id, expiry}});
-  }
-  async function lifetimeOne(id){ await api('/admin/approve', {method:'POST', body:{username:id, expiry:null}}); }
-  async function blockOne(id){ await api('/admin/block', {method:'POST', body:{username:id}}); }
-  async function unblockOne(id){ await api('/admin/unblock', {method:'POST', body:{username:id}}); }
 
-  el.tbody.addEventListener('click', async (ev)=>{
-    const btn = ev.target.closest('button'); if(!btn) return;
-    const id = btn.dataset.id; if(!id) return;
-    try{
-      if (btn.classList.contains('act-approve')){
-        const days = prompt('Approve for how many days? (0 = lifetime)', '0');
-        await approveOne(id, Number(days||0));
-      } else if (btn.classList.contains('act-expiry')){
-        await setExpiryOne(id);
-      } else if (btn.classList.contains('act-life')){
-        await lifetimeOne(id);
-      } else if (btn.classList.contains('act-block')){
-        await blockOne(id);
-      } else if (btn.classList.contains('act-unblock')){
-        await unblockOne(id);
+    async function confirmApprove() {
+      let type = document.getElementById("approve-type").value;
+      let expiry = null;
+
+      if (type !== "lifetime") {
+        let days = parseInt(type);
+        let date = new Date();
+        date.setDate(date.getDate() + days);
+        expiry = date.toISOString();
       }
-      await loadUsers();
-    }catch(e){ alert(e.message); }
-  });
 
-  // ---- bulk helpers ----
-  const chkAll = $('#chkAll');
-  chkAll.addEventListener('change', ()=> $$('.chk').forEach(c=> c.checked = chkAll.checked));
+      await fetch(API_BASE + "/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: approveTarget, expiry })
+      });
 
-  function selectedIds(){ return $$('.chk').filter(c=>c.checked).map(c=>c.dataset.id); }
+      closeModal();
+      refreshData();
+    }
 
-  async function bulk(fn){
-    const ids = selectedIds(); if (!ids.length) { alert('Select rows first'); return; }
-    for (const id of ids){ await fn(id); }
-    await loadUsers();
-  }
+    async function blockUser(username) {
+      await fetch(API_BASE + "/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: username })
+      });
+      refreshData();
+    }
 
-  $('#btnBulkApprove').addEventListener('click', ()=> bulk(id => approveOne(id, Number($('#bulkDays').value||0))));
-  $('#btnBulkLifetime').addEventListener('click', ()=> bulk(lifetimeOne));
-  $('#btnBulkSetExpiry').addEventListener('click', ()=> bulk(setExpiryOne));
-  $('#btnBulkBlock').addEventListener('click', ()=> bulk(blockOne));
-  $('#btnBulkUnblock').addEventListener('click', ()=> bulk(unblockOne));
+    async function unblockUser(username) {
+      await fetch(API_BASE + "/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: username })
+      });
+      refreshData();
+    }
 
-  // ---- filters (client-side) ----
-  $('#bulkSearch').addEventListener('input', applyFilter);
-  $('#bulkStatus').addEventListener('change', applyFilter);
-  function applyFilter(){
-    const q = ($('#bulkSearch').value||'').toLowerCase();
-    const want = $('#bulkStatus').value;
-    $$('#tbody tr').forEach(tr => {
-      const id = tr.children[1]?.textContent.toLowerCase();
-      const status = tr.children[2]?.innerText.toLowerCase();
-      const notes = tr.children[6]?.textContent.toLowerCase();
-      let ok = true;
-      if (q && !(id.includes(q) || (notes||'').includes(q))) ok=false;
-      if (want!=='all' && !status.includes(want)) ok=false;
-      tr.style.display = ok ? '' : 'none';
-    });
-  }
+    function logout() {
+      localStorage.removeItem("adminToken");
+      window.location.href = "/login.html";
+    }
 
-  // ---- auth buttons ----
-  $('#btnLogin').addEventListener('click', async ()=>{
-    const username = $('#username').value.trim();
-    const password = $('#password').value;
-    try {
-      const out = await api('/admin/login', {method:'POST', body:{username, password}});
-      if (!out.ok || !out.token) throw new Error(out.message || 'Login failed');
-      setToken(out.token); uiAuth(); await loadUsers();
-    } catch(e){ alert(e.message); }
-  });
-  $('#btnLogout').addEventListener('click', ()=>{ clearToken(); uiAuth(); el.tbody.innerHTML=''; });
-  $('#btnRefresh').addEventListener('click', loadUsers);
-  $('#btnReload').addEventListener('click', loadUsers);
-
-  // boot
-  uiAuth(); if (getToken()) loadUsers();
-})();
-</script></body>
+    refreshData();
+  </script>
+</body>
 </html>
