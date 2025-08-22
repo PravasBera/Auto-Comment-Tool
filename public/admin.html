@@ -1,104 +1,127 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
   <title>Admin Panel</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; background:#f0f2f5; margin:0; }
-    header { background:#333; color:#fff; padding:15px; text-align:center; font-size:22px; }
-    .container { padding:20px; }
-    .controls { margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; }
-    input[type="text"] { padding:8px; width:250px; border-radius:5px; border:1px solid #ccc; }
-    select { padding:8px; border-radius:5px; border:1px solid #ccc; }
-    table { width:100%; border-collapse:collapse; background:white; border-radius:6px; overflow:hidden; }
-    th, td { border-bottom:1px solid #ddd; padding:12px; text-align:center; }
-    th { background:#444; color:white; }
-    tr:hover { background:#f9f9f9; }
-    button { margin:2px; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; }
-    .approve { background:green; color:white; }
-    .block { background:red; color:white; }
-    .unblock { background:orange; color:white; }
-    .delete { background:black; color:white; }
-    footer { text-align:center; padding:10px; margin-top:20px; color:#555; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    button { margin: 2px; padding: 5px 10px; }
   </style>
 </head>
 <body>
-  <header>⚡ Admin Panel ⚡</header>
-  <div class="container">
+  <h1>Admin Panel</h1>
 
-    <!-- Search + Filter -->
-    <div class="controls">
-      <input type="text" id="searchBox" placeholder="🔍 Search UserID...">
-      <select id="filterStatus">
-        <option value="">All Status</option>
-        <option value="approved">Approved</option>
-        <option value="blocked">Blocked</option>
-        <option value="pending">Pending</option>
-      </select>
-    </div>
+  <!-- Login -->
+  <div id="loginBox">
+    <input type="text" id="username" placeholder="Username" value="admin">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p id="loginStatus"></p>
+  </div>
 
-    <!-- Users Table -->
+  <!-- User Management -->
+  <div id="adminBox" style="display:none;">
+    <h2>User List</h2>
     <table id="userTable">
       <thead>
         <tr>
-          <th>UserID</th>
+          <th>Username</th>
           <th>Status</th>
+          <th>Expiry</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
-  <footer>© 2025 | Admin Panel | Connected to Server.js</footer>
 
-  <script>
-    let users = [];
+<script>
+let token = "";
 
-    async function loadUsers() {
-      const res = await fetch("/api/admin/users");
-      users = await res.json();
-      renderTable();
-    }
+// Login function
+async function login() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
-    function renderTable() {
-      const search = document.getElementById("searchBox").value.toLowerCase();
-      const filter = document.getElementById("filterStatus").value;
-      const tbody = document.querySelector("#userTable tbody");
-      tbody.innerHTML = "";
+  const res = await fetch("/admin/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+  const data = await res.json();
 
-      users
-        .filter(u => (!filter || u.status === filter))
-        .filter(u => u.userId.toLowerCase().includes(search))
-        .forEach(u => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${u.userId}</td>
-            <td>${u.status}</td>
-            <td>
-              <button class="approve" onclick="action('approve','${u.userId}')">Approve</button>
-              <button class="block" onclick="action('block','${u.userId}')">Block</button>
-              <button class="unblock" onclick="action('unblock','${u.userId}')">Unblock</button>
-              <button class="delete" onclick="action('delete','${u.userId}')">Delete</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-    }
-
-    async function action(type, id) {
-      let url = `/api/admin/${type}/${id}`;
-      let options = { method: "POST" };
-      if (type === "delete") options.method = "DELETE";
-      await fetch(url, options);
-      loadUsers();
-    }
-
-    document.getElementById("searchBox").addEventListener("input", renderTable);
-    document.getElementById("filterStatus").addEventListener("change", renderTable);
-
+  if (data.ok) {
+    token = data.token;
+    document.getElementById("loginStatus").innerText = "✅ Login successful!";
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("adminBox").style.display = "block";
     loadUsers();
-    setInterval(loadUsers, 8000); // auto refresh
-  </script>
+  } else {
+    document.getElementById("loginStatus").innerText = "❌ " + data.message;
+  }
+}
+
+// Load user list
+async function loadUsers() {
+  const res = await fetch("/admin/users", {
+    headers: { Authorization: "Bearer " + token }
+  });
+  const users = await res.json();
+
+  const tbody = document.querySelector("#userTable tbody");
+  tbody.innerHTML = "";
+
+  users.forEach(u => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.username}</td>
+      <td>${u.status}</td>
+      <td>${u.expiry || "-"}</td>
+      <td>
+        <button onclick="approveUser('${u.username}')">Approve</button>
+        <button onclick="blockUser('${u.username}')">Block</button>
+        <button onclick="unblockUser('${u.username}')">Unblock</button>
+        <button onclick="deleteUser('${u.username}')">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Action functions
+async function approveUser(username) {
+  await fetch(`/admin/users/${username}/approve`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token }
+  });
+  loadUsers();
+}
+
+async function blockUser(username) {
+  await fetch(`/admin/users/${username}/block`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token }
+  });
+  loadUsers();
+}
+
+async function unblockUser(username) {
+  await fetch(`/admin/users/${username}/unblock`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token }
+  });
+  loadUsers();
+}
+
+async function deleteUser(username) {
+  await fetch(`/admin/users/${username}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + token }
+  });
+  loadUsers();
+}
+</script>
 </body>
 </html>
