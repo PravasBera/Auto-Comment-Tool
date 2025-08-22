@@ -301,14 +301,6 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------- Admin protected APIs --------------------
-const {
-  approveUser,
-  blockUser,
-  unblockUser,
-  deleteUser,
-  getAllUsers,
-} = require("./usersManager");
-
 // Approve user (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
 app.post("/admin/approve", requireAdmin, (req, res) => {
   const { username, expiry } = req.body;
