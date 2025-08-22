@@ -1,88 +1,434 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="bn">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Panel</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-    h1 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
-    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-    th { background: #333; color: white; }
-    button { margin: 2px; padding: 5px 10px; cursor: pointer; }
-    .approved { color: green; font-weight: bold; }
-    .blocked { color: red; font-weight: bold; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin Panel — FB Auto Comment v2</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#141822; --muted:#8892a6; --text:#e6eaf2; --accent:#6ee7b7; --danger:#f87171; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+  header{padding:14px 16px;border-bottom:1px solid #222735;background:#0b0d12;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  h1{font-size:18px;margin:0}
+  .pill{padding:6px 10px;border:1px solid #293246;border-radius:999px;color:var(--muted);font-size:12px}
+  .wrap{max-width:1100px;margin:22px auto;padding:0 14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .full{grid-column:1/-1}
+  .card{background:var(--card);border:1px solid #202633;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .card h3{margin:0;padding:14px 16px;border-bottom:1px solid #1d2230;font-size:15px;color:#c9d4ea}
+  .card .body{padding:14px 16px}
+  label{display:block;margin:8px 0 6px;color:#cbd5e1;font-size:13px}
+  input[type="text"],input[type="number"],input[type="password"]{width:100%;padding:10px 12px;border:1px solid #263044;border-radius:10px;background:#0e1320;color:#e5e7eb;outline:none}
+  input[type="file"]{width:100%;border:1px dashed #2a3550;padding:10px;border-radius:10px;background:#0e1320;color:#9aa7bd}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row > *{flex:1}
+  button{padding:10px 14px;border:1px solid #2a3750;background:#0e1422;color:#dbe1ee;border-radius:12px;cursor:pointer}
+  button.primary{border-color:#1e3a2f;background:#0f1d18;color:#d1fae5}
+  button.accent{background:#0f1d18;border-color:#1f3a2f}
+  button.danger{border-color:#3b1f24;background:#1a0f12;color:#ffe2e2}
+  button.warn{border-color:#3a321f;background:#1b160f;color:#fff1d6}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{font-size:12px;color:#cbd5e1;border:1px solid #273145;background:#0e1420;padding:4px 8px;border-radius:999px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #1c2231;padding:8px 6px;text-align:left;font-size:13px}
+  th{color:#9fb0cc;font-weight:600}
+  .right{display:flex;justify-content:flex-end;gap:8px}
+  .log{height:260px;overflow:auto;background:#0b0f1a;border:1px solid #1b2233;border-radius:12px;padding:8px;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:12px;white-space:pre-wrap}
+  .log .line{padding:2px 4px;border-radius:6px;margin-bottom:2px}
+  .type-info{color:#d1fae5}
+  .type-warn{color:#fde68a}
+  .type-error{color:#fecaca}
+  .type-success{color:#bbf7d0}
+  .type-log{color:#c7d2fe}
+  .type-summary{color:#93c5fd}
+  .stat{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #263044;border-radius:10px;color:#cbd5e1}
+  .small{font-size:12px;color:var(--muted)}
+  .help{color:#9fb0cc;font-size:12px;margin-top:6px}
+  .sep{height:10px}
+  .muted{color:var(--muted)}
+  .ok{color:var(--accent)}
+  .danger-t{color:var(--danger)}
+  .warn-t{color:var(--warn)}
+  .kbd{padding:2px 6px;border:1px solid #2a3550;border-radius:6px;background:#0d1424;color:#cbd5e1;font-size:12px}
+  .tabs{display:flex;gap:8px;margin-bottom:8px}
+  .tabs button{padding:8px 12px;border-radius:10px;border:1px solid #273046;background:#0e1422}
+  .tabs button.active{border-color:#3552a3;background:#0c1730}
+  .hidden{display:none}
+</style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Username</th>
-        <th>Status</th>
-        <th>Expiry</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="users-table"></tbody>
-  </table>
+<header>
+  <h1>FB Auto Comment — Admin Panel</h1>
+  <span class="pill" id="pill-session">session: …</span>
+  <span class="pill" id="pill-status">status: …</span>
+  <span class="pill" id="pill-expiry">expiry: —</span>
+  <div class="right" style="margin-left:auto;gap:8px">
+    <button id="btnHealth">Health</button>
+    <button id="btnReload">Reload</button>
+  </div>
+</header>
 
-  <script>
-    async function fetchUsers() {
-      try {
-        const res = await fetch("/admin/users");
-        const users = await res.json();
-        const tbody = document.getElementById("users-table");
-        tbody.innerHTML = "";
+<div class="wrap">
 
-        users.forEach(user => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${user.username}</td>
-            <td class="${user.status}">${user.status}</td>
-            <td>${user.expiry || "-"}</td>
-            <td>
-              <button onclick="approveUser('${user.username}')">Approve</button>
-              <button onclick="blockUser('${user.username}')">Block</button>
-              <button onclick="unblockUser('${user.username}')">Unblock</button>
-              <button onclick="deleteUser('${user.username}')">Delete</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (err) {
-        alert("Error loading users");
-        console.error(err);
-      }
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="active" data-tab="runner">Runner</button>
+    <button data-tab="users">Users</button>
+    <button data-tab="auth">Admin Auth</button>
+  </div>
+
+  <!-- Runner -->
+  <section class="grid tab" id="tab-runner">
+    <div class="card">
+      <h3>Upload files</h3>
+      <div class="body">
+        <div class="row">
+          <div>
+            <label>token.txt (প্রতি লাইনে একেকটা token)</label>
+            <input type="file" id="fTokens" accept=".txt" />
+          </div>
+          <div>
+            <label>comment.txt (প্রতি লাইনে একেকটা comment)</label>
+            <input type="file" id="fComments" accept=".txt" />
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div>
+          <label>postlink.txt (optional: প্রতি লাইনে post link/id)</label>
+          <input type="file" id="fLinks" accept=".txt" />
+        </div>
+        <div class="sep"></div>
+        <div class="right">
+          <button id="btnUpload" class="primary">Upload</button>
+        </div>
+        <div class="help">Upload এর পর কনসোলে কতগুলো লাইন পড়েছে দেখাবে।</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Manual inputs & run</h3>
+      <div class="body">
+        <div class="row">
+          <div><label>Post ID (direct)</label><input type="text" id="inPostId" placeholder="12345_67890 বা numeric id" /></div>
+          <div><label>Link 1</label><input type="text" id="inL1" placeholder="https://facebook.com/…" /></div>
+        </div>
+        <div class="row">
+          <div><label>Link 2</label><input type="text" id="inL2" placeholder="optional" /></div>
+          <div><label>Link 3</label><input type="text" id="inL3" placeholder="optional" /></div>
+        </div>
+
+        <div class="row">
+          <div><label>Delay (sec)</label><input type="number" id="inDelay" value="5" min="0" /></div>
+          <div><label>Limit (0 = infinity)</label><input type="number" id="inLimit" value="0" min="0" /></div>
+          <div style="display:flex;align-items:flex-end"><label><input type="checkbox" id="inShuffle" /> Shuffle comments</label></div>
+        </div>
+
+        <div class="sep"></div>
+        <div class="right">
+          <button id="btnStart" class="accent">Start</button>
+          <button id="btnStop" class="warn">Stop</button>
+        </div>
+
+        <div class="sep"></div>
+        <div class="tags" id="runStats">
+          <div class="stat">Sent: <span id="s-sent">0</span></div>
+          <div class="stat ok">OK: <span id="s-ok">0</span></div>
+          <div class="stat danger-t">Failed: <span id="s-fail">0</span></div>
+          <div class="stat">Unresolved: <span id="s-unres">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full">
+      <h3>Live console</h3>
+      <div class="body">
+        <div class="row" style="margin-bottom:8px">
+          <div class="small muted">SSE: <span id="sseState">connecting…</span></div>
+          <div class="right" style="margin-left:auto">
+            <button id="btnClearLog">Clear</button>
+            <button id="btnCopyLog">Copy</button>
+          </div>
+        </div>
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Users -->
+  <section class="tab hidden" id="tab-users">
+    <div class="card">
+      <h3>User list</h3>
+      <div class="body">
+        <div class="right" style="margin-bottom:8px">
+          <button id="btnRefreshUsers">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>username/sessionId</th>
+                <th>status</th>
+                <th>expiry</th>
+                <th>created</th>
+                <th>updated</th>
+                <th class="right">actions</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyUsers"></tbody>
+          </table>
+        </div>
+        <div class="help">Approve করলে user এর access খোলে। Block/Unblock কাজ করে usersManager + server এর routes অনুযায়ী।</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Auth -->
+  <section class="tab hidden" id="tab-auth">
+    <div class="grid">
+      <div class="card">
+        <h3>Admin login (optional)</h3>
+        <div class="body">
+          <label>Username</label>
+          <input id="admUser" type="text" placeholder="admin" value="admin" />
+          <label>Password</label>
+          <input id="admPass" type="password" placeholder="••••••••" />
+          <div class="sep"></div>
+          <div class="right">
+            <button id="btnLogin" class="primary">Login</button>
+            <button id="btnLogout">Logout</button>
+          </div>
+          <div class="help">সার্ভারে `/admin/login` আছে। টোকেন পেলে নিচের Users API–গুলো Authorization হেডার সহ কল হবে (রাউটগুলো unprotected থাকলেও সমস্যা নেই)।</div>
+          <div class="sep"></div>
+          <div class="small muted">token: <span id="tokShort">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Health / Whoami</h3>
+        <div class="body">
+          <div class="row">
+            <div><button id="btnWhoami">/whoami</button></div>
+            <div><button id="btnSession">/session</button></div>
+            <div><button id="btnPing">/health</button></div>
+          </div>
+          <div class="sep"></div>
+          <pre id="diagBox" class="log" style="height:180px"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(() => {
+  const $ = (q) => document.querySelector(q);
+  const logBox = $("#log");
+  const sseState = $("#sseState");
+  let adminToken = localStorage.getItem("adm_token") || "";
+  let sessionId = null;
+  let evtSrc = null;
+
+  // tabs
+  document.querySelectorAll(".tabs button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      document.querySelectorAll(".tab").forEach(s=>s.classList.add("hidden"));
+      $("#tab-"+tab).classList.remove("hidden");
+    });
+  });
+
+  function shortTok(t){
+    if(!t) return "—";
+    return t.slice(0,12)+"…"+t.slice(-10);
+  }
+  function setToken(t){
+    adminToken = t||"";
+    localStorage.setItem("adm_token", adminToken);
+    $("#tokShort").textContent = shortTok(adminToken);
+  }
+  setToken(adminToken);
+
+  function appendLine(type, text, extra){
+    const line = document.createElement("div");
+    line.className = "line type-"+type;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${text}` + (extra? " " + JSON.stringify(extra):"");
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function setSessionPills(data){
+    $("#pill-session").textContent = "session: "+(data.id || "—");
+    $("#pill-status").textContent = "status: "+(data.status || "—");
+    $("#pill-expiry").textContent = "expiry: "+(data.expiry || "—");
+  }
+
+  async function jget(url){
+    const h = adminToken ? { "Authorization": "Bearer "+adminToken } : {};
+    const r = await fetch(url, { headers:h });
+    return r.json();
+  }
+  async function jpost(url, body){
+    const h = { "Content-Type":"application/json" };
+    if(adminToken) h["Authorization"]="Bearer "+adminToken;
+    const r = await fetch(url, { method:"POST", headers:h, body: JSON.stringify(body||{}) });
+    return r.json();
+  }
+  async function jdel(url){
+    const h = adminToken ? { "Authorization":"Bearer "+adminToken } : {};
+    const r = await fetch(url, { method:"DELETE", headers:h });
+    return r.json();
+  }
+
+  async function fetchSession(){
+    const j = await jget("/session");
+    setSessionPills(j);
+    sessionId = j.id;
+    return j;
+  }
+
+  function openSSE(){
+    if(!sessionId){ sseState.textContent = "no session"; return;}
+    if(evtSrc){ try{ evtSrc.close();}catch{} }
+    sseState.textContent = "connecting…";
+    evtSrc = new EventSource(`/events?sessionId=${encodeURIComponent(sessionId)}`);
+    evtSrc.onopen = () => { sseState.textContent = "connected"; appendLine("info","SSE connected"); };
+    evtSrc.onerror = () => { sseState.textContent = "error (retrying)"; };
+    evtSrc.onmessage = (e) => {
+      try{
+        const d = JSON.parse(e.data);
+        handleEvent(d);
+      }catch{}
+    };
+    evtSrc.addEventListener("session", (e)=>{ appendLine("info","session: "+e.data); });
+    evtSrc.addEventListener("user", (e)=>{ try{ const u=JSON.parse(e.data); appendLine("info","user status",u); }catch{} });
+  }
+
+  function handleEvent(d){
+    const t = (d.type||"log").toLowerCase();
+    appendLine(t, d.text || t, d);
+    if(t==="summary"){
+      $("#s-sent").textContent = d.sent ?? 0;
+      $("#s-ok").textContent   = d.ok ?? 0;
+      $("#s-fail").textContent = d.failed ?? 0;
+      $("#s-unres").textContent= d.unresolvedLinks ?? 0;
     }
+  }
 
-    async function approveUser(username) {
-      const expiry = prompt("Enter expiry date (YYYY-MM-DD):", "");
-      await fetch(`/admin/users/${username}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiry })
-      });
-      fetchUsers();
+  // Upload
+  $("#btnUpload").addEventListener("click", async ()=>{
+    if(!sessionId){ await fetchSession(); }
+    const f1 = $("#fTokens").files[0];
+    const f2 = $("#fComments").files[0];
+    const f3 = $("#fLinks").files[0];
+    const fd = new FormData();
+    if(f1) fd.append("tokens", f1);
+    if(f2) fd.append("comments", f2);
+    if(f3) fd.append("postlinks", f3);
+    fd.append("sessionId", sessionId);
+    const h = adminToken ? { "Authorization":"Bearer "+adminToken } : {};
+    const res = await fetch("/upload", { method:"POST", headers:h, body: fd });
+    const j = await res.json();
+    if(j.ok){
+      appendLine("success", "Files uploaded", j);
+    }else{
+      appendLine("error","Upload failed", j);
     }
+  });
 
-    async function blockUser(username) {
-      await fetch(`/admin/users/${username}/block`, { method: "POST" });
-      fetchUsers();
-    }
+  // Start/Stop
+  $("#btnStart").addEventListener("click", async ()=>{
+    if(!sessionId){ await fetchSession(); }
+    const body = {
+      sessionId,
+      postId: $("#inPostId").value.trim(),
+      link1: $("#inL1").value.trim(),
+      link2: $("#inL2").value.trim(),
+      link3: $("#inL3").value.trim(),
+      delay: $("#inDelay").value || "5",
+      limit: $("#inLimit").value || "0",
+      useShuffle: $("#inShuffle").checked ? "true" : "false",
+    };
+    const j = await jpost("/start", body);
+    if(j.ok){ appendLine("info","Job start requested"); } else { appendLine("error","Start failed", j); }
+  });
 
-    async function unblockUser(username) {
-      await fetch(`/admin/users/${username}/unblock`, { method: "POST" });
-      fetchUsers();
-    }
+  $("#btnStop").addEventListener("click", async ()=>{
+    if(!sessionId){ await fetchSession(); }
+    const j = await jpost("/stop", { sessionId });
+    if(j.ok){ appendLine("warn","Stop requested"); } else { appendLine("error","Stop failed", j); }
+  });
 
-    async function deleteUser(username) {
-      await fetch(`/admin/users/${username}`, { method: "DELETE" });
-      fetchUsers();
-    }
+  // Users
+  async function refreshUsers(){
+    const list = await jget("/admin/users");
+    const tb = $("#tbodyUsers");
+    tb.innerHTML = "";
+    (list||[]).forEach(u=>{
+      const tr = document.createElement("tr");
+      const tdU = document.createElement("td"); tdU.textContent = u.username || u.sessionId || "—";
+      const tdS = document.createElement("td"); tdS.textContent = u.status || "—";
+      const tdE = document.createElement("td"); tdE.textContent = u.expiry || "—";
+      const tdC = document.createElement("td"); tdC.textContent = u.createdAt || u.approvedAt || "—";
+      const tdU2= document.createElement("td"); tdU2.textContent= u.updatedAt || "—";
+      const tdA = document.createElement("td"); tdA.className="right";
+      const id = (u.username || u.sessionId);
+      tdA.append(btnMini("Approve", async()=>{ await jpost(`/admin/users/${encodeURIComponent(id)}/approve`,{}); refreshUsers(); }));
+      tdA.append(btnMini("Block", async()=>{ await jpost(`/admin/users/${encodeURIComponent(id)}/block`,{}); refreshUsers(); }));
+      tdA.append(btnMini("Unblock", async()=>{ await jpost(`/admin/users/${encodeURIComponent(id)}/unblock`,{}); refreshUsers(); }));
+      tdA.append(btnMini("Delete", async()=>{ await jdel(`/admin/users/${encodeURIComponent(id)}`); refreshUsers(); }, "danger"));
+      tr.append(tdU,tdS,tdE,tdC,tdU2,tdA);
+      tb.append(tr);
+    });
+  }
+  function btnMini(text, fn, cls){
+    const b = document.createElement("button");
+    b.textContent = text;
+    if(cls==="danger"){ b.classList.add("danger"); }
+    b.addEventListener("click", fn);
+    return b;
+  }
+  $("#btnRefreshUsers").addEventListener("click", refreshUsers);
 
-    fetchUsers();
-  </script>
+  // Auth
+  $("#btnLogin").addEventListener("click", async ()=>{
+    const u = $("#admUser").value.trim();
+    const p = $("#admPass").value;
+    const r = await fetch("/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})});
+    const j = await r.json();
+    if(j.ok){ setToken(j.token); appendLine("success","Admin login ok"); } else { appendLine("error","Login failed", j); }
+  });
+  $("#btnLogout").addEventListener("click", ()=>{
+    setToken("");
+    appendLine("warn","Admin token cleared");
+  });
+
+  // Misc
+  $("#btnHealth").addEventListener("click", async()=>{ const j=await jget("/health"); appendLine("info","/health", j); });
+  $("#btnReload").addEventListener("click", ()=>location.reload());
+  $("#btnWhoami").addEventListener("click", async()=>{ $("#diagBox").textContent=JSON.stringify(await jget("/whoami"), null, 2); });
+  $("#btnSession").addEventListener("click", async()=>{ $("#diagBox").textContent=JSON.stringify(await jget("/session"), null, 2); });
+  $("#btnPing").addEventListener("click", async()=>{ $("#diagBox").textContent=JSON.stringify(await jget("/health"),  null, 2); });
+
+  $("#btnClearLog").addEventListener("click", ()=>{ logBox.innerHTML=""; });
+  $("#btnCopyLog").addEventListener("click", async ()=>{
+    const txt = Array.from(logBox.querySelectorAll(".line")).map(x=>x.textContent).join("\n");
+    try{ await navigator.clipboard.writeText(txt); }catch{}
+  });
+
+  // boot
+  (async ()=>{
+    const s = await fetchSession();
+    openSSE();
+    // users tab lazy, but first load once:
+    refreshUsers();
+  })();
+})();
+</script>
 </body>
 </html>
