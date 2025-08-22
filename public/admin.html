@@ -1,164 +1,477 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Admin Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 font-sans">
-  <div class="max-w-6xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-6">⚙️ Admin Panel</h1>
+<!doctype html>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-3 gap-4 mb-6" id="stats">
-      <div class="bg-white p-4 rounded shadow text-center">
-        <h2 class="text-lg font-bold">Pending</h2>
-        <p id="pending-count" class="text-2xl text-yellow-600">0</p>
+<html lang="en" class="h-full" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          boxShadow: {
+            soft: '0 8px 30px rgba(0,0,0,0.06)'
+          }
+        }
+      },
+      darkMode: 'class'
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html,body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'; }
+    .btn { @apply px-3 py-2 rounded-2xl text-sm font-medium shadow-soft transition hover:shadow; }
+    .btn-primary { @apply bg-indigo-600 text-white hover:bg-indigo-500; }
+    .btn-ghost { @apply bg-white text-gray-700 hover:bg-gray-50 border border-gray-200; }
+    .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+    .chip-pending { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+    .chip-approved { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+    .chip-blocked { @apply bg-rose-50 text-rose-700 border border-rose-200; }
+    .hidden-scrollbar::-webkit-scrollbar{ display:none; }
+  </style>
+</head>
+<body class="h-full bg-gray-50 text-gray-900 dark:bg-zinc-900 dark:text-zinc-100">
+<div id="app" class="h-full">
+  <!-- Login overlay -->
+  <div id="loginScreen" class="fixed inset-0 grid place-items-center bg-black/30 backdrop-blur hidden">
+    <div class="w-[420px] max-w-[92vw] rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-800">
+      <h2 class="mb-1 text-2xl font-semibold">Admin Login</h2>
+      <p class="mb-5 text-sm text-gray-500 dark:text-zinc-400">Use your admin credentials to continue.</p>
+      <form id="loginForm" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium mb-1">Username</label>
+          <input id="loginUser" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 bg-white dark:bg-zinc-900 dark:border-zinc-700" placeholder="admin" value="admin" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1">Password</label>
+          <input id="loginPass" type="password" class="w-full rounded-xl border border-gray-200 px-3 py-2.5 bg-white dark:bg-zinc-900 dark:border-zinc-700" placeholder="••••••••" />
+        </div>
+        <button class="btn btn-primary w-full" type="submit">Sign in</button>
+        <p id="loginMsg" class="text-sm text-rose-600 hidden"></p>
+      </form>
+    </div>
+  </div>  <!-- Shell -->  <div class="grid h-full" style="grid-template-columns: 260px 1fr;">
+    <!-- Sidebar -->
+    <aside class="hidden md:flex flex-col gap-3 p-4 border-r border-gray-200 bg-white dark:bg-zinc-900 dark:border-zinc-800">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="h-9 w-9 grid place-items-center rounded-xl bg-indigo-600 text-white font-bold">A</div>
+        <div>
+          <div class="text-sm font-semibold">Admin Panel</div>
+          <div class="text-xs text-gray-500 dark:text-zinc-400">Facebook Auto Comment</div>
+        </div>
       </div>
-      <div class="bg-white p-4 rounded shadow text-center">
-        <h2 class="text-lg font-bold">Approved</h2>
-        <p id="approved-count" class="text-2xl text-green-600">0</p>
+      <nav class="flex flex-col gap-1 text-sm">
+        <button data-nav="dashboard" class="navbtn text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 font-medium">Dashboard</button>
+        <button data-nav="users" class="navbtn text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 font-medium">Users</button>
+        <button data-nav="settings" class="navbtn text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800 font-medium">Settings</button>
+      </nav>
+      <div class="mt-auto space-y-2">
+        <button id="darkToggle" class="btn btn-ghost w-full">Toggle Dark</button>
+        <button id="logoutBtn" class="btn w-full bg-rose-600 text-white hover:bg-rose-500">Logout</button>
       </div>
-      <div class="bg-white p-4 rounded shadow text-center">
-        <h2 class="text-lg font-bold">Blocked</h2>
-        <p id="blocked-count" class="text-2xl text-red-600">0</p>
+    </aside><!-- Main -->
+<main class="min-h-screen p-4 md:p-8 overflow-y-auto hidden-scrollbar">
+  <!-- Topbar (mobile) -->
+  <div class="md:hidden mb-4 flex items-center justify-between">
+    <div class="text-lg font-bold">Admin Panel</div>
+    <div class="flex gap-2">
+      <button id="darkToggleM" class="btn btn-ghost">Dark</button>
+      <button id="logoutBtnM" class="btn bg-rose-600 text-white hover:bg-rose-500">Logout</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="space-y-6">
+    <h1 class="text-2xl md:text-3xl font-semibold">Overview</h1>
+    <div id="cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="rounded-2xl bg-white p-5 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800">
+        <div class="text-sm text-gray-500">Total Users</div>
+        <div id="stat-total" class="mt-2 text-3xl font-bold">0</div>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800">
+        <div class="text-sm text-gray-500">Pending</div>
+        <div id="stat-pending" class="mt-2 text-3xl font-bold">0</div>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800">
+        <div class="text-sm text-gray-500">Approved</div>
+        <div id="stat-approved" class="mt-2 text-3xl font-bold">0</div>
+      </div>
+      <div class="rounded-2xl bg-white p-5 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800">
+        <div class="text-sm text-gray-500">Blocked</div>
+        <div id="stat-blocked" class="mt-2 text-3xl font-bold">0</div>
       </div>
     </div>
 
-    <!-- Users Table -->
-    <div class="bg-white p-4 rounded shadow mb-6">
-      <h2 class="text-xl font-bold mb-4">Users</h2>
-      <table class="w-full border-collapse">
-        <thead>
-          <tr class="bg-gray-200">
-            <th class="border p-2">Username</th>
-            <th class="border p-2">Status</th>
-            <th class="border p-2">Expiry</th>
-            <th class="border p-2">Actions</th>
+    <div class="rounded-2xl bg-white p-5 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h2 class="text-lg font-semibold">Recent Pending</h2>
+        <div class="text-sm text-gray-500" id="lastSync">—</div>
+      </div>
+      <div id="recentPending" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    </div>
+  </section>
+
+  <!-- USERS -->
+  <section id="view-users" class="hidden space-y-5">
+    <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+      <h1 class="text-2xl md:text-3xl font-semibold">Users</h1>
+      <div class="flex gap-2">
+        <input id="search" placeholder="Search by sessionId or notes…" class="w-64 max-w-[60vw] rounded-xl border border-gray-200 px-3 py-2.5 bg-white dark:bg-zinc-900 dark:border-zinc-700" />
+        <select id="filterStatus" class="rounded-xl border border-gray-200 px-3 py-2.5 bg-white dark:bg-zinc-900 dark:border-zinc-700">
+          <option value="all">All</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="blocked">Blocked</option>
+          <option value="expired">Expired</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="rounded-2xl overflow-hidden border border-gray-100 shadow-soft bg-white dark:bg-zinc-900 dark:border-zinc-800">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">
+          <tr>
+            <th class="text-left p-3">Session ID</th>
+            <th class="text-left p-3">Status</th>
+            <th class="text-left p-3">Expiry</th>
+            <th class="text-left p-3">Notes</th>
+            <th class="text-right p-3">Actions</th>
           </tr>
         </thead>
-        <tbody id="users-table"></tbody>
+        <tbody id="userBody" class="divide-y divide-gray-100 dark:divide-zinc-800"></tbody>
       </table>
+      <div id="emptyState" class="p-6 text-center text-gray-500 hidden">No users.</div>
     </div>
 
-    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded">Logout</button>
-  </div>
+    <div class="flex items-center justify-between text-sm">
+      <div><span id="pgInfo">0–0 of 0</span></div>
+      <div class="flex gap-2">
+        <button id="pgPrev" class="btn btn-ghost">Prev</button>
+        <button id="pgNext" class="btn btn-ghost">Next</button>
+      </div>
+    </div>
+  </section>
 
-  <!-- Approve Modal -->
-  <div id="approve-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white p-6 rounded shadow w-96">
-      <h2 class="text-lg font-bold mb-4">Approve User</h2>
-      <p id="approve-username" class="mb-4 font-mono text-blue-600"></p>
-      
-      <label class="block mb-2">Select Access Type:</label>
-      <select id="approve-type" class="w-full border p-2 rounded">
-        <option value="lifetime">Lifetime</option>
-        <option value="7">7 Days</option>
-        <option value="30">30 Days</option>
-        <option value="90">90 Days</option>
-      </select>
-      
-      <div class="flex justify-end mt-4">
-        <button onclick="closeModal()" class="bg-gray-400 px-3 py-1 rounded mr-2">Cancel</button>
-        <button onclick="confirmApprove()" class="bg-green-500 px-3 py-1 text-white rounded">Confirm</button>
+  <!-- SETTINGS -->
+  <section id="view-settings" class="hidden space-y-6">
+    <h1 class="text-2xl md:text-3xl font-semibold">Settings</h1>
+    <div class="rounded-2xl bg-white p-6 shadow-soft border border-gray-100 dark:bg-zinc-900 dark:border-zinc-800 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-medium">Dark mode</div>
+          <div class="text-sm text-gray-500">Switch between light and dark.</div>
+        </div>
+        <button class="btn btn-ghost" onclick="toggleDark()">Toggle</button>
+      </div>
+      <div>
+        <div class="font-medium mb-1">JWT Token</div>
+        <div class="text-xs text-gray-500 mb-2">Stored in localStorage under <code>adminToken</code>.</div>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost" onclick="copyToken()">Copy</button>
+          <button class="btn btn-ghost" onclick="clearToken()">Clear & Re-login</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+  </div>  <!-- APPROVE MODAL -->  <div id="approveModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="w-[520px] max-w-[96vw] rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-800">
+      <h3 class="text-lg font-semibold">Approve user</h3>
+      <p class="text-sm text-gray-500 mt-1">Choose access duration for <span id="apUser" class="font-mono"></span>.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
+        <button data-exp="lifetime" class="durbtn btn btn-ghost">Lifetime</button>
+        <button data-exp="7" class="durbtn btn btn-ghost">7 days</button>
+        <button data-exp="30" class="durbtn btn btn-ghost">30 days</button>
+        <button data-exp="90" class="durbtn btn btn-ghost">90 days</button>
+        <button data-exp="custom" class="durbtn btn btn-ghost col-span-2 sm:col-span-1">Custom date</button>
+      </div>
+      <div id="customWrap" class="mt-3 hidden">
+        <label class="text-xs font-medium">Expiry date & time</label>
+        <input id="customDate" type="datetime-local" class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 bg-white dark:bg-zinc-900 dark:border-zinc-700" />
+      </div>
+      <div class="mt-5 flex items-center justify-end gap-2">
+        <button class="btn btn-ghost" onclick="hideApprove()">Cancel</button>
+        <button id="approveConfirm" class="btn btn-primary">Approve</button>
       </div>
     </div>
   </div>
+</div><script>
+  const API = '';
+  let token = localStorage.getItem('adminToken') || '';
+  let usersRaw = {}; // object keyed by sessionId (server.js loadUsers)
+  let users = [];    // normalized array
+  let page = 1, pageSize = 10;
+  let approveTarget = null, approveChoice = 'lifetime';
 
-  <script>
-    const API_BASE = "/admin";
-    let approveTarget = null;
+  // ---- helpers ----
+  const $ = (q) => document.querySelector(q);
+  const $$ = (q) => Array.from(document.querySelectorAll(q));
+  const fmtDate = (ms) => {
+    if (!ms) return '—';
+    const d = new Date(Number(ms));
+    if (isNaN(d)) return '—';
+    return d.toLocaleString();
+  };
+  const isExpired = (u) => {
+    if (!u.expiry) return false; // lifetime
+    return Date.now() > Number(u.expiry);
+  };
 
-    async function refreshData() {
-      // Counts
-      let countsRes = await fetch(API_BASE + "/counts");
-      let countsData = await countsRes.json();
-      if (countsData.success) {
-        document.getElementById("pending-count").innerText = countsData.counts.pending;
-        document.getElementById("approved-count").innerText = countsData.counts.approved;
-        document.getElementById("blocked-count").innerText = countsData.counts.blocked;
+  function setAuthHeader(h={}){
+    if (!token) return h;
+    return { ...h, 'Authorization': `Bearer ${token}` };
+  }
+
+  function toggleDark(){
+    document.documentElement.classList.toggle('dark');
+  }
+  $('#darkToggle').onclick = toggleDark;
+  $('#darkToggleM').onclick = toggleDark;
+
+  function copyToken(){
+    if (!token) return alert('No token in storage');
+    navigator.clipboard.writeText(token);
+    alert('Token copied');
+  }
+  function clearToken(){
+    localStorage.removeItem('adminToken');
+    token = '';
+    showLogin();
+  }
+
+  // ---- login ----
+  function showLogin(){ $('#loginScreen').classList.remove('hidden'); }
+  function hideLogin(){ $('#loginScreen').classList.add('hidden'); }
+
+  $('#loginForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const username = $('#loginUser').value.trim();
+    const password = $('#loginPass').value;
+    $('#loginMsg').classList.add('hidden');
+    try{
+      const res = await fetch(API + '/admin/login', {
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const j = await res.json();
+      if(!j.ok){
+        $('#loginMsg').textContent = j.message || 'Login failed';
+        $('#loginMsg').classList.remove('hidden');
+        return;
       }
+      token = j.token;
+      localStorage.setItem('adminToken', token);
+      hideLogin();
+      await refreshAll();
+    }catch(err){
+      $('#loginMsg').textContent = err.message || 'Network error';
+      $('#loginMsg').classList.remove('hidden');
+    }
+  });
 
-      // Users
-      let res = await fetch(API_BASE + "/users");
-      let data = await res.json();
-      if (data.success) {
-        let html = "";
-        data.users.forEach(u => {
-          html += `
-            <tr>
-              <td class="border p-2">${u.username}</td>
-              <td class="border p-2">${u.blocked ? "Blocked" : (u.approvedAt ? "Approved" : "Pending")}</td>
-              <td class="border p-2">${u.expiry ? new Date(u.expiry).toLocaleDateString() : "Lifetime"}</td>
-              <td class="border p-2">
-                ${u.blocked 
-                  ? `<button onclick="unblockUser('${u.username}')" class="bg-green-500 text-white px-2 py-1 rounded">Unblock</button>` 
-                  : `<button onclick="openApproveModal('${u.username}')" class="bg-blue-500 text-white px-2 py-1 rounded">Approve</button>
-                     <button onclick="blockUser('${u.username}')" class="bg-red-500 text-white px-2 py-1 rounded">Block</button>`}
-              </td>
-            </tr>
-          `;
-        });
-        document.getElementById("users-table").innerHTML = html;
+  // ---- navigation ----
+  function showView(id){
+    ['dashboard','users','settings'].forEach(v=>{
+      const el = document.getElementById('view-'+v);
+      if (!el) return;
+      if('view-'+v===id) el.classList.remove('hidden'); else el.classList.add('hidden');
+    });
+    $$('.navbtn').forEach(b=>{
+      b.classList.toggle('bg-gray-100', 'view-'+b.dataset.nav===id);
+      b.classList.toggle('dark:bg-zinc-800', 'view-'+b.dataset.nav===id);
+    })
+  }
+  $$('.navbtn').forEach(btn=> btn.addEventListener('click', ()=> showView('view-'+btn.dataset.nav)) );
+
+  // ---- fetch users ----
+  async function fetchUsers(){
+    const res = await fetch(API + '/admin/users', { headers: setAuthHeader() });
+    if (res.status === 401){ showLogin(); throw new Error('Unauthorized'); }
+    const j = await res.json();
+    usersRaw = j; // object keyed by sessionId OR {ok:true, ...} depending on your server
+
+    // normalize
+    const obj = j.users ? j.users : j; // support both shapes
+    users = Object.entries(obj).map(([sessionId, u])=>({ sessionId, ...u }));
+
+    // sort by createdAt desc
+    users.sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
+  }
+
+  function computeStats(){
+    const total = users.length;
+    const pending = users.filter(u=> (u.status||'pending')==='pending').length;
+    const blocked = users.filter(u=> (u.status==='blocked' || u.blocked)).length;
+    const approved = users.filter(u=> (u.status==='approved' && !u.blocked)).length;
+    return { total, pending, approved, blocked };
+  }
+
+  function renderDashboard(){
+    const { total, pending, approved, blocked } = computeStats();
+    $('#stat-total').textContent = total;
+    $('#stat-pending').textContent = pending;
+    $('#stat-approved').textContent = approved;
+    $('#stat-blocked').textContent = blocked;
+    $('#lastSync').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+    const pendingList = users.filter(u=> (u.status||'pending')==='pending').slice(0,6);
+    const box = $('#recentPending');
+    box.innerHTML='';
+    if(!pendingList.length){ box.innerHTML = '<div class="text-sm text-gray-500">No pending users.</div>'; return; }
+    for(const u of pendingList){
+      const card = document.createElement('div');
+      card.className='rounded-xl border border-gray-100 p-4 bg-white shadow-soft dark:bg-zinc-900 dark:border-zinc-800';
+      card.innerHTML = `
+        <div class="font-mono text-xs truncate">${u.sessionId}</div>
+        <div class="mt-1 text-xs text-gray-500">Created: ${fmtDate(u.createdAt)}</div>
+        <div class="mt-3 flex gap-2">
+          <button class="btn btn-primary" data-approve='${u.sessionId}'>Approve</button>
+          <button class="btn btn-ghost" data-block='${u.sessionId}'>Block</button>
+        </div>`;
+      box.appendChild(card);
+    }
+    // wire actions
+    box.querySelectorAll('[data-approve]').forEach(b=> b.onclick=()=> openApprove(b.dataset.approve));
+    box.querySelectorAll('[data-block]').forEach(b=> b.onclick=()=> doBlock(b.dataset.block, true));
+  }
+
+  // ---- table render ----
+  function getFiltered(){
+    const q = $('#search').value.toLowerCase();
+    const f = $('#filterStatus').value;
+    return users.filter(u=>{
+      const status = u.status || 'pending';
+      let ok = true;
+      if (q){ ok = (u.sessionId.toLowerCase().includes(q) || (u.notes||'').toLowerCase().includes(q)); }
+      if (ok && f!=='all'){
+        if (f==='expired') ok = isExpired(u);
+        else ok = (status===f);
       }
+      return ok;
+    });
+  }
+
+  function renderTable(){
+    const data = getFiltered();
+    const total = data.length;
+    const start = (page-1)*pageSize;
+    const rows = data.slice(start, start+pageSize);
+
+    $('#pgInfo').textContent = `${total? start+1:0}–${Math.min(start+rows.length, total)} of ${total}`;
+
+    const tbody = $('#userBody');
+    tbody.innerHTML='';
+
+    if(!rows.length){ $('#emptyState').classList.remove('hidden'); return; } else { $('#emptyState').classList.add('hidden'); }
+
+    for(const u of rows){
+      const status = (u.status||'pending');
+      const expired = isExpired(u);
+      const chipCls = status==='approved' && !u.blocked ? 'chip-approved' : status==='blocked' || u.blocked ? 'chip-blocked' : 'chip-pending';
+      const statusTxt = expired? 'expired' : status;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-3 font-mono text-xs">${u.sessionId}</td>
+        <td class="p-3"><span class="chip ${chipCls}">${statusTxt}</span></td>
+        <td class="p-3 text-xs">${u.expiry? fmtDate(u.expiry) : '<span class="text-gray-400">lifetime</span>'}</td>
+        <td class="p-3 text-xs text-gray-600">${u.notes||''}</td>
+        <td class="p-3">
+          <div class="flex items-center gap-2 justify-end">
+            <button class="btn btn-primary" data-approve='${u.sessionId}'>Approve</button>
+            ${u.blocked? `<button class="btn btn-ghost" data-unblock='${u.sessionId}'>Unblock</button>` : `<button class="btn btn-ghost" data-block='${u.sessionId}'>Block</button>`}
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
     }
 
-    function openApproveModal(username) {
-      approveTarget = username;
-      document.getElementById("approve-username").innerText = username;
-      document.getElementById("approve-modal").classList.remove("hidden");
-    }
+    // wire row actions
+    tbody.querySelectorAll('[data-approve]').forEach(b=> b.onclick=()=> openApprove(b.dataset.approve));
+    tbody.querySelectorAll('[data-block]').forEach(b=> b.onclick=()=> doBlock(b.dataset.block, true));
+    tbody.querySelectorAll('[data-unblock]').forEach(b=> b.onclick=()=> doBlock(b.dataset.unblock, false));
+  }
 
-    function closeModal() {
-      document.getElementById("approve-modal").classList.add("hidden");
-      approveTarget = null;
-    }
+  $('#search').addEventListener('input', ()=>{ page=1; renderTable(); });
+  $('#filterStatus').addEventListener('change', ()=>{ page=1; renderTable(); });
+  $('#pgPrev').onclick = ()=>{ if(page>1){ page--; renderTable(); } };
+  $('#pgNext').onclick = ()=>{ const total = getFiltered().length; if(page*pageSize < total){ page++; renderTable(); } };
 
-    async function confirmApprove() {
-      let type = document.getElementById("approve-type").value;
+  // ---- approve flow ----
+  function openApprove(sessionId){
+    approveTarget = sessionId;
+    approveChoice = 'lifetime';
+    $('#apUser').textContent = sessionId;
+    $('#customWrap').classList.add('hidden');
+    $('#approveModal').classList.remove('hidden');
+  }
+  function hideApprove(){ $('#approveModal').classList.add('hidden'); }
+
+  $$('#approveModal .durbtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      approveChoice = btn.dataset.exp;
+      // highlight
+      $$('#approveModal .durbtn').forEach(b=> b.classList.remove('bg-indigo-50','border','border-indigo-200'));
+      btn.classList.add('bg-indigo-50','border','border-indigo-200');
+      $('#customWrap').classList.toggle('hidden', approveChoice!=='custom');
+    })
+  })
+
+  $('#approveConfirm').onclick = async ()=>{
+    try{
       let expiry = null;
-
-      if (type !== "lifetime") {
-        let days = parseInt(type);
-        let date = new Date();
-        date.setDate(date.getDate() + days);
-        expiry = date.toISOString();
+      if (approveChoice==='lifetime') expiry = null;
+      else if (approveChoice==='custom') {
+        const val = $('#customDate').value;
+        if (!val) return alert('Pick a custom date');
+        expiry = new Date(val).getTime();
+      } else {
+        const days = parseInt(approveChoice,10);
+        expiry = Date.now() + days*24*60*60*1000;
       }
 
-      await fetch(API_BASE + "/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: approveTarget, expiry })
-      });
+      const body = { username: approveTarget, expiry };
+      const res = await fetch(API + '/admin/approve', { method:'POST', headers: { 'Content-Type':'application/json', ...setAuthHeader() }, body: JSON.stringify(body) });
+      if(res.status===401){ showLogin(); return; }
+      const j = await res.json();
+      if(!j.ok && !j.success){ throw new Error(j.message||'Failed'); }
+      hideApprove();
+      await refreshAll();
+    }catch(err){ alert(err.message || 'Approve failed'); }
+  };
 
-      closeModal();
-      refreshData();
+  async function doBlock(sessionId, blocked){
+    const ep = blocked? '/admin/block' : '/admin/unblock';
+    const res = await fetch(API + ep, { method:'POST', headers: { 'Content-Type':'application/json', ...setAuthHeader() }, body: JSON.stringify({ username: sessionId }) });
+    if(res.status===401){ showLogin(); return; }
+    const j = await res.json();
+    if(!j.ok && !j.success){ return alert(j.message||'Failed'); }
+    await refreshAll();
+  }
+
+  async function refreshAll(){
+    await fetchUsers();
+    renderDashboard();
+    renderTable();
+    showView('view-dashboard');
+  }
+
+  // ---- logout ----
+  function doLogout(){ clearToken(); }
+  $('#logoutBtn').onclick = doLogout; $('#logoutBtnM').onclick = doLogout;
+
+  // bootstrap
+  (async function init(){
+    // dark mode remember (optional)
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
     }
-
-    async function blockUser(username) {
-      await fetch(API_BASE + "/block", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: username })
-      });
-      refreshData();
-    }
-
-    async function unblockUser(username) {
-      await fetch(API_BASE + "/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: username })
-      });
-      refreshData();
-    }
-
-    function logout() {
-      localStorage.removeItem("adminToken");
-      window.location.href = "/login.html";
-    }
-
-    refreshData();
-  </script>
-</body>
+    if(!token){ showLogin(); return; }
+    try{ await refreshAll(); }catch{ showLogin(); }
+  })();
+</script></body>
 </html>
