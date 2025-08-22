@@ -1,81 +1,77 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Admin Panel — Facebook Auto Comment Tool (Pro)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="stylesheet" href="admin.css"/>
+  <meta charset="UTF-8">
+  <title>Admin Panel - Facebook Auto Comment Tool</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f6fa; color:#333; }
+    header { background:#2c3e50; color:#fff; padding:15px; font-size:20px; text-align:center; }
+    .container { max-width:1100px; margin:20px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    h2 { margin-top:0; }
+    .login-box { max-width:350px; margin:80px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    .login-box h2 { text-align:center; margin-bottom:20px; }
+    input[type=text], input[type=password], select {
+      width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:5px;
+    }
+    button {
+      padding:8px 14px; border:none; border-radius:5px; cursor:pointer;
+      margin:3px; font-size:14px;
+    }
+    button.primary { background:#3498db; color:#fff; }
+    button.danger { background:#e74c3c; color:#fff; }
+    button.success { background:#27ae60; color:#fff; }
+    button.warning { background:#f39c12; color:#fff; }
+    table { width:100%; border-collapse:collapse; margin-top:15px; }
+    table th, table td { padding:8px; border:1px solid #ddd; text-align:center; }
+    table th { background:#f0f0f0; }
+    .actions button { padding:5px 8px; font-size:12px; }
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+    .top-bar input { max-width:200px; }
+  </style>
 </head>
 <body>
-  <div class="container">
+  <header>Admin Panel - Facebook Auto Comment Tool (Pro)</header>
 
-    <!-- HEADER -->
-    <div class="row" style="align-items:center">
-      <div class="col" style="flex: 1 1 100%">
-        <h1>Admin Panel <span class="pill">Facebook Auto Comment Tool (Pro)</span></h1>
-        <div class="muted">Login → Manage Users (approve / block / unblock / expire / delete)</div>
+  <!-- Login Box -->
+  <div id="loginBox" class="login-box" style="display:none;">
+    <h2>Admin Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button class="primary" onclick="login()">Sign In</button>
+    <p id="loginMsg" style="color:red;text-align:center;"></p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="container" style="display:none;">
+    <div class="top-bar">
+      <h2>User Management</h2>
+      <div>
+        <input type="text" id="searchBox" placeholder="Search by ID / Status">
+        <button class="primary" onclick="loadUsers()">Refresh</button>
+        <button class="danger" onclick="logout()">Logout</button>
       </div>
     </div>
 
-    <!-- LOGIN CARD -->
-    <div id="loginCard" class="card" style="margin-top:16px;">
-      <h2>Admin Login</h2>
-      <div class="grid grid-2">
-        <div>
-          <label class="small muted">Username</label>
-          <input class="input" id="username" placeholder="e.g. Bullet" value="Bullet"/>
-        </div>
-        <div>
-          <label class="small muted">Password</label>
-          <input class="input" id="password" type="password" placeholder="•••••" value="00000"/>
-        </div>
-      </div>
-      <div class="toolbar" style="margin-top:12px">
-        <button class="btn btn-primary" id="btnLogin">Sign In</button>
-        <div class="statusline">
-          <span id="loginDot" class="dot"></span>
-          <span id="loginMsg" class="small muted">Use your admin credentials</span>
-        </div>
-      </div>
+    <div>
+      <label>Approve with Expiry:
+        <select id="expirySelect">
+          <option value="">Lifetime</option>
+          <option value="1d">1 Day</option>
+          <option value="7d">7 Days</option>
+          <option value="30d">30 Days</option>
+        </select>
+      </label>
+      <button class="success" onclick="bulkAction('approve')">Approve</button>
+      <button class="warning" onclick="bulkAction('block')">Block</button>
+      <button onclick="bulkAction('unblock')">Unblock</button>
+      <button onclick="bulkExpiry()">Set Expiry</button>
+      <button class="danger" onclick="bulkAction('delete')">Delete</button>
     </div>
 
-    <!-- DASHBOARD CARD -->
-    <div id="dashCard" class="card hidden" style="margin-top:16px;">
-      <div class="toolbar">
-        <h2 style="margin-right:8px">User Management</h2>
-        <span id="authState" class="tag ok">Authenticated</span>
-        <div class="right"></div>
-        <input class="input" id="searchBox" placeholder="Search by sessionId / status…" style="max-width:280px"/>
-        <button class="btn" id="btnRefresh">Refresh</button>
-        <button class="btn btn-ghost" id="btnLogout">Logout</button>
-      </div>
-
-      <div class="row" style="margin-top:12px">
-        <div class="col">
-          <div class="grid grid-2">
-            <div>
-              <label class="small muted">Approve with Expiry</label>
-              <input class="input" id="expiryInput" type="datetime-local"/>
-              <div class="small muted" style="margin-top:4px">Leave empty for lifetime access</div>
-            </div>
-            <div>
-              <label class="small muted">Quick Actions (selected rows)</label>
-              <div class="toolbar" style="margin-top:6px; flex-wrap:wrap">
-                <button class="btn btn-ok" id="bulkApprove">Approve</button>
-                <button class="btn btn-warn" id="bulkBlock">Block</button>
-                <button class="btn" id="bulkUnblock">Unblock</button>
-                <button class="btn" id="bulkExpire">Set Expiry</button>
-                <button class="btn btn-err" id="bulkDelete">Delete</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <table id="userTable">
-        <thead>
+    <table id="userTable">
+      <thead>
         <tr>
-          <th style="width:38px"><input type="checkbox" id="checkAll"/></th>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
           <th>Session ID</th>
           <th>Status</th>
           <th>Blocked</th>
@@ -84,21 +80,111 @@
           <th>Updated</th>
           <th>Actions</th>
         </tr>
-        </thead>
-        <tbody id="userTbody">
-        <tr><td colspan="8" class="muted">No data</td></tr>
-        </tbody>
-      </table>
-
-      <div class="statusline">
-        <span id="dashDot" class="dot"></span>
-        <span id="dashMsg" class="small muted">Ready</span>
-      </div>
-
-      <div class="footer">Tip: select rows with the left checkbox then use the bulk buttons. Reload with <span class="kbd">R</span>.</div>
-    </div>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p id="userCount"></p>
   </div>
 
-  <script src="admin.js"></script>
+  <script>
+    async function checkAuth() {
+      const res = await fetch("/api/checkAuth");
+      const data = await res.json();
+      if(data.authenticated){
+        document.getElementById("loginBox").style.display="none";
+        document.getElementById("dashboard").style.display="block";
+        loadUsers();
+      } else {
+        document.getElementById("loginBox").style.display="block";
+        document.getElementById("dashboard").style.display="none";
+      }
+    }
+
+    async function login(){
+      const username=document.getElementById("username").value;
+      const password=document.getElementById("password").value;
+      const res=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+      const data=await res.json();
+      if(data.success){ checkAuth(); } else { document.getElementById("loginMsg").innerText="Invalid login"; }
+    }
+
+    async function logout(){
+      await fetch("/api/logout");
+      checkAuth();
+    }
+
+    async function loadUsers(){
+      const q=document.getElementById("searchBox").value;
+      const res=await fetch("/api/users?q="+encodeURIComponent(q));
+      const users=await res.json();
+      const tbody=document.querySelector("#userTable tbody");
+      tbody.innerHTML="";
+      users.forEach(u=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td><input type="checkbox" value="${u.id}"></td>
+          <td>${u.id}</td>
+          <td>${u.status}</td>
+          <td>${u.blocked}</td>
+          <td>${u.expiry || "-"}</td>
+          <td>${u.approvedAt || "-"}</td>
+          <td>${u.updated || "-"}</td>
+          <td class="actions">
+            <button class="success" onclick="updateUser('${u.id}','approved')">Approve</button>
+            <button class="warning" onclick="updateUser('${u.id}','blocked')">Block</button>
+            <button onclick="updateUser('${u.id}','unblocked')">Unblock</button>
+            <button onclick="setExpiry('${u.id}')">Set Expiry</button>
+            <button class="danger" onclick="updateUser('${u.id}','delete')">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      document.getElementById("userCount").innerText="Loaded "+users.length+" user(s)";
+    }
+
+    async function updateUser(id, action){
+      const body={id};
+      if(action==="approved"){
+        body.status="approved";
+        const expiry=document.getElementById("expirySelect").value;
+        if(expiry) body.expiry=expiry;
+      }
+      if(action==="blocked"){ body.status="blocked"; }
+      if(action==="unblocked"){ body.status="approved"; }
+      if(action==="delete"){ body.delete=true; }
+      await fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      loadUsers();
+    }
+
+    async function setExpiry(id){
+      const expiry=prompt("Enter expiry date (YYYY-MM-DD):");
+      if(!expiry)return;
+      await fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,expiry})});
+      loadUsers();
+    }
+
+    function toggleAll(cb){
+      document.querySelectorAll("#userTable tbody input[type=checkbox]").forEach(c=>c.checked=cb.checked);
+    }
+
+    function getSelectedIds(){
+      return Array.from(document.querySelectorAll("#userTable tbody input[type=checkbox]:checked")).map(c=>c.value);
+    }
+
+    function bulkAction(action){
+      const ids=getSelectedIds();
+      ids.forEach(id=>updateUser(id,action));
+    }
+
+    function bulkExpiry(){
+      const ids=getSelectedIds();
+      const expiry=prompt("Enter expiry date (YYYY-MM-DD):");
+      if(!expiry)return;
+      ids.forEach(id=>fetch("/api/users/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,expiry})}));
+      loadUsers();
+    }
+
+    checkAuth();
+  </script>
 </body>
 </html>
