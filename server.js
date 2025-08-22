@@ -41,7 +41,9 @@ if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 if (!fs.existsSync(VIEWS_DIR)) fs.mkdirSync(VIEWS_DIR, { recursive: true });
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}), "utf-8");
+if (!fs.existsSync(USERS_DB)) {
+  fs.writeFileSync(USERS_DB, JSON.stringify({ users: [] }, null, 2), "utf-8");
+}
 
 app.use(express.static(PUBLIC_DIR));
 
@@ -57,53 +59,6 @@ app.get("/admin", (_req, res) => {
 
 // -------------------- Upload setup --------------------
 const upload = multer({ dest: UPLOAD_DIR });
-
-// -------------------- User DB helpers --------------------
-function loadUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_DB, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-function saveUsers(db) {
-  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
-}
-function ensureUser(sessionId) {
-  const db = loadUsers();
-  if (!db[sessionId]) {
-    const now = Date.now();
-    db[sessionId] = {
-      sessionId,
-      status: "pending", // pending | approved | blocked
-      blocked: false,
-      expiry: null,      // ms timestamp or null
-      notes: "",
-      createdAt: now,
-      updatedAt: now
-    };
-    saveUsers(db);
-  }
-  return db[sessionId];
-}
-function setUser(sessionId, patch = {}) {
-  const db = loadUsers();
-  if (!db[sessionId]) return null;
-  db[sessionId] = { ...db[sessionId], ...patch, updatedAt: Date.now() };
-  saveUsers(db);
-  return db[sessionId];
-}
-function getUser(sessionId) {
-  const db = loadUsers();
-  return db[sessionId] || null;
-}
-function isUserAllowed(u) {
-  if (!u) return { ok: false, reason: "UNKNOWN_USER" };
-  if (u.status === "blocked" || u.blocked) return { ok: false, reason: "BLOCKED" };
-  if (u.status !== "approved") return { ok: false, reason: "PENDING" };
-  if (u.expiry && Date.now() > Number(u.expiry)) return { ok: false, reason: "EXPIRED" };
-  return { ok: true };
-}
 
 // -------------------- Cookie session --------------------
 app.use((req, res, next) => {
@@ -220,6 +175,23 @@ function classifyError(err) {
   if (msg.includes("checkpoint") || msg.includes("locked"))
     return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
+}
+
+// -------------------- User helpers --------------------
+function ensureUser(username) {
+  const all = usersManager.getAllUsers();
+  let user = all.find(u => u.username === username);
+  if (!user) {
+    user = usersManager.approveUser(username, null); // default approve
+  }
+  return user;
+}
+
+function isUserAllowed(user) {
+  if (!user) return { ok: false, reason: "Unknown user" };
+  if (user.status === "blocked") return { ok: false, reason: "User is blocked" };
+  if (user.expiry && new Date(user.expiry) < new Date()) return { ok: false, reason: "Expired access" };
+  return { ok: true };
 }
 
 // -------------------- SSE state per session --------------------
