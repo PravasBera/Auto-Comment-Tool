@@ -10,7 +10,13 @@
  * - FB link→commentable id resolver (pfbid, story.php, groups, photos, numeric, actor_post)
  * - Error classifier + per-session SSE clients
  */
-const usersManager = require("./usersManager");
+const {
+  approveUser,
+  blockUser,
+  unblockUser,
+  deleteUser,
+  getAllUsers
+} = require("./usersManager");
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
