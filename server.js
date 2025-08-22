@@ -323,34 +323,42 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------- Admin protected APIs --------------------
-// Approve (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
+const {
+  approveUser,
+  blockUser,
+  unblockUser,
+  deleteUser,
+  getAllUsers,
+} = require("./usersManager");
+
+// Approve user (expiry দিলে সেটা set হবে, না দিলে লাইফটাইম)
 app.post("/admin/approve", requireAdmin, (req, res) => {
   const { username, expiry } = req.body;
-  const user = usersManager.approveUser(username, expiry || null);
+  const user = approveUser(username, expiry || null);
   res.json({ ok: true, user });
 });
 
 app.post("/admin/block", requireAdmin, (req, res) => {
   const { username } = req.body;
-  const user = usersManager.blockUser(username, true);
+  const user = blockUser(username);
   res.json({ ok: true, user });
 });
 
 app.post("/admin/unblock", requireAdmin, (req, res) => {
   const { username } = req.body;
-  const user = usersManager.blockUser(username, false);
+  const user = unblockUser(username);
   res.json({ ok: true, user });
 });
 
-app.post("/admin/expire", requireAdmin, (req, res) => {
-  const { username, expiry } = req.body;
-  const user = usersManager.approveUser(username, expiry);
-  res.json({ ok: true, user });
+app.post("/admin/delete", requireAdmin, (req, res) => {
+  const { username } = req.body;
+  deleteUser(username);
+  res.json({ ok: true });
 });
 
-// সব ইউজার লিস্ট
+// সব ইউসার লিস্ট
 app.get("/admin/users", requireAdmin, (req, res) => {
-  res.json(usersManager.loadUsers());
+  res.json(getAllUsers());
 });
 
 // ----------------- FB Link Resolver -----------------
