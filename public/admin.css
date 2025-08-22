@@ -1,0 +1,87 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 20px auto;
+  padding: 20px;
+  background: #1e293b;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+h1, h2 {
+  margin-bottom: 12px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 6px;
+}
+
+.form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+input {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #e2e8f0;
+  flex: 1;
+}
+
+button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: 0.2s;
+}
+
+.action-btn {
+  background: #059669;
+  color: white;
+}
+.action-btn:hover {
+  background: #047857;
+}
+
+.delete {
+  background: #dc2626;
+}
+.delete:hover {
+  background: #b91c1c;
+}
+
+.user-card {
+  background: #0f172a;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  cursor: pointer;
+}
+.user-card:hover {
+  background: #1e293b;
+}
+.user-card.selected {
+  border: 2px solid #38bdf8;
+}
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-right: 6px;
+}
+.tag.pending { background: #facc15; color: #000; }
+.tag.approved { background: #22c55e; }
+.tag.blocked { background: #ef4444; }
