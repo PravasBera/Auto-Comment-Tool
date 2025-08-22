@@ -1,59 +1,8 @@
-// server.js — Auto Comment Tool v1.5
-// (c) PRAVAS BERA — Use responsibly and within Facebook TOS.
 
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// ---------- Static ----------
-app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// ---------- Upload (multer) ----------
-const upload = multer({ dest: path.join(__dirname, "uploads") });
-
-// ---------- SSE (live alerts) ----------
-const sseClients = new Set();
-function sseSend(event, data) {
-  const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of sseClients) {
-    try { res.write(line); } catch {}
   }
 }
 app.get("/events", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders?.();
-  sseClients.add(res);
-  // greet
-  res.write(`event: hello\ndata: {}\n\n`);
-  req.on("close", () => sseClients.delete(res));
-});
-
-// ---------- Helpers ----------
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const cleanLines = (txt) =>
-  (txt || "")
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-function parseIdsFromCsv(input) {
-  return (input || "")
-    .split(/[, \t\r\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-// fb url => {userId}_{postId}
-function extractPostIdFromUrl(url) {
-  try {
+  
     const u = new URL(url);
     const parts = u.pathname.split("/").filter(Boolean);
 
@@ -215,141 +164,91 @@ app.post(
 
       // clean temp files
       [req.files?.postFile?.[0], req.files?.linksFile?.[0], req.files?.commentsFile?.[0], req.files?.tokensFile?.[0]]
-        .filter(Boolean)
-        .forEach((f) => { try { fs.unlinkSync(f.path); } catch {} });
-
-      // prepare job
-      const job = {
-        abort: false,
-        done: false,
+        .filter(Bo
+        .forEach((f) => { try { fs.unlinkSync(f.path); } catch {} }
+     // prepare job
+     const job = {
+       abort: false,
+       done: fals,
         stats: {
-          success: 0, failed: 0,
+         success: 0, failed: 0,
           token_invalid: 0, token_expired: 0, permission: 0, temporary_block: 0,
-          bad_post: 0, unknown: 0,
+         bad_pos: 0, unknown: 0,
           invalid_token_list: new Set(),
           bad_post_list: new Set(),
-        }
+       
       };
       currentJob = job;
-
-      // resolve account names
-      const accounts = [];
-      for (let i = 0; i < tokens.length; i++) {
-        const tk = tokens[i];
-        try {
-          const me = await fbMe(tk);
-          accounts.push({ token: tk, name: me.name, id: me.id, alive: true });
-          sseSend("alert", { level: "success", message: `Token #${i + 1}: ${me.name} ✅` });
-        } catch (e) {
-          const cat = classifyFbError(e);
-          if (cat.kind === "token_expired" || cat.kind === "token_invalid") {
-            job.stats[cat.kind]++; job.stats.invalid_token_list.add(i + 1);
-            sseSend("alert", { level: "error", message: `Token #${i + 1} invalid: ${cat.label}` });
+      // resolv account names
+      cont accounts = [];
+      for let i = 0; i < tokens.length; i++) {
+        cont tk = tokens[i];
+        try 
+          const me = await fbMe(tk)
+          accounts.push({ token: tk, name: me.name, id: me.id, alive: true })
+          sseSend("alert", { level: "success", message: `Token #${i + 1}: ${me.name} ✅` });        } catch (e) {
+         constcat = classifyFbError(e);
+         if (cat.kind === "token_expired" || cat.kind === "token_invalid") {
+           job.stats[cat.kind]++; job.stats.invalid_token_list.add(i + 1);
+           sseSend("alert", { level: "error", message: `Token #${i + 1} invalid: ${cat.label}` });
           } else {
-            job.stats.unknown++;
-            sseSend("alert", { level: "warning", message: `Token #${i + 1} check failed: ${e.message}` });
+           job.stats.unknown++;
+           ssSend("alert", { level: "warning", message: `Token #${i + 1} check failed: ${e.message}` });
           }
         }
-      }
-      const aliveAccounts = accounts.filter(a => a.alive !== false);
+     
+      const aliveccounts = accounts.filter(a => a.alive !== false);
       if (aliveAccounts.length === 0) {
         job.done = true;
         return res.status(400).json({ error: "No valid tokens." });
-      }
+     }
 
-      // fire-and-forget worker
-      (async () => {
-        sseSend("start", { posts: postIds.length, comments: comments.length, tokens: aliveAccounts.length, delaySec, maxCount });
-        let tokenIdx = 0;
-
-        outer:
-        for (const postId of postIds) {
-          for (const message of comments) {
-            if (job.abort) break outer;
+      // fire-and-orget worker
+     (async () => 
+       sseSend("start", { posts: postIds.length, comments: comments.length, tokens: aliveAccounts.length, delaySec, maxCount });
+        let tokenIdx = 0
+       for (const postId of postIds {
+          for (const message of commets) {
+            if (job.abort) break outer
             if (maxCount && job.stats.success >= maxCount) break outer;
-
-            // pick next usable token
+          // pick next usable token
             let tries = 0, acc = null;
             while (tries < aliveAccounts.length) {
-              acc = aliveAccounts[tokenIdx % aliveAccounts.length];
-              tokenIdx++;
-              if (acc && acc.alive !== false) break;
-              tries++;
-            }
+            acc = aliveAccounts[tokenIdx % aliveAccounts.length];              tokenIdx++;
+             if (acc && acc.alive !== false) bre
             if (!acc || acc.alive === false) { // all dead
-              sseSend("alert", { level: "error", message: "All tokens unusable. Stopping." });
-              break outer;
+             sseSend("alert", { level: "error", message: "All tokens unusable. Stopping." });
+             break outer;
             }
-
-            try {
+            try{
               const out = await fbComment(postId, message, acc.token);
-              job.stats.success++;
-              sseSend("success", {
-                postId, message, commentId: out.id,
-                account: { name: acc.name, id: acc.id }
-              });
-            } catch (e) {
-              job.stats.failed++;
-              const cat = classifyFbError(e);
-
-              if (["token_invalid", "token_expired", "permission", "temporary_block"].includes(cat.kind)) {
-                job.stats[cat.kind]++; // count category
-                // mark token dead for this run
-                acc.alive = false;
-                const tIndex = accounts.indexOf(acc) + 1;
-                job.stats.invalid_token_list.add(tIndex);
-                sseSend("alert", {
-                  level: "error",
-                  message: `${acc.name}: ${cat.label} — token disabled for this run`
-                });
-              } else if (cat.kind === "bad_post") {
-                job.stats.bad_post++; job.stats.bad_post_list.add(postId);
-                sseSend("alert", { level: "warning", message: `Invalid Post: ${postId}` });
-              } else {
-                job.stats.unknown++;
-                sseSend("alert", { level: "warning", message: `Error: ${e.message}` });
+              jo.stats.success++;
+              sseend("success", {
+           postId,message, commentId: out.id,
+        account: { ame: acc.name, id: acc.id }
               }
+           } catch (
+              job.stats.failed
+              const cat = classifyFbError(e)
+             if (["ton_invalid, "token_expired", "permission", "temporary_block"].includes(cat.kind)) {                job.statcat.kind]++; // count category
+                // mark ton dea for this run
+                acc.alive = alse
+                const tIndex ccounts.indexOf(acc) +1;
+                job.stats.invalitoken_list.add(tInde
+                sseSend("alert", {                  level: "error"                message: `${acc.name}: ${cat.label} — token disabled for this run`
+             })
+            } else if (cat.kind === "bad_post") {
+              job.stats.bad_post++; job.stats.bad_post_list.add(postId);
+              sseSend("alert", { level: "warning", message: `Invalid Post: ${postId}` });
+             } lse {
+               ob.stats.unknown++;
+              sseSend("alert", { level: "warning", message: `Error: ${e.message}` });
             }
-
-            sseSend("status", job.stats);
-            if (delaySec > 0) await sleep(delaySec * 1000);
-          }
-        }
-
-        job.done = true;
-        sseSend("summary", {
-          ...job.stats,
-          invalid_tokens_count: job.stats.invalid_token_list.size,
-          bad_posts_count: job.stats.bad_post_list.size
-        });
-      })().catch((e) => {
-        sseSend("alert", { level: "error", message: `Worker crash: ${e.message}` });
-        currentJob = null;
-      });
-
-      return res.json({
-        ok: true,
-        posts: postIds.length,
-        comments: comments.length,
-        tokens: aliveAccounts.length,
-        delaySec,
-        maxCount,
-      });
-    } catch (err) {
-      return res.status(500).json({ error: err.message || "Server error" });
-    }
-  }
-);
-
-// ---------- Stop ----------
-app.post("/stop", (_req, res) => {
-  if (currentJob && !currentJob.done) {
-    currentJob.abort = true;
-    sseSend("alert", { level: "warning", message: "⛔ Stopping job..." });
-    return res.json({ ok: true });
-  }
-  return res.status(400).json({ error: "No running job" });
-});
-
-// ---------- Start server ----------
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+        
+           sseend("status", job.sta           if (delaySec > 0) await sleep(del
+000)
+     }
+  
+    job.done = true;
+     sseSend("summary", {         ...job.tats,
+         invalid_tokensount: job.stats.inv
