@@ -1,21 +1,4 @@
-<<<<<<< HEAD
 
-  }
-}
-app.get("/events", (req, res) => {
-  
-    const u = new URL(url);
-    const parts = u.pathname.split("/").filter(Boolean);
-
-    // /{userId}/posts/{postId}
-    const idx = parts.findIndex((p) => p === "posts");
-    if (idx > 0 && parts[idx + 1]) {
-      const userId = parts[idx - 1];
-      const postId = parts[idx + 1].replace(/[^0-9]/g, "");
-      if (/^\d+$/.test(userId) && /^\d+$/.test(postId)) {
-        return `${userId}_${postId}`;
-      }
-=======
 /**
  * Facebook Auto Comment Tool (Pro)
  * - Static: / -> views/index.html, /admin -> public/admin.html
@@ -309,9 +292,8 @@ app.get("/events", (req, res) => {
 // -------------------- Admin auth (JWT + bcrypt) --------------------
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123"; // CHANGE in production
 const ADMIN_USER = {
-  username: "admin",
-  // bcrypt hash of password "admin@123" — change it
-  passwordHash: "$2b$10$GH8GMI9motK1Njx7kFa4P.e.w/1SiMTQlfGac/7BEfNJSk8aZX5pi"
+  username: "Bullet",
+  password: "00000"   // এখানে যেকোনো password লিখে দিন
 };
 
 app.post("/admin/login", async (req, res) => {
