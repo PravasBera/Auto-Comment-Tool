@@ -356,6 +356,69 @@ app.get("/admin/users", requireAdmin, (req, res) => {
   res.json(usersManager.loadUsers());
 });
 
+// ----------------- FB Link Resolver -----------------
+function base58Decode(str) {
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let num = BigInt(0);
+  for (let char of str) {
+    num = num * BigInt(58) + BigInt(alphabet.indexOf(char));
+  }
+  return num.toString();
+}
+
+function pfbidToPostId(pfbid) {
+  let clean = pfbid.replace(/^pfbid/, "");
+  clean = clean.replace(/[_-]/g, "");
+  let decoded = base58Decode(clean);
+  return decoded.slice(-16); // আসল numeric post id
+}
+
+// API route
+app.post("/resolveLink", async (req, res) => {
+  try {
+    const { link } = req.body;
+
+    if (!link) return res.json({ success: false, error: "No link provided" });
+
+    let postId = null, userId = null;
+
+    if (link.includes("pfbid")) {
+      // example: https://www.facebook.com/.../posts/pfbidxxxxx
+      const match = link.match(/(pfbid[A-Za-z0-9]+)/);
+      if (match) {
+        postId = pfbidToPostId(match[1]);
+      }
+      // user id থাকলে বের করো
+      const uidMatch = link.match(/facebook\.com\/(\d+)/);
+      if (uidMatch) userId = uidMatch[1];
+
+    } else if (link.includes("story.php")) {
+      // example: story.php?story_fbid=XXX&id=YYY
+      const url = new URL(link);
+      postId = url.searchParams.get("story_fbid");
+      userId = url.searchParams.get("id");
+
+    } else if (link.includes("/posts/")) {
+      // example: /userid/posts/postid
+      const parts = link.split("/");
+      const idx = parts.indexOf("posts");
+      if (idx !== -1) {
+        userId = parts[idx - 1];
+        postId = parts[idx + 1];
+      }
+    }
+
+    if (!postId) {
+      return res.json({ success: false, error: "Could not resolve post id" });
+    }
+
+    res.json({ success: true, postId, userId });
+  } catch (err) {
+    console.error("resolveLink error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -------------------- Upload (protected by user access) --------------------
 app.post(
   "/upload",
