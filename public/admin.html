@@ -1,94 +1,336 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="bn">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8"/>
+  <title>Admin — Facebook Auto Comment Tool (Pro)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    :root{
+      --bg:#0b1220;--panel:#0f172a;--muted:#1f2937;--text:#e5e7eb;--text-dim:#9ca3af;
+      --accent:#22d3ee;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--border:#243244;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1220,#0f172a 40%,#0b1220);color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;}
+    .wrap{max-width:1180px;margin:0 auto;padding:24px}
+    .card{background:radial-gradient(1200px 600px at 10% -20%, #0c1330 0%, rgba(12,19,48,0) 60%),var(--panel);
+      border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .row{display:flex;gap:16px;flex-wrap:wrap} .col{flex:1 1 280px}
+    h1{margin:0 0 8px;font-size:26px} .muted{color:var(--text-dim)} .hidden{display:none!important}
+    .btn{appearance:none;border:1px solid var(--border);background:#0b1220;color:var(--text);
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease}
+    .btn:hover{transform:translateY(-1px)} .btn-primary{border-color:#155e75;color:#a5f3fc}
+    .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
+    .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
+    .input{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);
+      padding:12px 14px;border-radius:12px;outline:none}
+    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:560px}
+    .searchbar .input{flex:1}
+    .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
+    .ok{background:#072418;color:#86efac;border-color:#14532d}
+    .block{background:#2a0b0b;color:#fecaca;border-color:#7f1d1d}
+    .pending{background:#1e1b0b;color:#fde68a;border-color:#7c2d12}
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#64748b}
+    .dot.ok{background:var(--ok)} .dot.err{background:var(--err)}
+    table{width:100%;border-collapse:collapse;margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:14px}
+    th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1}
+    tr:hover td{background:#0b1628}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .right{margin-left:auto}
+  </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+<body>
+  <div class="wrap">
+    <h1>Admin Panel <span class="muted" style="font-size:14px">— Facebook Auto Comment Tool (Pro)</span></h1>
 
-  <!-- Header -->
-  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold">Admin Panel</h1>
-    <button class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Logout</button>
-  </header>
-
-  <!-- Stats -->
-  <section class="grid grid-cols-5 gap-4 p-4">
-    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
-      <h2 class="text-lg font-semibold">Total</h2>
-      <p id="totalUsers" class="text-2xl font-bold text-blue-400">0</p>
-    </div>
-    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
-      <h2 class="text-lg font-semibold">Approved</h2>
-      <p id="approvedUsers" class="text-2xl font-bold text-green-400">0</p>
-    </div>
-    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
-      <h2 class="text-lg font-semibold">Pending</h2>
-      <p id="pendingUsers" class="text-2xl font-bold text-yellow-400">0</p>
-    </div>
-    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
-      <h2 class="text-lg font-semibold">Blocked</h2>
-      <p id="blockedUsers" class="text-2xl font-bold text-red-400">0</p>
-    </div>
-    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
-      <h2 class="text-lg font-semibold">Live</h2>
-      <p id="liveUsers" class="text-2xl font-bold text-purple-400">0</p>
-    </div>
-  </section>
-
-  <!-- Search + Actions -->
-  <section class="p-4 flex justify-between items-center">
-    <!-- Search -->
-    <div class="flex gap-2 w-1/2">
-      <input type="text" placeholder="Search by User ID" class="w-full px-4 py-2 rounded-lg text-black focus:outline-none">
-      <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">Search</button>
+    <!-- LOGIN -->
+    <div id="loginCard" class="card">
+      <div class="row">
+        <div class="col">
+          <label class="muted" style="font-size:12px">Username</label>
+          <input id="username" class="input" placeholder="e.g. Bullet" value="Bullet"/>
+        </div>
+        <div class="col">
+          <label class="muted" style="font-size:12px">Password</label>
+          <input id="password" type="password" class="input" placeholder="•••••" value="00000"/>
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top:12px">
+        <button id="btnLogin" class="btn btn-primary">Sign In</button>
+        <span id="loginMsg" class="muted" style="font-size:12px"><span id="loginDot" class="dot"></span> Use admin credentials</span>
+      </div>
     </div>
 
-    <!-- Actions -->
-    <div class="flex gap-2">
-      <button class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">Approve</button>
-      <button class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Block</button>
-      <button class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg">Unblock</button>
-      <button class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg">Set Expiry</button>
-      <button class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg">Delete</button>
-    </div>
-  </section>
+    <!-- PANEL -->
+    <div id="panelCard" class="card hidden" style="margin-top:16px;">
+      <div class="toolbar">
+        <div class="searchbar">
+          <input id="searchBox" class="input" placeholder="সেশন আইডি বা স্ট্যাটাস দিয়ে সার্চ করুন…"/>
+          <button id="btnSearch" class="btn">Search</button>
+        </div>
+        <div class="right"></div>
+        <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
+        <button id="btnRefresh" class="btn">Refresh</button>
+        <button id="btnLogout" class="btn btn-ghost">Logout</button>
+      </div>
 
-  <!-- Users Table -->
-  <section class="p-4 flex-1 overflow-auto">
-    <table class="w-full text-left border-collapse">
-      <thead>
-        <tr class="bg-gray-800 text-gray-300">
-          <th class="p-3">Session ID</th>
-          <th class="p-3">Status</th>
-          <th class="p-3">Blocked</th>
-          <th class="p-3">Expiry</th>
-          <th class="p-3">Approved At</th>
-          <th class="p-3">Updated</th>
-          <th class="p-3 text-center">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="userTable" class="bg-gray-700">
-        <!-- Dynamic Rows -->
-        <tr>
-          <td class="p-3">abc123</td>
-          <td class="p-3 text-green-400">approved</td>
-          <td class="p-3">false</td>
-          <td class="p-3">-</td>
-          <td class="p-3">23/08/2025</td>
-          <td class="p-3">23/08/2025</td>
-          <td class="p-3 flex gap-2 justify-center">
-            <button class="bg-green-600 px-3 py-1 rounded-lg">Approve</button>
-            <button class="bg-red-600 px-3 py-1 rounded-lg">Block</button>
-            <button class="bg-yellow-600 px-3 py-1 rounded-lg">Unblock</button>
-            <button class="bg-purple-600 px-3 py-1 rounded-lg">Expiry</button>
-            <button class="bg-gray-600 px-3 py-1 rounded-lg">Delete</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+      <div class="row" style="margin-top:14px">
+        <div class="col">
+          <label class="muted" style="font-size:12px">Approve with Expiry</label>
+          <input id="expiryInput" class="input" type="datetime-local"/>
+          <div class="muted" style="font-size:12px;margin-top:4px">খালি রাখলে লাইফটাইম</div>
+        </div>
+        <div class="col">
+          <label class="muted" style="font-size:12px">Bulk Actions (selected)</label>
+          <div class="toolbar" style="margin-top:6px">
+            <button id="bulkApprove" class="btn btn-ok">Approve</button>
+            <button id="bulkBlock" class="btn btn-warn">Block</button>
+            <button id="bulkUnblock" class="btn">Unblock</button>
+            <button id="bulkExpire" class="btn">Set Expiry</button>
+            <button id="bulkDelete" class="btn btn-err">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42px"><input id="checkAll" type="checkbox"/></th>
+            <th>Session</th>
+            <th>Status</th>
+            <th>Blocked</th>
+            <th>Expiry</th>
+            <th>Approved At</th>
+            <th>Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTbody"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
+      </table>
+
+      <div class="toolbar" style="margin-top:10px">
+        <span id="dashMsg" class="muted" style="font-size:12px"><span id="dashDot" class="dot"></span> Ready</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const API = ""; // same origin
+
+    // ===== STATE/ELS =====
+    let TOKEN = localStorage.getItem("admin_token") || "";
+    const els = {
+      loginCard: document.getElementById("loginCard"),
+      panelCard: document.getElementById("panelCard"),
+      username: document.getElementById("username"),
+      password: document.getElementById("password"),
+      btnLogin: document.getElementById("btnLogin"),
+      loginMsg: document.getElementById("loginMsg"),
+      loginDot: document.getElementById("loginDot"),
+
+      searchBox: document.getElementById("searchBox"),
+      btnSearch: document.getElementById("btnSearch"),
+      btnTrack: document.getElementById("btnTrack"),
+      btnRefresh: document.getElementById("btnRefresh"),
+      btnLogout: document.getElementById("btnLogout"),
+
+      expiryInput: document.getElementById("expiryInput"),
+      bulkApprove: document.getElementById("bulkApprove"),
+      bulkBlock: document.getElementById("bulkBlock"),
+      bulkUnblock: document.getElementById("bulkUnblock"),
+      bulkExpire: document.getElementById("bulkExpire"),
+      bulkDelete: document.getElementById("bulkDelete"),
+
+      userTbody: document.getElementById("userTbody"),
+      checkAll: document.getElementById("checkAll"),
+      dashMsg: document.getElementById("dashMsg"),
+      dashDot: document.getElementById("dashDot"),
+    };
+
+    // ===== HELPERS =====
+    const withAuth = (init={})=>{
+      init.headers = Object.assign({}, init.headers||{}, {"Content-Type":"application/json","Authorization":"Bearer "+TOKEN});
+      return init;
+    };
+    const api = async (p,opts)=> {
+      const r = await fetch(API+p,opts);
+      if (r.status===401){ logout(true); throw new Error("Unauthorized");}
+      return r.json();
+    };
+    const setLogin = (ok,msg)=>{
+      els.loginDot.className = "dot "+(ok?"ok":"err");
+      els.loginMsg.textContent = msg || (ok?"Authenticated":"Authentication failed");
+    };
+    const setDash = (type,msg)=>{
+      els.dashDot.className = "dot "+(type||"");
+      els.dashMsg.textContent = msg||"";
+    };
+    const fmt = (ts)=>{
+      if(!ts) return "—";
+      const d=new Date(Number(ts)||ts);
+      return isNaN(d)? "—" : d.toLocaleString();
+    };
+    const statusTag = (u)=>{
+      if (u.status==="approved" && !u.blocked) return '<span class="tag ok">approved</span>';
+      if (u.status==="blocked" || u.blocked) return '<span class="tag block">blocked</span>';
+      return '<span class="tag pending">pending</span>';
+    };
+    const selRows = ()=> Array.from(document.querySelectorAll(".rowcheck:checked")).map(x=>x.dataset.id);
+
+    const showView = (v)=>{
+      if (v==="panel"){ els.loginCard.classList.add("hidden"); els.panelCard.classList.remove("hidden"); }
+      else { els.panelCard.classList.add("hidden"); els.loginCard.classList.remove("hidden"); }
+    };
+
+    // ===== LOGIN =====
+    async function login(){
+      els.btnLogin.disabled=true; setLogin(false,"Signing in…");
+      try{
+        const out = await fetch(API+"/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({username:els.username.value.trim(),password:els.password.value})}).then(r=>r.json());
+        if(out.ok && out.token){
+          TOKEN = out.token; localStorage.setItem("admin_token",TOKEN);
+          setLogin(true,"Login success"); showView("panel"); await loadUsers();
+        }else{ setLogin(false,out.message||"Login failed"); }
+      }catch(e){ setLogin(false,e.message||"Network error");}
+      finally{ els.btnLogin.disabled=false; }
+    }
+    function logout(silent){
+      TOKEN=""; localStorage.removeItem("admin_token");
+      if(!silent) alert("Logged out");
+      showView("login");
+    }
+
+    // ===== TABLE =====
+    let USERS=[];
+    async function loadUsers(){
+      setDash("", "Loading…");
+      try{
+        const d = await api("/admin/users", withAuth());
+        if(!d.ok) throw new Error("Failed");
+        USERS = d.users||[];
+        renderUsers();
+        setDash("ok", `Loaded ${USERS.length}`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    function renderUsers(){
+      const q = (els.searchBox.value||"").toLowerCase();
+      const rows = USERS
+        .filter(u=> !q || (u.sessionId||"").toLowerCase().includes(q) || (u.status||"").toLowerCase().includes(q))
+        .map(u=>{
+          return `
+          <tr>
+            <td><input type="checkbox" class="rowcheck" data-id="${u.sessionId}"/></td>
+            <td class="mono" style="font-size:12px">${u.sessionId}</td>
+            <td>${statusTag(u)}</td>
+            <td>${u.blocked?'<span class="tag block">true</span>':'<span class="tag ok">false</span>'}</td>
+            <td class="mono" style="font-size:12px">${u.expiry?fmt(u.expiry):"—"}</td>
+            <td class="mono" style="font-size:12px">${u.approvedAt?fmt(u.approvedAt):"—"}</td>
+            <td class="mono" style="font-size:12px">${u.updatedAt?fmt(u.updatedAt):"—"}</td>
+            <td>
+              <div class="toolbar">
+                <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
+                <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
+                <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
+                <button class="btn" onclick="actExpire('${u.sessionId}')">Set Expiry</button>
+                <button class="btn btn-err" onclick="actDelete('${u.sessionId}')">Delete</button>
+                <button class="btn" onclick="trackOne('${u.sessionId}')">Track</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join("");
+      els.userTbody.innerHTML = rows || `<tr><td colspan="8" class="muted">No data</td></tr>`;
+      els.checkAll.checked=false;
+    }
+
+    // ===== ACTIONS =====
+    async function actApprove(id){
+      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
+      setDash("",`Approving ${id}…`);
+      try{
+        const d = await api("/admin/approve", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
+        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Approved ${id}`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    async function actBlock(id){
+      setDash("",`Blocking ${id}…`);
+      try{
+        const d = await api("/admin/block", withAuth({method:"POST",body:JSON.stringify({username:id})}));
+        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Blocked ${id}`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    async function actUnblock(id){
+      setDash("",`Unblocking ${id}…`);
+      try{
+        const d = await api("/admin/unblock", withAuth({method:"POST",body:JSON.stringify({username:id})}));
+        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Unblocked ${id}`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    async function actExpire(id){
+      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
+      setDash("",`Setting expiry for ${id}…`);
+      try{
+        const d = await api("/admin/expire", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
+        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Expiry updated`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    async function actDelete(id){
+      if(!confirm(`Delete ${id}?`)) return;
+      setDash("",`Deleting ${id}…`);
+      try{
+        const d = await api("/admin/delete", withAuth({method:"POST",body:JSON.stringify({username:id})}));
+        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Deleted ${id}`);
+      }catch(e){ setDash("err", e.message||"Failed");}
+    }
+    window.actApprove=actApprove; window.actBlock=actBlock; window.actUnblock=actUnblock;
+    window.actExpire=actExpire; window.actDelete=actDelete;
+
+    // Bulk
+    async function bulkDo(kind){
+      const ids = selRows(); if(!ids.length){ alert("Select rows first"); return;}
+      if (kind==="delete" && !confirm(`Delete ${ids.length} item(s)?`)) return;
+      for (const id of ids){
+        if(kind==="approve") await actApprove(id);
+        else if(kind==="block") await actBlock(id);
+        else if(kind==="unblock") await actUnblock(id);
+        else if(kind==="expire") await actExpire(id);
+        else if(kind==="delete") await actDelete(id);
+      }
+    }
+
+    // Track activity
+    function trackOne(id){
+      // open activity dashboard and pre-select this session
+      const url = `/activity.html#${encodeURIComponent(id)}`;
+      window.open(url,"_blank");
+    }
+
+    // ===== EVENTS =====
+    els.btnLogin.addEventListener("click", login);
+    els.btnLogout.addEventListener("click", ()=>logout(false));
+    els.btnRefresh.addEventListener("click", loadUsers);
+    els.btnTrack.addEventListener("click", ()=>window.open("/activity.html","_blank"));
+    els.btnSearch.addEventListener("click", renderUsers);
+    els.searchBox.addEventListener("input", renderUsers);
+    els.checkAll.addEventListener("change", e=>{
+      const v=e.target.checked; document.querySelectorAll(".rowcheck").forEach(ch=>ch.checked=v);
+    });
+    els.bulkApprove.addEventListener("click", ()=>bulkDo("approve"));
+    els.bulkBlock.addEventListener("click", ()=>bulkDo("block"));
+    els.bulkUnblock.addEventListener("click", ()=>bulkDo("unblock"));
+    els.bulkExpire.addEventListener("click", ()=>bulkDo("expire"));
+    els.bulkDelete.addEventListener("click", ()=>bulkDo("delete"));
+
+    // boot
+    (async function init(){
+      if(TOKEN){
+        try{ showView("panel"); await loadUsers(); setLogin(true,"Session restored"); }
+        catch{ logout(true); setLogin(false,"Session expired"); }
+      }else{ showView("login"); }
+    })();
+  </script>
 </body>
 </html>
