@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8"/>
+  <title>Live Activity — Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#1f2937;--text:#e5e7eb;--text-dim:#9ca3af;
+      --accent:#22d3ee;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--border:#243244;}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1220,#0f172a);color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;}
+    .wrap{max-width:1280px;margin:0 auto;padding:22px}
+    .card{background:radial-gradient(1200px 600px at 10% -20%, #0c1330 0%, rgba(12,19,48,0) 60%),var(--panel);
+      border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{appearance:none;border:1px solid var(--border);background:#0b1220;color:var(--text);
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+    .btn-primary{border-color:#155e75;color:#a5f3fc} .btn-err{border-color:#7f1d1d;color:#fecaca}
+    .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
+    .input{border:1px solid var(--border);background:#0b1220;color:var(--text);padding:12px 14px;border-radius:12px;outline:none}
+    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:640px}
+    .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
+    .ok{background:#072418;color:#86efac;border-color:#14532d}
+    .warn{background:#1e1b0b;color:#fde68a;border-color:#7c2d12}
+    .err{background:#2a0b0b;color:#fecaca;border-color:#7f1d1d}
+    .grid{display:grid;gap:12px} .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .pill{border:1px solid var(--border);padding:3px 8px;border-radius:999px}
+    .stat{display:flex;gap:8px;align-items:center}
+    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#64748b}
+    .dot.live{background:var(--ok)} .dot.dead{background:#64748b}
+    .list{max-height:130px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:#0b1220}
+    a{color:#a5f3fc;text-decoration:none} a:hover{text-decoration:underline}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .left{flex:1 1 320px} .right{flex:2 1 520px}
+    .card h3{margin:0 0 6px 0;font-size:16px}
+    .tiny{font-size:12px;color:#cbd5e1}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar" style="margin-bottom:12px">
+      <button class="btn" onclick="location.href='/admin'">← Back to Admin</button>
+      <div class="pill">লাইভ: <b id="liveCount">0</b></div>
+      <div class="pill">ট্র্যাকড: <b id="trackedCount">0</b></div>
+      <div class="pill">অ্যাপ্রুভড: <b id="approvedCount">0</b></div>
+      <div class="searchbar" style="margin-left:auto">
+        <input id="sidInput" class="input" placeholder="Session ID দিয়ে ট্র্যাক করুন…"/>
+        <button id="btnAdd" class="btn btn-primary">Track</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- LEFT: approved sessions list -->
+      <div class="left">
+        <div class="card">
+          <h3>Approved Sessions</h3>
+          <div class="toolbar" style="margin-bottom:8px">
+            <input id="filterBox" class="input" placeholder="ফিল্টার…"/>
+            <button id="btnTrackAll" class="btn btn-ok">Track All (safe)</button>
+            <input id="maxTrack" class="input" type="number" min="1" value="20" style="width:90px" title="Max sessions"/>
+          </div>
+          <div id="approvedList" class="list tiny">Loading…</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: tracked session cards -->
+      <div class="right">
+        <div id="cards" class="grid grid-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==== CONFIG/STATE ====
+    const API = "";
+    let TOKEN = localStorage.getItem("admin_token") || "";
+    if(!TOKEN){ location.replace("/admin"); }
+
+    const els = {
+      liveCount: document.getElementById("liveCount"),
+      trackedCount: document.getElementById("trackedCount"),
+      approvedCount: document.getElementById("approvedCount"),
+      approvedList: document.getElementById("approvedList"),
+      filterBox: document.getElementById("filterBox"),
+      sidInput: document.getElementById("sidInput"),
+      btnAdd: document.getElementById("btnAdd"),
+      btnTrackAll: document.getElementById("btnTrackAll"),
+      maxTrack: document.getElementById("maxTrack"),
+      cards: document.getElementById("cards"),
+    };
+
+    const withAuth = (init={})=>{
+      init.headers = Object.assign({}, init.headers||{}, {"Content-Type":"application/json","Authorization":"Bearer "+TOKEN});
+      return init;
+    };
+    const api = async (p,opts)=> {
+      const r = await fetch(API+p,opts);
+      if(r.status===401){ localStorage.removeItem("admin_token"); location.replace("/admin"); return; }
+      return r.json();
+    };
+
+    // ==== LOAD APPROVED ====
+    let APPROVED = [];
+    async function loadApproved(){
+      const d = await api("/admin/users", withAuth());
+      if(!d?.ok){ els.approvedList.textContent="Failed"; return; }
+      APPROVED = (d.users||[]).filter(x=>x.status==="approved" && !x.blocked);
+      els.approvedCount.textContent = APPROVED.length;
+      renderApproved();
+    }
+    function renderApproved(){
+      const q=(els.filterBox.value||"").toLowerCase();
+      const items = APPROVED.filter(u=>!q || (u.sessionId||"").toLowerCase().includes(q))
+        .slice(0,500)
+        .map(u=>`<div style="display:flex;justify-content:space-between;gap:6px;margin:4px 0">
+          <span class="mono">${u.sessionId}</span>
+          <span>
+            <button class="btn tinybtn" onclick="track('${u.sessionId}')">Track</button>
+          </span>
+        </div>`).join("");
+      els.approvedList.innerHTML = items || '<div class="tiny">No match</div>';
+    }
+
+    // ==== TRACKING ====
+    // Map<sid, {es, lastT, ok, fail, counts, posts:Set, accounts:Set, logs:[], warns:[], live:boolean}>
+    const TRACKS = new Map();
+
+    function makeCardHTML(sid, st){
+      const live = (Date.now() - (st.lastT||0)) < 15000;
+      const posts = Array.from(st.posts||[]).slice(-8).map(p=>`<a target="_blank" href="https://facebook.com/${p}">${p}</a>`).join(", ") || "—";
+      const accounts = Array.from(st.accounts||[]).slice(0,12).map(a=>{
+        const q = encodeURIComponent(a);
+        return `<span class="pill tiny"><a target="_blank" href="https://www.facebook.com/search/top/?q=${q}">${a}</a></span>`;
+      }).join(" ") || "—";
+      const warnList = (st.warns||[]).slice(-6).map(w=>`<div>• ${w}</div>`).join("") || "—";
+      const logList = (st.logs||[]).slice(-6).map(l=>`<div>• ${l}</div>`).join("") || "—";
+
+      return `
+      <div class="card" id="card_${sid}">
+        <div class="toolbar" style="justify-content:space-between">
+          <div class="stat"><span class="dot ${live?'live':'dead'}"></span><b class="mono">${sid}</b></div>
+          <div class="stat tiny">
+            <span class="tag ok">OK ${st.ok||0}</span>
+            <span class="tag err">Fail ${st.fail||0}</span>
+            <span class="tag">InvalidToken ${st.counts.INVALID_TOKEN||0}</span>
+            <span class="tag">NoPerm ${st.counts.NO_PERMISSION||0}</span>
+            <span class="tag">WrongPost ${st.counts.WRONG_POST_ID||0}</span>
+            <span class="tag">Blocked ${st.counts.COMMENT_BLOCKED||0}</span>
+            <span class="tag">Locked ${st.counts.ID_LOCKED||0}</span>
+          </div>
+        </div>
+
+        <div class="tiny" style="margin:6px 0">Last: ${st.lastMsg||'—'}</div>
+
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1 1 100%">
+            <div class="tiny">Accounts (tokens in use)</div>
+            <div class="list" style="min-height:42px">${accounts}</div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1 1 50%">
+            <div class="tiny">Posts</div>
+            <div class="list">${posts}</div>
+          </div>
+          <div style="flex:1 1 50%">
+            <div class="tiny">Warnings/Errors</div>
+            <div class="list">${warnList}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px">
+          <div class="tiny">Live Comments</div>
+          <div class="list">${logList}</div>
+        </div>
+
+        <div class="toolbar" style="margin-top:10px">
+          <button class="btn" onclick="adminAct('${sid}','approve')">Approve</button>
+          <button class="btn btn-warn" onclick="adminAct('${sid}','block')">Block</button>
+          <button class="btn" onclick="adminAct('${sid}','unblock')">Unblock</button>
+          <button class="btn" onclick="setExpiryPrompt('${sid}')">Set Expiry</button>
+          <button class="btn btn-err" onclick="adminAct('${sid}','delete')">Delete</button>
+          <button class="btn" style="margin-left:auto" onclick="untrack('${sid}')">Stop</button>
+        </div>
+      </div>`;
+    }
+
+    function renderCards(){
+      els.cards.innerHTML = Array.from(TRACKS.entries()).map(([sid,st])=>makeCardHTML(sid,st)).join("");
+      els.trackedCount.textContent = TRACKS.size;
+      // live count
+      let live=0; TRACKS.forEach(st=>{ if(Date.now()-(st.lastT||0)<15000) live++; });
+      els.liveCount.textContent = live;
+    }
+
+    function ensureState(sid){
+      if(!TRACKS.has(sid)){
+        TRACKS.set(sid,{lastT:0,ok:0,fail:0,counts:{},posts:new Set(),accounts:new Set(),logs:[],warns:[],lastMsg:""});
+      }
+      return TRACKS.get(sid);
+    }
+
+    function track(sid){
+      if (!sid) return;
+      if (TRACKS.has(sid)) return; // already
+
+      const st = ensureState(sid);
+      // Attach SSE
+      const url = `/events?sessionId=${encodeURIComponent(sid)}`;
+      const es = new EventSource(url);
+      st.es = es;
+
+      es.addEventListener("open", ()=>{ st.lastT=Date.now(); st.lastMsg="SSE opened"; renderCards(); });
+      es.addEventListener("message", e=>{
+        st.lastT=Date.now();
+        try{
+          const d = JSON.parse(e.data||"{}");
+          if(d.type==="log"){
+            st.ok++; st.posts.add(d.postId); if(d.account) st.accounts.add(d.account);
+            st.logs.push(`${d.account||'Acc'} → "${(d.comment||'').slice(0,100)}" (${d.postId||''})`);
+            if(st.logs.length>100) st.logs.shift();
+          }else if(d.type==="error"){
+            st.fail++; const k=d.errKind||"UNKNOWN";
+            st.counts[k]=(st.counts[k]||0)+1;
+            st.warns.push(`${d.account||''} • ${d.errKind||''} • ${(d.errMsg||'').slice(0,140)}`);
+            if(st.warns.length>100) st.warns.shift();
+          }else if(d.type==="warn"||d.type==="info"||d.type==="success"){
+            st.warns.push(`${d.type.toUpperCase()}: ${(d.text||'').slice(0,140)}`);
+            if(st.warns.length>100) st.warns.shift();
+          }else if(d.type==="summary"){
+            // summary carries counters etc.
+            const c = d.counters||{};
+            for (const k in c){ st.counts[k]=(st.counts[k]||0)+Number(c[k]||0); }
+          }
+          st.lastMsg = d.text || d.type || "event";
+        }catch{}
+        renderCards();
+      });
+      es.addEventListener("error", ()=>{ st.lastMsg="SSE error/closed"; renderCards(); });
+
+      renderCards();
+    }
+
+    function untrack(sid){
+      const st = TRACKS.get(sid);
+      if(st?.es) try{ st.es.close(); }catch{}
+      TRACKS.delete(sid);
+      renderCards();
+    }
+
+    // Admin actions inside activity cards
+    async function adminAct(sid,kind){
+      if (kind==="delete" && !confirm(`Delete ${sid}?`)) return;
+      let path="", body={username:sid};
+      if(kind==="approve"){ path="/admin/approve"; body.expiry=null; }
+      else if(kind==="block"){ path="/admin/block"; }
+      else if(kind==="unblock"){ path="/admin/unblock"; }
+      else if(kind==="delete"){ path="/admin/delete"; }
+      else return;
+      const d = await api(path, withAuth({method:"POST",body:JSON.stringify(body)}));
+      if(!d?.ok){ alert("Action failed"); return; }
+      await loadApproved(); // refresh left list
+    }
+    async function setExpiryPrompt(sid){
+      const s = prompt("Enter expiry (YYYY-MM-DD HH:MM) - blank to clear","");
+      let expiry = null;
+      if(s && s.trim()) {
+        const t = new Date(s.replace(" ","T"));
+        if(!isNaN(t)) expiry = t.toISOString();
+      }
+      const d = await api("/admin/expire", withAuth({method:"POST",body:JSON.stringify({username:sid,expiry})}));
+      if(!d?.ok){ alert("Failed"); return; }
+      await loadApproved();
+    }
+
+    // ==== UI EVENTS ====
+    els.filterBox.addEventListener("input", renderApproved);
+    els.btnAdd.addEventListener("click", ()=>{
+      const sid = els.sidInput.value.trim(); if(!sid) return;
+      track(sid); els.sidInput.value="";
+    });
+    els.btnTrackAll.addEventListener("click", ()=>{
+      const lim = Math.max(1, parseInt(els.maxTrack.value||"20",10));
+      const q=(els.filterBox.value||"").toLowerCase();
+      const list = APPROVED.filter(u=>!q||(u.sessionId||"").toLowerCase().includes(q)).slice(0,lim);
+      list.forEach(u=>track(u.sessionId));
+    });
+
+    // ==== BOOT ====
+    (async function init(){
+      await loadApproved(); // fill left
+      // deep link: /activity.html#<sid>
+      const hash = decodeURIComponent(location.hash.replace(/^#/,""));
+      if(hash) track(hash);
+      setInterval(()=>renderCards(), 2000); // refresh live counters dot
+    })();
+  </script>
+</body>
+</html>
