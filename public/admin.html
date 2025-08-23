@@ -1,491 +1,94 @@
- <!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Admin Panel — Facebook Auto Comment Tool (Pro)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <style>
-    :root{
-      --bg:#0f172a; --panel:#0b1220; --muted:#1f2937;
-      --text:#e5e7eb; --text-dim:#9ca3af; --border:#243244;
-      --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --cyan:#22d3ee;
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:linear-gradient(180deg,#0b1220,#0f172a 40%,#0b1220);color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial}
-    .container{max-width:1200px;margin:0 auto;padding:24px}
-    .card{background:radial-gradient(1000px 500px at 5% -20%,#0c1330 0%,transparent 60%),var(--panel);
-      border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .row{display:flex;gap:16px;flex-wrap:wrap}.col{flex:1 1 280px}
-    h1{margin:0 0 10px;font-size:26px} h2{margin:0 0 12px;font-size:18px;color:var(--text-dim)}
-    .muted{color:var(--text-dim)} .hidden{display:none!important} .right{margin-left:auto}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#0a1322;color:#cbd5e1;font-size:12px}
-    .btn{appearance:none;border:1px solid var(--border);background:#0c1425;color:var(--text);
-      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease}
-    .btn:hover{transform:translateY(-1px)} .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-primary{border-color:#155e75;background:#0b2430;color:#a5f3fc}
-    .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
-    .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
-    .input, select{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);padding:10px 12px;border-radius:12px;outline:none}
-    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    table{width:100%;border-collapse:collapse;margin-top:12px;overflow:hidden;border-radius:12px;border:1px solid var(--border)}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:14px}
-    th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1} tr:hover td{background:#0b1628}
-    .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
-    .tag.ok{background:#072418;color:#86efac;border-color:#14532d}
-    .tag.block{background:#2a0b0b;color:#fecaca;border-color:#7f1d1d}
-    .tag.pending{background:#1e1b0b;color:#fde68a;border-color:#7c2d12}
-    .small{font-size:12px} .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace}
-    .dot{width:8px;height:8px;border-radius:50%;background:#64748b;display:inline-block}
-    .dot.ok{background:var(--ok)} .dot.err{background:var(--err)}
-    .kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-    .kpi .card{padding:14px} .kpi h3{margin:0 0 6px;font-size:13px;color:#a8b2c4}
-    .kpi .num{font-size:22px;font-weight:800;letter-spacing:.3px}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#0a1322;
-      padding:6px 10px;border-radius:999px;font-size:12px}
-    .section-title{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-    .link{color:#a5f3fc;text-decoration:none}
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="container">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
 
-    <!-- HEADER -->
-    <div class="row" style="align-items:center">
-      <div class="col" style="flex:1 1 100%">
-        <h1>Admin Panel <span class="pill">Facebook Auto Comment Tool (Pro)</span></h1>
-        <div class="muted">Login → Manage Users (approve / block / unblock / expiry / delete) + Search & Details</div>
-      </div>
+  <!-- Header -->
+  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Admin Panel</h1>
+    <button class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Logout</button>
+  </header>
+
+  <!-- Stats -->
+  <section class="grid grid-cols-5 gap-4 p-4">
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Total</h2>
+      <p id="totalUsers" class="text-2xl font-bold text-blue-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Approved</h2>
+      <p id="approvedUsers" class="text-2xl font-bold text-green-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Pending</h2>
+      <p id="pendingUsers" class="text-2xl font-bold text-yellow-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Blocked</h2>
+      <p id="blockedUsers" class="text-2xl font-bold text-red-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Live</h2>
+      <p id="liveUsers" class="text-2xl font-bold text-purple-400">0</p>
+    </div>
+  </section>
+
+  <!-- Search + Actions -->
+  <section class="p-4 flex justify-between items-center">
+    <!-- Search -->
+    <div class="flex gap-2 w-1/2">
+      <input type="text" placeholder="Search by User ID" class="w-full px-4 py-2 rounded-lg text-black focus:outline-none">
+      <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">Search</button>
     </div>
 
-    <!-- LOGIN VIEW -->
-    <div id="loginCard" class="card" style="margin-top:16px;">
-      <h2>Admin Login</h2>
-      <div class="row">
-        <div class="col">
-          <label class="small muted">Username</label>
-          <input class="input" id="username" placeholder="e.g. Bullet" value="Bullet"/>
-        </div>
-        <div class="col">
-          <label class="small muted">Password</label>
-          <input class="input" id="password" type="password" placeholder="•••••" value="00000"/>
-        </div>
-      </div>
-      <div class="toolbar" style="margin-top:12px">
-        <button class="btn btn-primary" id="btnLogin">Sign In</button>
-        <span class="badge"><span id="loginDot" class="dot"></span><span id="loginMsg" class="small muted">Use your admin credentials</span></span>
-      </div>
+    <!-- Actions -->
+    <div class="flex gap-2">
+      <button class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">Approve</button>
+      <button class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Block</button>
+      <button class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg">Unblock</button>
+      <button class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg">Set Expiry</button>
+      <button class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg">Delete</button>
     </div>
+  </section>
 
-    <!-- DASHBOARD VIEW -->
-    <div id="dashCard" class="hidden">
-
-      <!-- KPI -->
-      <div class="kpi" style="margin-top:16px">
-        <div class="card">
-          <h3>Total Users</h3><div id="kpiTotal" class="num">—</div>
-        </div>
-        <div class="card">
-          <h3>Approved</h3><div id="kpiApproved" class="num">—</div>
-        </div>
-        <div class="card">
-          <h3>Pending</h3><div id="kpiPending" class="num">—</div>
-        </div>
-        <div class="card">
-          <h3>Blocked</h3><div id="kpiBlocked" class="num">—</div>
-        </div>
-        <div class="card">
-          <h3>Live Users</h3><div id="kpiLive" class="num" title="Server hook needed (/admin/live)">—</div>
-        </div>
-      </div>
-
-      <!-- SEARCH + ACTION BAR -->
-      <div class="card" style="margin-top:16px">
-        <div class="section-title">
-          <h2 style="margin:0">Users</h2>
-          <span id="authState" class="tag ok">Authenticated</span>
-          <div class="right"></div>
-          <input class="input" id="searchBox" placeholder="Search by sessionId / status…" style="max-width:280px"/>
-          <button class="btn" id="btnSearch">Search</button>
-          <button class="btn" id="btnRefresh">Refresh</button>
-          <button class="btn btn-ghost" id="btnLogout">Logout</button>
-        </div>
-
-        <!-- USER DETAILS (search panel) -->
-        <div id="userDetails" class="card hidden" style="margin:10px 0 14px;border-style:dashed">
-          <div class="row">
-            <div class="col"><div class="small muted">Session ID</div><div id="ud_sid" class="mono small">—</div></div>
-            <div class="col"><div class="small muted">Status</div><div id="ud_status">—</div></div>
-            <div class="col"><div class="small muted">Blocked</div><div id="ud_blocked">—</div></div>
-            <div class="col"><div class="small muted">Expiry</div><div id="ud_expiry">—</div></div>
-            <div class="col"><div class="small muted">Live</div><div id="ud_live" title="Server hook needed">Unknown</div></div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <div class="col">
-              <label class="small muted">Set Expiry</label>
-              <input class="input" id="expiryInput" type="datetime-local"/>
-              <div class="small muted" style="margin-top:4px">Keep empty = lifetime</div>
-            </div>
-            <div class="col" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-ok"   id="ud_btnApprove">Approve</button>
-              <button class="btn btn-warn" id="ud_btnBlock">Block</button>
-              <button class="btn"          id="ud_btnUnblock">Unblock</button>
-              <button class="btn"          id="ud_btnExpire">Set Expiry</button>
-              <button class="btn"          id="ud_btnCancelApprove" title="Revert to pending">Cancel Approve</button>
-              <button class="btn btn-err"  id="ud_btnDelete">Delete</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- BULK ACTIONS -->
-        <div class="row">
-          <div class="col">
-            <label class="small muted">Bulk Actions (selected rows)</label>
-            <div class="toolbar" style="margin-top:6px;flex-wrap:wrap">
-              <button class="btn btn-ok" id="bulkApprove">Approve</button>
-              <button class="btn btn-warn" id="bulkBlock">Block</button>
-              <button class="btn" id="bulkUnblock">Unblock</button>
-              <button class="btn" id="bulkExpire">Set Expiry</button>
-              <button class="btn btn-err" id="bulkDelete">Delete</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- TABLE -->
-        <table id="userTable">
-          <thead>
-            <tr>
-              <th style="width:38px"><input type="checkbox" id="checkAll"/></th>
-              <th>Session ID</th>
-              <th>Status</th>
-              <th>Blocked</th>
-              <th>Expiry</th>
-              <th>Approved At</th>
-              <th>Updated</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="userTbody">
-            <tr><td colspan="8" class="muted">Loading…</td></tr>
-          </tbody>
-        </table>
-
-        <div class="toolbar" style="margin-top:10px">
-          <span class="badge"><span id="dashDot" class="dot"></span><span id="dashMsg" class="small muted">Ready</span></span>
-        </div>
-        <div class="small muted" style="margin-top:6px">Tip: select rows → bulk buttons. Press <span class="mono">R</span> to refresh.</div>
-      </div>
-
-      <!-- LIVE ACTIVITY (placeholder – server hook needed) -->
-      <div class="card" style="margin-top:16px">
-        <div class="section-title">
-          <h2 style="margin:0">Live Activity</h2>
-          <span class="pill">Coming online with server hook</span>
-          <div class="right small muted">We can wire to <span class="mono">/admin/live</span> or SSE for per-session logs.</div>
-        </div>
-        <div class="muted small">Once wired, you will see: tokens used, comment text, post IDs, per-user live stream.</div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // ===== CONFIG =====
-    const API_BASE = ""; // same origin
-
-    // ===== STATE =====
-    let TOKEN = localStorage.getItem("admin_token") || "";
-    let USERS = [];
-    let CURRENT_USER = null; // user object for details panel
-
-    // ===== EL =====
-    const els = {
-      loginCard: q("#loginCard"), dashCard: q("#dashCard"),
-      username: q("#username"), password: q("#password"),
-      btnLogin: q("#btnLogin"), btnLogout: q("#btnLogout"),
-      loginDot: q("#loginDot"), loginMsg: q("#loginMsg"),
-      authState: q("#authState"),
-      btnRefresh: q("#btnRefresh"), btnSearch: q("#btnSearch"),
-      searchBox: q("#searchBox"),
-      checkAll: q("#checkAll"),
-      userTbody: q("#userTbody"),
-      expiryInput: q("#expiryInput"),
-      bulkApprove: q("#bulkApprove"), bulkBlock: q("#bulkBlock"),
-      bulkUnblock: q("#bulkUnblock"), bulkExpire: q("#bulkExpire"),
-      bulkDelete: q("#bulkDelete"),
-      dashDot: q("#dashDot"), dashMsg: q("#dashMsg"),
-      kpiTotal: q("#kpiTotal"), kpiApproved: q("#kpiApproved"),
-      kpiPending: q("#kpiPending"), kpiBlocked: q("#kpiBlocked"),
-      kpiLive: q("#kpiLive"),
-      udPanel: q("#userDetails"),
-      ud_sid: q("#ud_sid"), ud_status: q("#ud_status"),
-      ud_blocked: q("#ud_blocked"), ud_expiry: q("#ud_expiry"), ud_live: q("#ud_live"),
-      ud_btnApprove: q("#ud_btnApprove"), ud_btnBlock: q("#ud_btnBlock"),
-      ud_btnUnblock: q("#ud_btnUnblock"), ud_btnExpire: q("#ud_btnExpire"),
-      ud_btnCancelApprove: q("#ud_btnCancelApprove"), ud_btnDelete: q("#ud_btnDelete"),
-    };
-
-    // ===== UTILS =====
-    function q(s, r=document){ return r.querySelector(s); }
-    function setLoginStatus(ok, msg){
-      els.loginDot.className = "dot " + (ok ? "ok" : "err");
-      els.loginMsg.textContent = msg || (ok ? "Authenticated" : "Authentication failed");
-    }
-    function setDashStatus(type, msg){
-      els.dashDot.className = "dot " + (type || "");
-      els.dashMsg.textContent = msg || "";
-    }
-    function fmtTime(ts){
-      if (!ts) return "—";
-      const d = new Date(Number(ts) || ts);
-      return isNaN(d.getTime()) ? "—" : d.toLocaleString();
-    }
-    function badgeStatus(u){
-      if (u.status === "approved" && !u.blocked) return '<span class="tag ok">approved</span>';
-      if (u.status === "blocked" || u.blocked) return '<span class="tag block">blocked</span>';
-      return '<span class="tag pending">pending</span>';
-    }
-    function withAuth(init={}){
-      init.headers = Object.assign({}, init.headers || {}, {
-        "Content-Type":"application/json",
-        "Authorization":"Bearer " + TOKEN
-      });
-      return init;
-    }
-    async function api(path, opts){
-      const res = await fetch(API_BASE + path, opts);
-      if (res.status === 401){ logout(true); throw new Error("Unauthorized"); }
-      return res.json();
-    }
-    function show(view){
-      if (view === "dash"){
-        els.loginCard.classList.add("hidden");
-        els.dashCard.classList.remove("hidden");
-        els.authState.textContent = "Authenticated";
-        els.authState.className = "tag ok";
-      } else {
-        els.dashCard.classList.add("hidden");
-        els.loginCard.classList.remove("hidden");
-      }
-    }
-    function selectedRows(){
-      return Array.from(document.querySelectorAll(".rowcheck:checked")).map(c=>c.dataset.id);
-    }
-
-    // ===== LOGIN =====
-    async function login(){
-      const username = els.username.value.trim();
-      const password = els.password.value;
-      els.btnLogin.disabled = true; setLoginStatus(false, "Signing in…");
-      try{
-        const data = await fetch(API_BASE + "/admin/login", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({username, password})
-        }).then(r=>r.json());
-        if (data.ok && data.token){
-          TOKEN = data.token; localStorage.setItem("admin_token", TOKEN);
-          setLoginStatus(true, "Login success");
-          show("dash"); await loadUsers();
-        } else { setLoginStatus(false, data.message || "Login failed"); }
-      }catch(e){ setLoginStatus(false, e.message || "Network error"); }
-      finally{ els.btnLogin.disabled = false; }
-    }
-    function logout(silent){
-      TOKEN = ""; localStorage.removeItem("admin_token");
-      if (!silent) alert("Logged out"); show("login");
-    }
-
-    // ===== USERS =====
-    async function loadUsers(){
-      setDashStatus("", "Loading users…");
-      try{
-        const data = await api("/admin/users", withAuth());
-        if (!data.ok) throw new Error("Failed to fetch users");
-        USERS = data.users || [];
-        renderUsers();
-        updateKpis();
-        setDashStatus("ok", `Loaded ${USERS.length} user(s)`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    function renderUsers(){
-      const qv = (els.searchBox.value || "").toLowerCase();
-      const rows = USERS
-        .filter(u=>{
-          if (!qv) return true;
-          return (u.sessionId||"").toLowerCase().includes(qv) || (u.status||"").toLowerCase().includes(qv);
-        })
-        .map(u=>{
-          const exp = u.expiry ? fmtTime(u.expiry) : "—";
-          const appAt = u.approvedAt ? new Date(u.approvedAt).toLocaleString() : "—";
-          const upd = u.updatedAt ? fmtTime(u.updatedAt) : "—";
-          return `
-            <tr>
-              <td><input type="checkbox" class="rowcheck" data-id="${u.sessionId}"/></td>
-              <td class="mono small">
-                <a href="#" class="link" onclick="return openDetails('${u.sessionId}')">${u.sessionId}</a>
-              </td>
-              <td>${badgeStatus(u)}</td>
-              <td>${u.blocked ? '<span class="tag block small">true</span>' : '<span class="tag ok small">false</span>'}</td>
-              <td class="small">${exp}</td>
-              <td class="small">${appAt}</td>
-              <td class="small">${upd}</td>
-              <td>
-                <div class="toolbar">
-                  <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
-                  <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
-                  <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
-                  <button class="btn" onclick="actExpire('${u.sessionId}')">Set Expiry</button>
-                  <button class="btn btn-err" onclick="actDelete('${u.sessionId}')">Delete</button>
-                </div>
-              </td>
-            </tr>`;
-        }).join("");
-      els.userTbody.innerHTML = rows || `<tr><td colspan="8" class="muted">No users</td></tr>`;
-      els.checkAll.checked = false;
-    }
-    function updateKpis(){
-      const total = USERS.length;
-      const approved = USERS.filter(u=>u.status==="approved" && !u.blocked).length;
-      const pending = USERS.filter(u=>u.status!=="approved" && !u.blocked).length;
-      const blocked = USERS.filter(u=>u.status==="blocked" || u.blocked).length;
-      els.kpiTotal.textContent = total;
-      els.kpiApproved.textContent = approved;
-      els.kpiPending.textContent = pending;
-      els.kpiBlocked.textContent = blocked;
-      // Live users needs server hook; keep placeholder:
-      els.kpiLive.textContent = "—";
-    }
-
-    // ===== USER DETAILS PANEL =====
-    function openDetails(sessionId){
-      const u = USERS.find(x=>x.sessionId===sessionId);
-      if (!u){ alert("User not found"); return false; }
-      CURRENT_USER = u;
-      els.ud_sid.textContent = u.sessionId;
-      els.ud_status.innerHTML = badgeStatus(u);
-      els.ud_blocked.textContent = String(!!(u.blocked || u.status==="blocked"));
-      els.ud_expiry.textContent = u.expiry ? fmtTime(u.expiry) : "—";
-      els.ud_live.textContent = "Unknown";
-      els.udPanel.classList.remove("hidden");
-      return false;
-    }
-
-    // ===== ACTIONS (single) =====
-    async function actApprove(id){
-      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
-      setDashStatus("", `Approving ${id}…`);
-      try{
-        const data = await api("/admin/approve", withAuth({ method:"POST", body: JSON.stringify({username:id, expiry}) }));
-        if (!data.ok) throw new Error(data.message || "Failed");
-        await loadUsers(); openDetails(id);
-        setDashStatus("ok", `Approved ${id}`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    async function actBlock(id){
-      setDashStatus("", `Blocking ${id}…`);
-      try{
-        const data = await api("/admin/block", withAuth({ method:"POST", body: JSON.stringify({username:id}) }));
-        if (!data.ok) throw new Error(data.message || "Failed");
-        await loadUsers(); openDetails(id);
-        setDashStatus("ok", `Blocked ${id}`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    async function actUnblock(id){
-      setDashStatus("", `Unblocking ${id}…`);
-      try{
-        const data = await api("/admin/unblock", withAuth({ method:"POST", body: JSON.stringify({username:id}) }));
-        if (!data.ok) throw new Error(data.message || "Failed");
-        await loadUsers(); openDetails(id);
-        setDashStatus("ok", `Unblocked ${id}`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    async function actExpire(id){
-      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
-      setDashStatus("", `Setting expiry for ${id}…`);
-      try{
-        const data = await api("/admin/expire", withAuth({ method:"POST", body: JSON.stringify({username:id, expiry}) }));
-        if (!data.ok) throw new Error(data.message || "Failed");
-        await loadUsers(); openDetails(id);
-        setDashStatus("ok", `Expiry set for ${id}`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    async function actDelete(id){
-      if (!confirm(`Delete user ${id}?`)) return;
-      setDashStatus("", `Deleting ${id}…`);
-      try{
-        const data = await api("/admin/delete", withAuth({ method:"POST", body: JSON.stringify({username:id}) }));
-        if (!data.ok) throw new Error(data.message || "Failed");
-        await loadUsers();
-        els.udPanel.classList.add("hidden");
-        setDashStatus("ok", `Deleted ${id}`);
-      }catch(e){ setDashStatus("err", e.message || "Failed"); }
-    }
-    async function actCancelApprove(id){
-      // revert to pending (no server route for "pending", so we emulate by block? better: set status via approve without approvedAt? Not supported)
-      // Workaround: block=false + status=pending is not exposed by API. We'll skip server change now; show notice.
-      alert("Cancel Approve requires a small server helper to set status='pending'. We'll add this in the server step.");
-    }
-
-    // Expose for table buttons & links
-    window.openDetails = openDetails;
-    window.actApprove = actApprove; window.actBlock = actBlock; window.actUnblock = actUnblock;
-    window.actExpire = actExpire; window.actDelete = actDelete;
-
-    // ===== BULK =====
-    async function bulk(fnName){
-      const ids = selectedRows();
-      if (!ids.length){ alert("Select at least one row"); return; }
-      if (fnName === "delete" && !confirm(`Delete ${ids.length} user(s)?`)) return;
-      for (const id of ids){
-        if (fnName==="approve") await actApprove(id);
-        else if (fnName==="block") await actBlock(id);
-        else if (fnName==="unblock") await actUnblock(id);
-        else if (fnName==="expire") await actExpire(id);
-        else if (fnName==="delete") await actDelete(id);
-      }
-    }
-
-    // ===== EVENTS =====
-    els.btnLogin.addEventListener("click", login);
-    els.btnLogout.addEventListener("click", ()=>logout(false));
-    els.btnRefresh.addEventListener("click", loadUsers);
-    els.btnSearch.addEventListener("click", ()=>{
-      const id = els.searchBox.value.trim();
-      if (!id){ renderUsers(); return; }
-      const found = USERS.find(u=>u.sessionId===id);
-      if (found){ openDetails(found.sessionId); }
-      else { alert("User not found"); }
-    });
-    els.searchBox.addEventListener("keydown",(e)=>{ if (e.key==="Enter") els.btnSearch.click(); });
-    els.searchBox.addEventListener("input", renderUsers);
-    els.checkAll.addEventListener("change",(e)=>{ document.querySelectorAll(".rowcheck").forEach(ch=>ch.checked=e.target.checked); });
-    els.bulkApprove.addEventListener("click", ()=>bulk("approve"));
-    els.bulkBlock.addEventListener("click", ()=>bulk("block"));
-    els.bulkUnblock.addEventListener("click", ()=>bulk("unblock"));
-    els.bulkExpire.addEventListener("click", ()=>bulk("expire"));
-    els.bulkDelete.addEventListener("click", ()=>bulk("delete"));
-
-    // User details action buttons
-    els.ud_btnApprove.addEventListener("click", ()=> CURRENT_USER && actApprove(CURRENT_USER.sessionId));
-    els.ud_btnBlock.addEventListener("click", ()=> CURRENT_USER && actBlock(CURRENT_USER.sessionId));
-    els.ud_btnUnblock.addEventListener("click", ()=> CURRENT_USER && actUnblock(CURRENT_USER.sessionId));
-    els.ud_btnExpire.addEventListener("click", ()=> CURRENT_USER && actExpire(CURRENT_USER.sessionId));
-    els.ud_btnCancelApprove.addEventListener("click", ()=> CURRENT_USER && actCancelApprove(CURRENT_USER.sessionId));
-    els.ud_btnDelete.addEventListener("click", ()=> CURRENT_USER && actDelete(CURRENT_USER.sessionId));
-
-    // Keyboard: R to refresh
-    window.addEventListener("keydown",(e)=>{
-      if (e.key.toLowerCase()==="r" && !e.metaKey && !e.ctrlKey){
-        e.preventDefault(); loadUsers();
-      }
-    });
-
-    // ===== BOOT =====
-    (async function init(){
-      if (TOKEN){
-        try{ show("dash"); await loadUsers(); setLoginStatus(true,"Session restored"); }
-        catch{ logout(true); setLoginStatus(false,"Session expired"); }
-      } else { show("login"); }
-    })();
-  </script>
+  <!-- Users Table -->
+  <section class="p-4 flex-1 overflow-auto">
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr class="bg-gray-800 text-gray-300">
+          <th class="p-3">Session ID</th>
+          <th class="p-3">Status</th>
+          <th class="p-3">Blocked</th>
+          <th class="p-3">Expiry</th>
+          <th class="p-3">Approved At</th>
+          <th class="p-3">Updated</th>
+          <th class="p-3 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="userTable" class="bg-gray-700">
+        <!-- Dynamic Rows -->
+        <tr>
+          <td class="p-3">abc123</td>
+          <td class="p-3 text-green-400">approved</td>
+          <td class="p-3">false</td>
+          <td class="p-3">-</td>
+          <td class="p-3">23/08/2025</td>
+          <td class="p-3">23/08/2025</td>
+          <td class="p-3 flex gap-2 justify-center">
+            <button class="bg-green-600 px-3 py-1 rounded-lg">Approve</button>
+            <button class="bg-red-600 px-3 py-1 rounded-lg">Block</button>
+            <button class="bg-yellow-600 px-3 py-1 rounded-lg">Unblock</button>
+            <button class="bg-purple-600 px-3 py-1 rounded-lg">Expiry</button>
+            <button class="bg-gray-600 px-3 py-1 rounded-lg">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 </body>
 </html>
