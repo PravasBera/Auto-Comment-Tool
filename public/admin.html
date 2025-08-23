@@ -18,13 +18,13 @@
     .row{display:flex;gap:16px;flex-wrap:wrap} .col{flex:1 1 280px}
     h1{margin:0 0 8px;font-size:26px} .muted{color:var(--text-dim)} .hidden{display:none!important}
     .btn{appearance:none;border:1px solid var(--border);background:#0b1220;color:var(--text);
-      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease;white-space:nowrap}
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease; white-space:nowrap}
     .btn:hover{transform:translateY(-1px)} .btn-primary{border-color:#155e75;color:#a5f3fc}
     .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
     .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
     .input{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);
       padding:12px 14px;border-radius:12px;outline:none}
-    .searchbar{display:flex;gap:10px;align-items:center;flex:1;min-width:280px}
+    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:560px}
     .searchbar .input{flex:1}
     .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
     .ok{background:#072418;color:#86efac;border-color:#14532d}
@@ -37,8 +37,10 @@
     th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1}
     tr:hover td{background:#0b1628}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .right{margin-left:auto}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .msg{font-size:12px}
   </style>
 </head>
 <body>
@@ -59,7 +61,7 @@
       </div>
       <div class="toolbar" style="margin-top:12px">
         <button id="btnLogin" class="btn btn-primary">Sign In</button>
-        <span id="loginMsg" class="muted" style="font-size:12px"><span id="loginDot" class="dot"></span> Use admin credentials</span>
+        <span id="loginMsg" class="muted msg"><span id="loginDot" class="dot"></span> Use admin credentials</span>
       </div>
     </div>
 
@@ -67,14 +69,13 @@
     <div id="panelCard" class="card hidden" style="margin-top:16px;">
       <div class="toolbar">
         <div class="searchbar">
-          <input id="searchBox" class="input" placeholder="সেশন আইডি বা স্ট্যাটাস দিয়ে সার্চ করুন…"/>
+          <input id="searchBox" class="input" placeholder="সেশন আইডি, স্ট্যাটাস, blocked, expiry…"/>
           <button id="btnSearch" class="btn">Search</button>
         </div>
-        <div class="right toolbar">
-          <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
-          <button id="btnRefresh" class="btn">Refresh</button>
-          <button id="btnLogout" class="btn btn-ghost">Logout</button>
-        </div>
+        <div class="right"></div>
+        <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
+        <button id="btnRefresh" class="btn">Refresh</button>
+        <button id="btnLogout" class="btn btn-ghost">Logout</button>
       </div>
 
       <div class="row" style="margin-top:14px">
@@ -112,7 +113,7 @@
       </table>
 
       <div class="toolbar" style="margin-top:10px">
-        <span id="dashMsg" class="muted" style="font-size:12px"><span id="dashDot" class="dot"></span> Ready</span>
+        <span id="dashMsg" class="muted msg"><span id="dashDot" class="dot"></span> Ready</span>
       </div>
     </div>
   </div>
@@ -152,15 +153,37 @@
     };
 
     // ===== HELPERS =====
-    const withAuth = (init={})=>{
-      init.headers = Object.assign({}, init.headers||{}, {"Content-Type":"application/json","Authorization":"Bearer "+TOKEN});
-      return init;
+    const safeHeaders = (h)=> {
+      const o = Object.assign({}, h||{});
+      if (!o["Content-Type"]) o["Content-Type"] = "application/json";
+      if (TOKEN) o["Authorization"] = "Bearer " + TOKEN;
+      return o;
     };
-    const api = async (p,opts)=> {
-      const r = await fetch(API+p,opts);
-      if (r.status===401){ logout(true); throw new Error("Unauthorized");}
-      return r.json();
+
+    const api = async (p, opts={})=> {
+      const init = Object.assign({}, opts, { headers: safeHeaders(opts.headers) });
+      const r = await fetch(API + p, init);
+      const text = await r.text();
+      let data;
+      try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+      if (r.status === 401) { logout(true); throw new Error(data?.message || "Unauthorized"); }
+      data = (data && typeof data === "object") ? data : { raw: data };
+      data.__httpOk = r.ok;
+      data.__status = r.status;
+      return data;
     };
+
+    const truthyOk = (obj)=> {
+      if (!obj) return false;
+      if (obj.ok === true) return true;
+      if (obj.success === true) return true;
+      if (obj.status === true || obj.status === "ok" || obj.status === "success") return true;
+      if (obj.__httpOk && obj.token) return true;
+      return false;
+    };
+
+    const getTokenFrom = (obj)=> obj?.token || obj?.data?.token || obj?.authToken || (typeof obj?.raw === "string" ? obj.raw : "");
+
     const setLogin = (ok,msg)=>{
       els.loginDot.className = "dot "+(ok?"ok":"err");
       els.loginMsg.textContent = msg || (ok?"Authenticated":"Authentication failed");
@@ -171,7 +194,7 @@
     };
     const fmt = (ts)=>{
       if(!ts) return "—";
-      const d=new Date(Number(ts)||ts);
+      const d = new Date(Number(ts)||ts);
       return isNaN(d)? "—" : d.toLocaleString();
     };
     const statusTag = (u)=>{
@@ -188,16 +211,25 @@
 
     // ===== LOGIN =====
     async function login(){
-      els.btnLogin.disabled=true; setLogin(false,"Signing in…");
+      els.btnLogin.disabled = true; setLogin(false,"Signing in…");
       try{
-        const out = await fetch(API+"/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},
-                      body:JSON.stringify({username:els.username.value.trim(),password:els.password.value})}).then(r=>r.json());
-        if(out.ok && out.token){
-          TOKEN = out.token; localStorage.setItem("admin_token",TOKEN);
-          setLogin(true,"Login success"); showView("panel"); await loadUsers();
-        }else{ setLogin(false,out.message||"Login failed"); }
-      }catch(e){ setLogin(false,e.message||"Network error");}
-      finally{ els.btnLogin.disabled=false; }
+        const body = JSON.stringify({username:els.username.value.trim(), password:els.password.value});
+        const out = await api("/admin/login", {method:"POST", body});
+        const ok = truthyOk(out);
+        const tok = getTokenFrom(out);
+        if(ok && tok){
+          TOKEN = tok; localStorage.setItem("admin_token", TOKEN);
+          setLogin(true,"Login success");
+          showView("panel");
+          await loadUsers();
+        }else{
+          setLogin(false, out?.message || "Login failed");
+        }
+      }catch(e){
+        setLogin(false, e.message || "Network error");
+      }finally{
+        els.btnLogin.disabled=false;
+      }
     }
     function logout(silent){
       TOKEN=""; localStorage.removeItem("admin_token");
@@ -210,17 +242,28 @@
     async function loadUsers(){
       setDash("", "Loading…");
       try{
-        const d = await api("/admin/users", withAuth());
-        if(!d.ok) throw new Error("Failed");
-        USERS = d.users||[];
+        const d = await api("/admin/users", {method:"GET"});
+        const ok = truthyOk(d);
+        const list = d?.users || d?.data?.users || (Array.isArray(d) ? d : (ok && d?.result ? d.result : []));
+        if(!Array.isArray(list)) throw new Error(d?.message || "Failed");
+        USERS = list;
         renderUsers();
         setDash("ok", `Loaded ${USERS.length}`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
+
+    function normalize(v){ return String(v==null?"":v).toLowerCase(); }
+
     function renderUsers(){
-      const q = (els.searchBox.value||"").toLowerCase();
+      const q = normalize(els.searchBox.value).trim();
       const rows = USERS
-        .filter(u=> !q || (u.sessionId||"").toLowerCase().includes(q) || (u.status||"").toLowerCase().includes(q))
+        .filter(u=>{
+          if(!q) return true;
+          const hay = [
+            u.sessionId, u.status, u.blocked, u.expiry?fmt(u.expiry):"", u.approvedAt?fmt(u.approvedAt):"", u.updatedAt?fmt(u.updatedAt):""
+          ].map(normalize).join(" | ");
+          return hay.includes(q);
+        })
         .map(u=>{
           return `
           <tr>
@@ -232,7 +275,7 @@
             <td class="mono" style="font-size:12px">${u.approvedAt?fmt(u.approvedAt):"—"}</td>
             <td class="mono" style="font-size:12px">${u.updatedAt?fmt(u.updatedAt):"—"}</td>
             <td>
-              <div class="toolbar">
+              <div class="actions">
                 <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
                 <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
                 <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
@@ -252,38 +295,43 @@
       const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
       setDash("",`Approving ${id}…`);
       try{
-        const d = await api("/admin/approve", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Approved ${id}`);
+        const d = await api("/admin/approve", {method:"POST", body:JSON.stringify({username:id,expiry})});
+        if(!truthyOk(d)) throw new Error(d.message||"Failed");
+        await loadUsers(); setDash("ok",`Approved ${id}`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
     async function actBlock(id){
       setDash("",`Blocking ${id}…`);
       try{
-        const d = await api("/admin/block", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Blocked ${id}`);
+        const d = await api("/admin/block", {method:"POST", body:JSON.stringify({username:id})});
+        if(!truthyOk(d)) throw new Error(d.message||"Failed");
+        await loadUsers(); setDash("ok",`Blocked ${id}`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
     async function actUnblock(id){
       setDash("",`Unblocking ${id}…`);
       try{
-        const d = await api("/admin/unblock", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Unblocked ${id}`);
+        const d = await api("/admin/unblock", {method:"POST", body:JSON.stringify({username:id})});
+        if(!truthyOk(d)) throw new Error(d.message||"Failed");
+        await loadUsers(); setDash("ok",`Unblocked ${id}`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
     async function actExpire(id){
       const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
       setDash("",`Setting expiry for ${id}…`);
       try{
-        const d = await api("/admin/expire", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Expiry updated`);
+        const d = await api("/admin/expire", {method:"POST", body:JSON.stringify({username:id,expiry})});
+        if(!truthyOk(d)) throw new Error(d.message||"Failed");
+        await loadUsers(); setDash("ok",`Expiry updated`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
     async function actDelete(id){
       if(!confirm(`Delete ${id}?`)) return;
       setDash("",`Deleting ${id}…`);
       try{
-        const d = await api("/admin/delete", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Deleted ${id}`);
+        const d = await api("/admin/delete", {method:"POST", body:JSON.stringify({username:id})});
+        if(!truthyOk(d)) throw new Error(d.message||"Failed");
+        await loadUsers(); setDash("ok",`Deleted ${id}`);
       }catch(e){ setDash("err", e.message||"Failed");}
     }
     window.actApprove=actApprove; window.actBlock=actBlock; window.actUnblock=actUnblock;
@@ -292,4 +340,56 @@
     // Bulk
     async function bulkDo(kind){
       const ids = selRows(); if(!ids.length){ alert("Select rows first"); return;}
-      if (kind==="delete" &&
+      if (kind==="delete" && !confirm(`Delete ${ids.length} item(s)?`)) return;
+      for (const id of ids){
+        if(kind==="approve") await actApprove(id);
+        else if(kind==="block") await actBlock(id);
+        else if(kind==="unblock") await actUnblock(id);
+        else if(kind==="expire") await actExpire(id);
+        else if(kind==="delete") await actDelete(id);
+      }
+    }
+
+    // Track activity
+    function trackOne(id){
+      const url = `/activity.html#${encodeURIComponent(id)}`;
+      window.open(url,"_blank");
+    }
+
+    // ===== EVENTS =====
+    els.btnLogin.addEventListener("click", login);
+    // login on Enter
+    [els.username, els.password].forEach(inp=>{
+      inp.addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
+    });
+    els.btnLogout.addEventListener("click", ()=>logout(false));
+    els.btnRefresh.addEventListener("click", loadUsers);
+    els.btnTrack.addEventListener("click", ()=>window.open("/activity.html","_blank"));
+    els.btnSearch.addEventListener("click", renderUsers);
+
+    // debounce search typing
+    let tId=null;
+    els.searchBox.addEventListener("input", ()=>{
+      clearTimeout(tId); tId=setTimeout(renderUsers, 150);
+    });
+    els.searchBox.addEventListener("keydown", e=>{ if(e.key==="Enter") renderUsers(); });
+
+    els.checkAll.addEventListener("change", e=>{
+      const v=e.target.checked; document.querySelectorAll(".rowcheck").forEach(ch=>ch.checked=v);
+    });
+    els.bulkApprove.addEventListener("click", ()=>bulkDo("approve"));
+    els.bulkBlock.addEventListener("click", ()=>bulkDo("block"));
+    els.bulkUnblock.addEventListener("click", ()=>bulkDo("unblock"));
+    els.bulkExpire.addEventListener("click", ()=>bulkDo("expire"));
+    els.bulkDelete.addEventListener("click", ()=>bulkDo("delete"));
+
+    // boot
+    (async function init(){
+      if(TOKEN){
+        try{ showView("panel"); await loadUsers(); setLogin(true,"Session restored"); }
+        catch{ logout(true); setLogin(false,"Session expired"); }
+      }else{ showView("login"); }
+    })();
+  </script>
+</body>
+</html>
