@@ -24,7 +24,7 @@
     .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
     .input{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);
       padding:12px 14px;border-radius:12px;outline:none}
-    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:560px}
+    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:640px}
     .searchbar .input{flex:1}
     .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
     .ok{background:#072418;color:#86efac;border-color:#14532d}
@@ -56,7 +56,7 @@
         </div>
         <div class="col">
           <label class="muted" style="font-size:12px">Password</label>
-          <input id="password" type="password" class="input" placeholder="PASSWARD" value="00000"/>
+          <input id="password" type="password" class="input" placeholder="PASSWORD" value="00000"/>
         </div>
       </div>
       <div class="toolbar" style="margin-top:12px">
@@ -69,7 +69,7 @@
     <div id="panelCard" class="card hidden" style="margin-top:16px;">
       <div class="toolbar">
         <div class="searchbar">
-          <input id="searchBox" class="input" placeholder="সেশন আইডি, স্ট্যাটাস, blocked, expiry…"/>
+          <input id="searchBox" class="input" placeholder="সার্চ: username, sessionId, status, blocked, expiry…"/>
           <button id="btnSearch" class="btn">Search</button>
         </div>
         <div class="right"></div>
@@ -252,17 +252,33 @@
       }catch(e){ setDash("err", e.message||"Failed");}
     }
 
-    function normalize(v){ return String(v==null?"":v).toLowerCase(); }
+    // --- SEARCH ---
+    const normalize = (v)=> String(v==null ? "" : v).toLowerCase().trim();
+
+    function matchByTokens(hay, query){
+      const tokens = normalize(query).split(/\s+/).filter(Boolean);
+      if (!tokens.length) return true;
+      const base = normalize(hay);
+      return tokens.every(t => base.includes(t));
+    }
 
     function renderUsers(){
-      const q = normalize(els.searchBox.value).trim();
+      const q = els.searchBox.value || "";
       const rows = USERS
         .filter(u=>{
           if(!q) return true;
+          // include username + common aliases if backend sends different keys
+          const username = u.username || u.user || u.name || "";
+          const sessionId = u.sessionId || u.session || "";
+          // build haystack with BOTH raw + formatted timestamps
           const hay = [
-            u.sessionId, u.status, u.blocked, u.expiry?fmt(u.expiry):"", u.approvedAt?fmt(u.approvedAt):"", u.updatedAt?fmt(u.updatedAt):""
-          ].map(normalize).join(" | ");
-          return hay.includes(q);
+            username, sessionId, u.status,
+            u.blocked, String(u.blocked),
+            u.expiry||"", fmt(u.expiry)||"",
+            u.approvedAt||"", fmt(u.approvedAt)||"",
+            u.updatedAt||"", fmt(u.updatedAt)||""
+          ].join(" | ");
+          return matchByTokens(hay, q);
         })
         .map(u=>{
           return `
@@ -358,21 +374,20 @@
 
     // ===== EVENTS =====
     els.btnLogin.addEventListener("click", login);
-    // login on Enter
     [els.username, els.password].forEach(inp=>{
       inp.addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
     });
     els.btnLogout.addEventListener("click", ()=>logout(false));
     els.btnRefresh.addEventListener("click", loadUsers);
     els.btnTrack.addEventListener("click", ()=>window.open("/activity.html","_blank"));
-    els.btnSearch.addEventListener("click", renderUsers);
 
-    // debounce search typing
+    // search triggers
     let tId=null;
     els.searchBox.addEventListener("input", ()=>{
       clearTimeout(tId); tId=setTimeout(renderUsers, 150);
     });
     els.searchBox.addEventListener("keydown", e=>{ if(e.key==="Enter") renderUsers(); });
+    els.btnSearch.addEventListener("click", (e)=>{ e.preventDefault(); renderUsers(); });
 
     els.checkAll.addEventListener("change", e=>{
       const v=e.target.checked; document.querySelectorAll(".rowcheck").forEach(ch=>ch.checked=v);
