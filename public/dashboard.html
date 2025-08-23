@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+    <nav>
+      <a href="admin.html" class="mr-4 text-blue-400 hover:underline">Manage Users</a>
+      <button class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Logout</button>
+    </nav>
+  </header>
+
+  <!-- Stats -->
+  <section class="grid grid-cols-5 gap-4 p-4">
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Total</h2>
+      <p id="totalUsers" class="text-2xl font-bold text-blue-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Approved</h2>
+      <p id="approvedUsers" class="text-2xl font-bold text-green-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Pending</h2>
+      <p id="pendingUsers" class="text-2xl font-bold text-yellow-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Blocked</h2>
+      <p id="blockedUsers" class="text-2xl font-bold text-red-400">0</p>
+    </div>
+    <div class="bg-gray-800 rounded-xl shadow p-4 text-center">
+      <h2 class="text-lg font-semibold">Live</h2>
+      <p id="liveUsers" class="text-2xl font-bold text-purple-400">0</p>
+    </div>
+  </section>
+
+  <!-- Live Activity + Logs -->
+  <section class="grid grid-cols-2 gap-4 p-4 flex-1">
+
+    <!-- User Activity Feed -->
+    <div class="bg-gray-800 rounded-xl shadow p-4 flex flex-col">
+      <h2 class="text-xl font-bold mb-3">Live User Activity</h2>
+      <ul id="activityFeed" class="space-y-2 overflow-y-auto flex-1">
+        <!-- Dynamic User Activity -->
+        <li class="bg-gray-700 p-3 rounded-lg">
+          <p><span class="text-blue-400 font-semibold">user123</span> used <span class="text-green-400">5 tokens</span></p>
+          <p class="text-sm text-gray-300">Commented: "Nice work!" → on Post ID 998877</p>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-gray-800 rounded-xl shadow p-4 flex flex-col">
+      <h2 class="text-xl font-bold mb-3">Recent Logs</h2>
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-700 text-gray-300">
+            <th class="p-2">User</th>
+            <th class="p-2">Action</th>
+            <th class="p-2">Details</th>
+            <th class="p-2">Time</th>
+          </tr>
+        </thead>
+        <tbody id="logsTable" class="overflow-y-auto">
+          <tr>
+            <td class="p-2">user123</td>
+            <td class="p-2 text-green-400">Comment</td>
+            <td class="p-2">On Post 998877</td>
+            <td class="p-2 text-gray-400">10:15 AM</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-center p-3 text-gray-400">
+    © 2025 Admin Dashboard
+  </footer>
+
+</body>
+</html>
