@@ -18,13 +18,13 @@
     .row{display:flex;gap:16px;flex-wrap:wrap} .col{flex:1 1 280px}
     h1{margin:0 0 8px;font-size:26px} .muted{color:var(--text-dim)} .hidden{display:none!important}
     .btn{appearance:none;border:1px solid var(--border);background:#0b1220;color:var(--text);
-      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease}
+      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease;white-space:nowrap}
     .btn:hover{transform:translateY(-1px)} .btn-primary{border-color:#155e75;color:#a5f3fc}
     .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
     .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
     .input{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);
       padding:12px 14px;border-radius:12px;outline:none}
-    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:560px;margin:0 auto}
+    .searchbar{display:flex;gap:10px;align-items:center;flex:1;min-width:280px}
     .searchbar .input{flex:1}
     .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
     .ok{background:#072418;color:#86efac;border-color:#14532d}
@@ -37,7 +37,7 @@
     th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1}
     tr:hover td{background:#0b1628}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .right{margin-left:auto}
   </style>
 </head>
@@ -70,13 +70,14 @@
           <input id="searchBox" class="input" placeholder="সেশন আইডি বা স্ট্যাটাস দিয়ে সার্চ করুন…"/>
           <button id="btnSearch" class="btn">Search</button>
         </div>
-        <div class="right"></div>
-        <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
-        <button id="btnRefresh" class="btn">Refresh</button>
-        <button id="btnLogout" class="btn btn-ghost">Logout</button>
+        <div class="right toolbar">
+          <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
+          <button id="btnRefresh" class="btn">Refresh</button>
+          <button id="btnLogout" class="btn btn-ghost">Logout</button>
+        </div>
       </div>
 
-      <div class="row" style="margin-top:14px;justify-content:center">
+      <div class="row" style="margin-top:14px">
         <div class="col">
           <label class="muted" style="font-size:12px">Approve with Expiry</label>
           <input id="expiryInput" class="input" type="datetime-local"/>
@@ -84,7 +85,7 @@
         </div>
         <div class="col">
           <label class="muted" style="font-size:12px">Bulk Actions (selected)</label>
-          <div class="toolbar" style="margin-top:6px;justify-content:center">
+          <div class="toolbar" style="margin-top:6px">
             <button id="bulkApprove" class="btn btn-ok">Approve</button>
             <button id="bulkBlock" class="btn btn-warn">Block</button>
             <button id="bulkUnblock" class="btn">Unblock</button>
@@ -231,7 +232,7 @@
             <td class="mono" style="font-size:12px">${u.approvedAt?fmt(u.approvedAt):"—"}</td>
             <td class="mono" style="font-size:12px">${u.updatedAt?fmt(u.updatedAt):"—"}</td>
             <td>
-              <div class="toolbar" style="justify-content:center">
+              <div class="toolbar">
                 <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
                 <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
                 <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
@@ -291,4 +292,4 @@
     // Bulk
     async function bulkDo(kind){
       const ids = selRows(); if(!ids.length){ alert("Select rows first"); return;}
-      if (kind==="delete" && !confirm(`Delete ${ids.length}
+      if (kind==="delete" &&
