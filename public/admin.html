@@ -1,336 +1,221 @@
-<!doctype html>
-<html lang="bn">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Admin — Facebook Auto Comment Tool (Pro)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
   <style>
-    :root{
-      --bg:#0b1220;--panel:#0f172a;--muted:#1f2937;--text:#e5e7eb;--text-dim:#9ca3af;
-      --accent:#22d3ee;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--border:#243244;
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 0;
     }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:linear-gradient(180deg,#0b1220,#0f172a 40%,#0b1220);color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;}
-    .wrap{max-width:1180px;margin:0 auto;padding:24px}
-    .card{background:radial-gradient(1200px 600px at 10% -20%, #0c1330 0%, rgba(12,19,48,0) 60%),var(--panel);
-      border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .row{display:flex;gap:16px;flex-wrap:wrap} .col{flex:1 1 280px}
-    h1{margin:0 0 8px;font-size:26px} .muted{color:var(--text-dim)} .hidden{display:none!important}
-    .btn{appearance:none;border:1px solid var(--border);background:#0b1220;color:var(--text);
-      padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600;transition:.15s transform ease}
-    .btn:hover{transform:translateY(-1px)} .btn-primary{border-color:#155e75;color:#a5f3fc}
-    .btn-ok{border-color:#14532d;color:#bbf7d0} .btn-warn{border-color:#7c2d12;color:#fed7aa}
-    .btn-err{border-color:#7f1d1d;color:#fecaca} .btn-ghost{background:transparent}
-    .input{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);
-      padding:12px 14px;border-radius:12px;outline:none}
-    .searchbar{display:flex;gap:10px;align-items:center;width:100%;max-width:560px}
-    .searchbar .input{flex:1}
-    .tag{padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border)}
-    .ok{background:#072418;color:#86efac;border-color:#14532d}
-    .block{background:#2a0b0b;color:#fecaca;border-color:#7f1d1d}
-    .pending{background:#1e1b0b;color:#fde68a;border-color:#7c2d12}
-    .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#64748b}
-    .dot.ok{background:var(--ok)} .dot.err{background:var(--err)}
-    table{width:100%;border-collapse:collapse;margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;font-size:14px}
-    th{background:#0a1322;color:#cbd5e1;position:sticky;top:0;z-index:1}
-    tr:hover td{background:#0b1628}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .right{margin-left:auto}
+    header {
+      background: #2c3e50;
+      color: #fff;
+      padding: 15px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+    }
+    .container {
+      width: 90%;
+      max-width: 1100px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .search-box {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+    .search-box input {
+      width: 350px;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+    .search-box button {
+      padding: 10px 20px;
+      font-size: 15px;
+      border: none;
+      border-radius: 5px;
+      background: #3498db;
+      color: #fff;
+      cursor: pointer;
+    }
+    .search-box button:hover {
+      background: #2980b9;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    table th {
+      background: #34495e;
+      color: #fff;
+    }
+    .actions button {
+      margin: 3px;
+      padding: 7px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .approve { background: #2ecc71; color: #fff; }
+    .block { background: #e74c3c; color: #fff; }
+    .expiry { background: #f39c12; color: #fff; }
+    .actions button:hover { opacity: 0.9; }
+
+    /* Center buttons row */
+    .center-btns {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .center-btns button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 15px;
+      border-radius: 6px;
+      border: none;
+      background: #9b59b6;
+      color: #fff;
+      cursor: pointer;
+    }
+    .center-btns button:hover {
+      background: #8e44ad;
+    }
+
+    /* User detail panel */
+    #userDetail {
+      display: none;
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      background: #ecf0f1;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+    }
+    #userDetail h3 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Admin Panel <span class="muted" style="font-size:14px">— Facebook Auto Comment Tool (Pro)</span></h1>
-
-    <!-- LOGIN -->
-    <div id="loginCard" class="card">
-      <div class="row">
-        <div class="col">
-          <label class="muted" style="font-size:12px">Username</label>
-          <input id="username" class="input" placeholder="e.g. Bullet" value="Bullet"/>
-        </div>
-        <div class="col">
-          <label class="muted" style="font-size:12px">Password</label>
-          <input id="password" type="password" class="input" placeholder="•••••" value="00000"/>
-        </div>
-      </div>
-      <div class="toolbar" style="margin-top:12px">
-        <button id="btnLogin" class="btn btn-primary">Sign In</button>
-        <span id="loginMsg" class="muted" style="font-size:12px"><span id="loginDot" class="dot"></span> Use admin credentials</span>
-      </div>
+  <header>Admin Panel</header>
+  <div class="container">
+    <!-- Search -->
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Enter User ID...">
+      <button onclick="searchUser()">Search</button>
     </div>
 
-    <!-- PANEL -->
-    <div id="panelCard" class="card hidden" style="margin-top:16px;">
-      <div class="toolbar">
-        <div class="searchbar">
-          <input id="searchBox" class="input" placeholder="সেশন আইডি বা স্ট্যাটাস দিয়ে সার্চ করুন…"/>
-          <button id="btnSearch" class="btn">Search</button>
-        </div>
-        <div class="right"></div>
-        <button id="btnTrack" class="btn btn-primary">ট্র্যাক Activity</button>
-        <button id="btnRefresh" class="btn">Refresh</button>
-        <button id="btnLogout" class="btn btn-ghost">Logout</button>
-      </div>
+    <!-- Search Result Panel -->
+    <div id="userDetail"></div>
 
-      <div class="row" style="margin-top:14px">
-        <div class="col">
-          <label class="muted" style="font-size:12px">Approve with Expiry</label>
-          <input id="expiryInput" class="input" type="datetime-local"/>
-          <div class="muted" style="font-size:12px;margin-top:4px">খালি রাখলে লাইফটাইম</div>
-        </div>
-        <div class="col">
-          <label class="muted" style="font-size:12px">Bulk Actions (selected)</label>
-          <div class="toolbar" style="margin-top:6px">
-            <button id="bulkApprove" class="btn btn-ok">Approve</button>
-            <button id="bulkBlock" class="btn btn-warn">Block</button>
-            <button id="bulkUnblock" class="btn">Unblock</button>
-            <button id="bulkExpire" class="btn">Set Expiry</button>
-            <button id="bulkDelete" class="btn btn-err">Delete</button>
-          </div>
-        </div>
-      </div>
+    <!-- All Users Table -->
+    <table id="userTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Expiry</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:42px"><input id="checkAll" type="checkbox"/></th>
-            <th>Session</th>
-            <th>Status</th>
-            <th>Blocked</th>
-            <th>Expiry</th>
-            <th>Approved At</th>
-            <th>Updated</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="userTbody"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
-      </table>
-
-      <div class="toolbar" style="margin-top:10px">
-        <span id="dashMsg" class="muted" style="font-size:12px"><span id="dashDot" class="dot"></span> Ready</span>
-      </div>
+    <!-- Extra Buttons -->
+    <div class="center-btns">
+      <button onclick="loadUsers()">Refresh Users</button>
+      <button onclick="window.location='/dashboard'">Track User Activity</button>
     </div>
   </div>
 
-  <script>
-    // ===== CONFIG =====
-    const API = ""; // same origin
+<script>
+  async function loadUsers() {
+    const res = await fetch("/api/users");
+    const users = await res.json();
+    const tbody = document.querySelector("#userTable tbody");
+    tbody.innerHTML = "";
 
-    // ===== STATE/ELS =====
-    let TOKEN = localStorage.getItem("admin_token") || "";
-    const els = {
-      loginCard: document.getElementById("loginCard"),
-      panelCard: document.getElementById("panelCard"),
-      username: document.getElementById("username"),
-      password: document.getElementById("password"),
-      btnLogin: document.getElementById("btnLogin"),
-      loginMsg: document.getElementById("loginMsg"),
-      loginDot: document.getElementById("loginDot"),
-
-      searchBox: document.getElementById("searchBox"),
-      btnSearch: document.getElementById("btnSearch"),
-      btnTrack: document.getElementById("btnTrack"),
-      btnRefresh: document.getElementById("btnRefresh"),
-      btnLogout: document.getElementById("btnLogout"),
-
-      expiryInput: document.getElementById("expiryInput"),
-      bulkApprove: document.getElementById("bulkApprove"),
-      bulkBlock: document.getElementById("bulkBlock"),
-      bulkUnblock: document.getElementById("bulkUnblock"),
-      bulkExpire: document.getElementById("bulkExpire"),
-      bulkDelete: document.getElementById("bulkDelete"),
-
-      userTbody: document.getElementById("userTbody"),
-      checkAll: document.getElementById("checkAll"),
-      dashMsg: document.getElementById("dashMsg"),
-      dashDot: document.getElementById("dashDot"),
-    };
-
-    // ===== HELPERS =====
-    const withAuth = (init={})=>{
-      init.headers = Object.assign({}, init.headers||{}, {"Content-Type":"application/json","Authorization":"Bearer "+TOKEN});
-      return init;
-    };
-    const api = async (p,opts)=> {
-      const r = await fetch(API+p,opts);
-      if (r.status===401){ logout(true); throw new Error("Unauthorized");}
-      return r.json();
-    };
-    const setLogin = (ok,msg)=>{
-      els.loginDot.className = "dot "+(ok?"ok":"err");
-      els.loginMsg.textContent = msg || (ok?"Authenticated":"Authentication failed");
-    };
-    const setDash = (type,msg)=>{
-      els.dashDot.className = "dot "+(type||"");
-      els.dashMsg.textContent = msg||"";
-    };
-    const fmt = (ts)=>{
-      if(!ts) return "—";
-      const d=new Date(Number(ts)||ts);
-      return isNaN(d)? "—" : d.toLocaleString();
-    };
-    const statusTag = (u)=>{
-      if (u.status==="approved" && !u.blocked) return '<span class="tag ok">approved</span>';
-      if (u.status==="blocked" || u.blocked) return '<span class="tag block">blocked</span>';
-      return '<span class="tag pending">pending</span>';
-    };
-    const selRows = ()=> Array.from(document.querySelectorAll(".rowcheck:checked")).map(x=>x.dataset.id);
-
-    const showView = (v)=>{
-      if (v==="panel"){ els.loginCard.classList.add("hidden"); els.panelCard.classList.remove("hidden"); }
-      else { els.panelCard.classList.add("hidden"); els.loginCard.classList.remove("hidden"); }
-    };
-
-    // ===== LOGIN =====
-    async function login(){
-      els.btnLogin.disabled=true; setLogin(false,"Signing in…");
-      try{
-        const out = await fetch(API+"/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},
-                      body:JSON.stringify({username:els.username.value.trim(),password:els.password.value})}).then(r=>r.json());
-        if(out.ok && out.token){
-          TOKEN = out.token; localStorage.setItem("admin_token",TOKEN);
-          setLogin(true,"Login success"); showView("panel"); await loadUsers();
-        }else{ setLogin(false,out.message||"Login failed"); }
-      }catch(e){ setLogin(false,e.message||"Network error");}
-      finally{ els.btnLogin.disabled=false; }
-    }
-    function logout(silent){
-      TOKEN=""; localStorage.removeItem("admin_token");
-      if(!silent) alert("Logged out");
-      showView("login");
-    }
-
-    // ===== TABLE =====
-    let USERS=[];
-    async function loadUsers(){
-      setDash("", "Loading…");
-      try{
-        const d = await api("/admin/users", withAuth());
-        if(!d.ok) throw new Error("Failed");
-        USERS = d.users||[];
-        renderUsers();
-        setDash("ok", `Loaded ${USERS.length}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    function renderUsers(){
-      const q = (els.searchBox.value||"").toLowerCase();
-      const rows = USERS
-        .filter(u=> !q || (u.sessionId||"").toLowerCase().includes(q) || (u.status||"").toLowerCase().includes(q))
-        .map(u=>{
-          return `
-          <tr>
-            <td><input type="checkbox" class="rowcheck" data-id="${u.sessionId}"/></td>
-            <td class="mono" style="font-size:12px">${u.sessionId}</td>
-            <td>${statusTag(u)}</td>
-            <td>${u.blocked?'<span class="tag block">true</span>':'<span class="tag ok">false</span>'}</td>
-            <td class="mono" style="font-size:12px">${u.expiry?fmt(u.expiry):"—"}</td>
-            <td class="mono" style="font-size:12px">${u.approvedAt?fmt(u.approvedAt):"—"}</td>
-            <td class="mono" style="font-size:12px">${u.updatedAt?fmt(u.updatedAt):"—"}</td>
-            <td>
-              <div class="toolbar">
-                <button class="btn btn-ok" onclick="actApprove('${u.sessionId}')">Approve</button>
-                <button class="btn btn-warn" onclick="actBlock('${u.sessionId}')">Block</button>
-                <button class="btn" onclick="actUnblock('${u.sessionId}')">Unblock</button>
-                <button class="btn" onclick="actExpire('${u.sessionId}')">Set Expiry</button>
-                <button class="btn btn-err" onclick="actDelete('${u.sessionId}')">Delete</button>
-                <button class="btn" onclick="trackOne('${u.sessionId}')">Track</button>
-              </div>
-            </td>
-          </tr>`;
-        }).join("");
-      els.userTbody.innerHTML = rows || `<tr><td colspan="8" class="muted">No data</td></tr>`;
-      els.checkAll.checked=false;
-    }
-
-    // ===== ACTIONS =====
-    async function actApprove(id){
-      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
-      setDash("",`Approving ${id}…`);
-      try{
-        const d = await api("/admin/approve", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Approved ${id}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    async function actBlock(id){
-      setDash("",`Blocking ${id}…`);
-      try{
-        const d = await api("/admin/block", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Blocked ${id}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    async function actUnblock(id){
-      setDash("",`Unblocking ${id}…`);
-      try{
-        const d = await api("/admin/unblock", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Unblocked ${id}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    async function actExpire(id){
-      const expiry = els.expiryInput.value ? new Date(els.expiryInput.value).toISOString() : null;
-      setDash("",`Setting expiry for ${id}…`);
-      try{
-        const d = await api("/admin/expire", withAuth({method:"POST",body:JSON.stringify({username:id,expiry})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Expiry updated`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    async function actDelete(id){
-      if(!confirm(`Delete ${id}?`)) return;
-      setDash("",`Deleting ${id}…`);
-      try{
-        const d = await api("/admin/delete", withAuth({method:"POST",body:JSON.stringify({username:id})}));
-        if(!d.ok) throw new Error(d.message||"Failed"); await loadUsers(); setDash("ok",`Deleted ${id}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
-    window.actApprove=actApprove; window.actBlock=actBlock; window.actUnblock=actUnblock;
-    window.actExpire=actExpire; window.actDelete=actDelete;
-
-    // Bulk
-    async function bulkDo(kind){
-      const ids = selRows(); if(!ids.length){ alert("Select rows first"); return;}
-      if (kind==="delete" && !confirm(`Delete ${ids.length} item(s)?`)) return;
-      for (const id of ids){
-        if(kind==="approve") await actApprove(id);
-        else if(kind==="block") await actBlock(id);
-        else if(kind==="unblock") await actUnblock(id);
-        else if(kind==="expire") await actExpire(id);
-        else if(kind==="delete") await actDelete(id);
-      }
-    }
-
-    // Track activity
-    function trackOne(id){
-      // open activity dashboard and pre-select this session
-      const url = `/activity.html#${encodeURIComponent(id)}`;
-      window.open(url,"_blank");
-    }
-
-    // ===== EVENTS =====
-    els.btnLogin.addEventListener("click", login);
-    els.btnLogout.addEventListener("click", ()=>logout(false));
-    els.btnRefresh.addEventListener("click", loadUsers);
-    els.btnTrack.addEventListener("click", ()=>window.open("/activity.html","_blank"));
-    els.btnSearch.addEventListener("click", renderUsers);
-    els.searchBox.addEventListener("input", renderUsers);
-    els.checkAll.addEventListener("change", e=>{
-      const v=e.target.checked; document.querySelectorAll(".rowcheck").forEach(ch=>ch.checked=v);
+    users.forEach(u => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${u.id}</td>
+        <td>${u.name}</td>
+        <td>${u.status}</td>
+        <td>${u.expiry || "-"}</td>
+        <td class="actions">
+          <button class="approve" onclick="updateUser('${u.id}','approved')">Approve</button>
+          <button class="block" onclick="updateUser('${u.id}','blocked')">Block</button>
+          <button class="expiry" onclick="setExpiry('${u.id}')">Set Expiry</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
     });
-    els.bulkApprove.addEventListener("click", ()=>bulkDo("approve"));
-    els.bulkBlock.addEventListener("click", ()=>bulkDo("block"));
-    els.bulkUnblock.addEventListener("click", ()=>bulkDo("unblock"));
-    els.bulkExpire.addEventListener("click", ()=>bulkDo("expire"));
-    els.bulkDelete.addEventListener("click", ()=>bulkDo("delete"));
+  }
 
-    // boot
-    (async function init(){
-      if(TOKEN){
-        try{ showView("panel"); await loadUsers(); setLogin(true,"Session restored"); }
-        catch{ logout(true); setLogin(false,"Session expired"); }
-      }else{ showView("login"); }
-    })();
-  </script>
+  async function updateUser(id, status) {
+    await fetch("/api/users/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status })
+    });
+    loadUsers();
+  }
+
+  async function setExpiry(id) {
+    const expiry = prompt("Enter expiry date (YYYY-MM-DD):");
+    if (!expiry) return;
+    await fetch("/api/users/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, expiry })
+    });
+    loadUsers();
+  }
+
+  async function searchUser() {
+    const id = document.getElementById("searchInput").value.trim();
+    if (!id) return alert("Enter a User ID to search!");
+
+    const res = await fetch("/api/users/" + id);
+    if (!res.ok) return alert("User not found!");
+    const u = await res.json();
+
+    const detail = document.getElementById("userDetail");
+    detail.style.display = "block";
+    detail.innerHTML = `
+      <h3>User Detail</h3>
+      <p><b>ID:</b> ${u.id}</p>
+      <p><b>Name:</b> ${u.name}</p>
+      <p><b>Status:</b> ${u.status}</p>
+      <p><b>Expiry:</b> ${u.expiry || "-"}</p>
+      <div class="actions">
+        <button class="approve" onclick="updateUser('${u.id}','approved')">Approve</button>
+        <button class="block" onclick="updateUser('${u.id}','blocked')">Block</button>
+        <button class="expiry" onclick="setExpiry('${u.id}')">Set Expiry</button>
+      </div>
+    `;
+  }
+
+  // load users initially
+  loadUsers();
+</script>
 </body>
 </html>
