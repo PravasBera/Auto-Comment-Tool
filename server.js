@@ -1,23 +1,29 @@
 /**
- * Facebook Auto Comment Tool (V2.0) — MongoDB Edition
- * ---------------------------------------------------
+ * Facebook Auto Comment Tool (V2.0) — Mongo Edition
+ * -------------------------------------------------
  * - Static: / -> views/index.html, /admin -> public/admin.html
  * - Cookie sid + /session + /events (SSE logs: ready, log, info, warn, error, success, summary)
- * - Multi-user store: MongoDB (pending/approved/blocked + expiry + notes)
+ * - Multi-user store: MongoDB "users" collection (pending/approved/blocked + expiry + notes)
  * - Admin auth: /admin/login (JWT, simple user/pass) + protected routes:
  *     /admin/users, /admin/approve, /admin/block, /admin/unblock, /admin/expire, /admin/delete
- * - Upload tokens/comments/postlinks
+ * - Upload tokens/comments/postlinks (filesystem as before)
  * - Start/Stop job with delay/limit/shuffle
  * - FB link→commentable id resolver (pfbid, story.php, groups, numeric, actor_post) + /resolveLink
  * - Error classifier + per-session SSE clients
+ *
+ * ENV (optional):
+ *   PORT=3000
+ *   MONGO_URI=mongodb://127.0.0.1:27017/fbtool
+ *   JWT_SECRET=change_me
+ *   ADMIN_USERNAME=Bullet
+ *   ADMIN_PASSWORD=00000
  */
 
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
-const _fetch = require("node-fetch");
-const fetch = global.fetch || _fetch;
+const fetch = require("node-fetch"); // Node 18+ এ global fetch থাকলে এটাও কাজ করবে
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
@@ -33,20 +39,51 @@ function generateUserId() {
 // -------------------- App setup --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fbtool";
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// -------------------- MongoDB (Mongoose) --------------------
+mongoose.set("strictQuery", false);
+
+const userSchema = new mongoose.Schema(
+  {
+    sessionId: { type: String, index: true, unique: true },
+    status: { type: String, enum: ["pending", "approved", "blocked"], default: "pending" },
+    blocked: { type: Boolean, default: false },
+    expiry: { type: Number, default: null }, // ms timestamp
+    notes: { type: String, default: "" },
+    approvedAt: { type: Date, default: null },
+    createdAt: { type: Number, default: () => Date.now() },
+    updatedAt: { type: Number, default: () => Date.now() },
+  },
+  { collection: "users" }
+);
+
+userSchema.pre("save", function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+const User = mongoose.model("User", userSchema);
+
+async function connectMongo() {
+  await mongoose.connect(MONGO_URI, {
+    dbName: new URL(MONGO_URI).pathname?.slice(1) || "fbtool",
+  });
+  console.log("✅ MongoDB connected");
+}
+
+// -------------------- Paths --------------------
 const PUBLIC_DIR = path.join(__dirname, "public");
 const VIEWS_DIR = path.join(__dirname, "views");
-const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 if (!fs.existsSync(VIEWS_DIR)) fs.mkdirSync(VIEWS_DIR, { recursive: true });
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 app.use(express.static(PUBLIC_DIR));
@@ -64,38 +101,12 @@ app.get("/admin", (_req, res) => {
 // -------------------- Upload setup --------------------
 const upload = multer({ dest: UPLOAD_DIR });
 
-// -------------------- MongoDB (Users) --------------------
-const connectDB = (() => {
-  try {
-    // support both: module exports a function OR already connects
-    const mod = require("./db");
-    return typeof mod === "function" ? mod : null;
-  } catch {
-    return null;
-  }
-})();
-
-const UserSchema = new mongoose.Schema(
-  {
-    sessionId: { type: String, index: true, unique: true },
-    status: { type: String, enum: ["pending", "approved", "blocked"], default: "pending" },
-    blocked: { type: Boolean, default: false },
-    expiry: { type: Number, default: null }, // ms timestamp or null
-    notes: { type: String, default: "" },
-    approvedAt: { type: String, default: null },
-    createdAt: { type: Number, default: () => Date.now() },
-    updatedAt: { type: Number, default: () => Date.now() },
-  },
-  { versionKey: false }
-);
-
-const User = mongoose.models.User || mongoose.model("User", UserSchema);
-
+// -------------------- User DB helpers (Mongo) --------------------
 async function ensureUser(sessionId) {
   let u = await User.findOne({ sessionId }).lean();
   if (!u) {
     const now = Date.now();
-    u = await User.create({
+    const doc = new User({
       sessionId,
       status: "pending",
       blocked: false,
@@ -105,15 +116,19 @@ async function ensureUser(sessionId) {
       createdAt: now,
       updatedAt: now,
     });
-    u = u.toObject();
+    await doc.save();
+    u = doc.toObject();
   }
   return u;
 }
 
 async function setUser(sessionId, patch = {}) {
-  const upd = { ...patch, updatedAt: Date.now() };
-  const u = await User.findOneAndUpdate({ sessionId }, { $set: upd }, { new: true }).lean();
-  return u || null;
+  const doc = await User.findOneAndUpdate(
+    { sessionId },
+    { $set: { ...patch, updatedAt: Date.now() } },
+    { new: true }
+  ).lean();
+  return doc || null;
 }
 
 async function deleteUser(sessionId) {
@@ -131,23 +146,22 @@ function isUserAllowed(u) {
 
 // -------------------- Cookie session --------------------
 app.use(async (req, res, next) => {
-  try {
-    let sid = req.cookies?.sid;
-    if (!sid) {
-      sid = generateUserId(); // custom ID generator
-      res.cookie("sid", sid, {
-        httpOnly: false,
-        maxAge: 180 * 24 * 60 * 60 * 1000,
-        sameSite: "lax",
-      });
-    }
-    req.sessionId = sid;
-    await ensureUser(sid);
-    next();
-  } catch (e) {
-    console.error("Session init error:", e);
-    next(e);
+  let sid = req.cookies?.sid;
+  if (!sid) {
+    sid = generateUserId(); // custom ID generator
+    res.cookie("sid", sid, {
+      httpOnly: false,
+      maxAge: 180 * 24 * 60 * 60 * 1000,
+      sameSite: "lax",
+    });
   }
+  req.sessionId = sid;
+  try {
+    await ensureUser(sid);
+  } catch (e) {
+    console.error("ensureUser error:", e);
+  }
+  next();
 });
 
 // -------------------- Small utils --------------------
@@ -304,13 +318,13 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.get("/session", async (req, res) => {
   const sid = req.sessionId;
-  const u = await ensureUser(sid);
-  res.json({ id: sid, status: u.status, expiry: u.expiry, blocked: u.blocked });
+  const u = await User.findOne({ sessionId: sid }).lean();
+  res.json({ id: sid, status: u?.status || "pending", expiry: u?.expiry || null, blocked: u?.blocked || false });
 });
 
 app.get("/whoami", async (req, res) => {
-  const u = await ensureUser(req.sessionId);
-  res.json({ ok: true, user: u });
+  const u = await User.findOne({ sessionId: req.sessionId }).lean();
+  res.json({ ok: true, user: u || null });
 });
 
 // -------------------- SSE endpoint --------------------
@@ -384,7 +398,9 @@ function requireAdmin(req, res, next) {
 
 // -------------------- Admin protected APIs --------------------
 app.get("/admin/users", requireAdmin, async (_req, res) => {
-  const list = await User.find({}).lean().sort({ updatedAt: -1 });
+  const list = await User.find({})
+    .sort({ updatedAt: -1 })
+    .lean();
   res.json({ ok: true, users: list });
 });
 
@@ -394,8 +410,8 @@ app.post("/admin/approve", requireAdmin, async (req, res) => {
   const user = await setUser(username, {
     status: "approved",
     blocked: false,
-    approvedAt: new Date().toISOString(),
-    expiry: expiry ? Date.parse(expiry) || null : null,
+    approvedAt: new Date(),
+    expiry: expiry ? (Date.parse(expiry) || null) : null,
   });
   if (!user) return res.json({ ok: false, message: "User not found" });
   res.json({ ok: true, user });
@@ -417,7 +433,7 @@ app.post("/admin/unblock", requireAdmin, async (req, res) => {
 
 app.post("/admin/expire", requireAdmin, async (req, res) => {
   const { username, expiry } = req.body || {};
-  const user = await setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
+  const user = await setUser(username, { expiry: expiry ? (Date.parse(expiry) || null) : null });
   if (!user) return res.json({ ok: false, message: "User not found" });
   res.json({ ok: true, user });
 });
@@ -494,7 +510,7 @@ app.post(
     const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId || null;
     if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
-    const user = await ensureUser(sessionId);
+    const user = await User.findOne({ sessionId }).lean();
     const allowed = isUserAllowed(user);
     if (!allowed.ok) {
       sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
@@ -550,7 +566,7 @@ app.post("/start", async (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
-  const user = await ensureUser(sessionId);
+  const user = await User.findOne({ sessionId }).lean();
   const allowed = isUserAllowed(user);
   if (!allowed.ok) {
     sseLine(sessionId, "error", `Access denied: ${allowed.reason}`);
@@ -751,24 +767,13 @@ app.post("/start", async (req, res) => {
 });
 
 // -------------------- Boot --------------------
-(async () => {
-  try {
-    if (connectDB) {
-      await connectDB();
-    } else if (!mongoose.connection.readyState) {
-      // Fallback: connect here if db.js didn't provide a function but also didn't connect.
-      if (!process.env.MONGO_URI) {
-        console.warn("⚠️  MONGO_URI not set and db.js didn't export a connector. Skipping explicit connect.");
-      } else {
-        await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
-      }
-    }
-
+connectMongo()
+  .then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);
     });
-  } catch (err) {
-    console.error("DB connect/start error:", err);
+  })
+  .catch((err) => {
+    console.error("Mongo connection failed:", err);
     process.exit(1);
-  }
-})();
+  });
