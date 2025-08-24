@@ -1,1 +1,9 @@
-echo '[{"username":"testuser","sessionId":"abc123","status":"active","blocked":false,"expiry":null}]' > users.json
+[
+  {
+    "username": "testuser",
+    "sessionId": "abc123",
+    "status": "active",
+    "blocked": false,
+    "expiry": null
+  }
+]
