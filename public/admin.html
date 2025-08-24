@@ -241,7 +241,7 @@
     async function loadUsers() {
   setDash("...", "Loading...");
   try {
-    const res = await api("/admin/users");
+    const data = await api("/admin/users");   // এখানে data ডিফাইন হচ্ছে
 
     if (data.ok && Array.isArray(data.users)) {
       USERS = data.users;
