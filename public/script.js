@@ -1,209 +1,232 @@
-// ---- Live log helpers
-const logBox = document.getElementById("logBox");
-const warnBox = document.getElementById("warnBox");
+// ===============================
+// Facebook Auto Comment Tool v2.0
+// Frontend Script (Client-Side)
+// ===============================
 
-// ✅ sessionId here
-let SESSION_ID = null;
-const userIdBox = document.getElementById("userIdBox");
-function setUserIdUI(text) {
-  if (userIdBox) userIdBox.textContent = text;
+// Global variables
+let eventSource = null;
+let isRunning = false;
+
+// ---------------------------
+// Utility Functions
+// ---------------------------
+
+// Add log messages to Live Log
+function addLog(type, message) {
+  const logBox = document.getElementById("logBox");
+  const div = document.createElement("div");
+  div.className = type;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  logBox.appendChild(div);
+  logBox.scrollTop = logBox.scrollHeight;
 }
 
-function addLine(box, text, cls = "") {
-  const line = document.createElement("div");
-  if (cls) line.className = cls;
-  line.textContent = text;
-  box.appendChild(line);
-  box.scrollTop = box.scrollHeight;
+// Add warning or summary messages
+function addWarning(type, message) {
+  const warnBox = document.getElementById("warnBox");
+  const div = document.createElement("div");
+  div.className = type;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  warnBox.appendChild(div);
+  warnBox.scrollTop = warnBox.scrollHeight;
 }
 
-// ---- SSE connect (uses server's /events that emits `session` & `user`)
-(function connectSSE() {
-  const es = new EventSource("/events");
+// Clear log boxes
+function clearLogs() {
+  document.getElementById("logBox").innerHTML = "";
+  document.getElementById("warnBox").innerHTML = "";
+}
 
-  // 🔹 catch named event: session → this is your UserID
-  es.addEventListener("session", (evt) => {
-    SESSION_ID = evt.data;
-    setUserIdUI(SESSION_ID || "—");
-    addLine(logBox, `Session ready: ${SESSION_ID}`, "info");
-  });
-
-  // optional: show user status (pending/approved/blocked)
-  es.addEventListener("user", (evt) => {
-    try {
-      const info = JSON.parse(evt.data);
-      if (info?.status && info.status !== "approved") {
-        addLine(warnBox, `Status: ${info.status}. Ask admin for approval.`, "warn");
-      }
-    } catch {}
-  });
-
-  // fallback for generic messages (log/info/success/warn/error/summary)
-  es.onmessage = (evt) => {
-    try {
-      const data = JSON.parse(evt.data);
-      const ts = new Date(data.t || Date.now()).toLocaleTimeString();
-      const line = `[${ts}] ${data.text}`;
-
-      switch (data.type) {
-        case "log":
-        case "info":
-          addLine(logBox, line, "info");
-          break;
-        case "success":
-          addLine(logBox, line, "success");
-          break;
-        case "warn":
-          addLine(warnBox, line, "warn");
-          break;
-        case "error":
-          addLine(warnBox, line, "error");
-          break;
-        case "summary":
-          addLine(warnBox, `--- Summary ---`, "summary");
-          addLine(warnBox, `Sent: ${data.sent}, OK: ${data.ok}, Failed: ${data.failed}`);
-          if (data.counters) {
-            Object.keys(data.counters).forEach(k => {
-              if (data.counters[k] > 0) addLine(warnBox, `${k}: ${data.counters[k]}`);
-            });
-          }
-          if (typeof data.unresolvedLinks === "number") {
-            addLine(warnBox, `Unresolved links: ${data.unresolvedLinks}`);
-          }
-          break;
-        default:
-          addLine(logBox, line);
-      }
-    } catch {
-      addLine(logBox, evt.data || "");
-    }
-  };
-
-  es.onerror = () => {
-    addLine(warnBox, "SSE disconnected. Retrying in 3s...", "warn");
-    setTimeout(connectSSE, 3000);
-  };
-})();
-
-// ---- Upload form
-const uploadForm = document.getElementById("uploadForm");
-uploadForm?.addEventListener("submit", async (e) => {
+// ---------------------------
+// File Upload Section
+// ---------------------------
+document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  warnBox.innerHTML = "";
-
-  if (!SESSION_ID) {
-    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
-    return;
-  }
-
-  const fd = new FormData(uploadForm);
-  // send in body too (server reads body or query)
-  fd.append("sessionId", SESSION_ID);
+  const formData = new FormData(e.target);
 
   try {
-    const res = await fetch(`/upload?sessionId=${encodeURIComponent(SESSION_ID)}`, {
+    addLog("info", "⏳ Uploading files...");
+    const res = await fetch("/upload", {
       method: "POST",
-      body: fd
+      body: formData,
     });
-    const json = await res.json();
-    if (!res.ok || !json.ok) throw new Error(json.message || "Upload failed");
-    addLine(logBox, "✔ Files uploaded successfully", "success");
+    const data = await res.json();
+    if (data.success) {
+      addLog("success", "✅ Files uploaded successfully.");
+    } else {
+      addWarning("error", "❌ Upload failed: " + data.message);
+    }
   } catch (err) {
-    addLine(warnBox, `Upload error: ${err.message}`, "error");
+    addWarning("error", "❌ Upload error: " + err.message);
   }
 });
 
-// ---- Start form
-const startForm = document.getElementById("startForm");
-startForm?.addEventListener("submit", async (e) => {
+// ---------------------------
+// Manual Form Start Section
+// ---------------------------
+document.getElementById("startForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  warnBox.innerHTML = "";
 
-  if (!SESSION_ID) {
-    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
+  if (isRunning) {
+    addWarning("warn", "⚠ Already running. Stop first.");
     return;
   }
 
-  const data = new URLSearchParams(new FormData(startForm));
-  data.append("sessionId", SESSION_ID);
+  clearLogs();
+  addLog("info", "▶ Starting Auto Comment Tool...");
+
+  const formData = new FormData(e.target);
+  const payload = {};
+
+  formData.forEach((val, key) => {
+    payload[key] = val.trim();
+  });
+
+  payload["shuffle"] = formData.get("useShuffle") ? true : false;
+  payload["commentCategory"] = formData.get("commentCategory") || "";
 
   try {
     const res = await fetch("/start", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: data.toString()
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.message || "Start failed");
-    addLine(logBox, "▶ Job started", "info");
+
+    const data = await res.json();
+    if (data.success) {
+      addLog("success", "🚀 Task started successfully.");
+      startSSE();
+      isRunning = true;
+    } else {
+      addWarning("error", "❌ Failed to start: " + data.message);
+    }
   } catch (err) {
-    addLine(warnBox, `Start error: ${err.message}`, "error");
+    addWarning("error", "❌ Start error: " + err.message);
   }
 });
 
-// ---- Stop button
+// ---------------------------
+// Stop Button
+// ---------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
-  if (!SESSION_ID) {
-    addLine(warnBox, "UserID not ready yet. Wait for connection…", "warn");
+  if (!isRunning) {
+    addWarning("warn", "⚠ Nothing is running.");
     return;
   }
+
   try {
-    const res = await fetch("/stop", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ sessionId: SESSION_ID }).toString()
-    });
-    const json = await res.json();
-    addLine(warnBox, json.message || "Stop sent", "warn");
+    const res = await fetch("/stop", { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      addLog("success", "🛑 Stopped successfully.");
+      stopSSE();
+      isRunning = false;
+    } else {
+      addWarning("error", "❌ Stop failed: " + data.message);
+    }
   } catch (err) {
-    addLine(warnBox, `Stop error: ${err.message}`, "error");
+    addWarning("error", "❌ Stop error: " + err.message);
   }
 });
 
-// =======================
-// Utility: Extract Post ID (unchanged)
-// =======================
-function extractPostId(url) {
-  try {
-    let match = url.match(/\/posts\/(\d+)/);
-    if (match) return match[1];
-    match = url.match(/(\d+)_(\d+)/);
-    if (match) return match[1] + "_" + match[2];
-    match = url.match(/(\d{10,})/);
-    if (match) return match[1];
-  } catch (e) {
-    console.error("Post ID extract error:", e);
-  }
-  return null;
+// ---------------------------
+// SSE (Server-Sent Events) for Live Logs
+// ---------------------------
+function startSSE() {
+  if (eventSource) eventSource.close();
+
+  eventSource = new EventSource("/events");
+
+  eventSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === "log") {
+        addLog("info", data.message);
+      } else if (data.type === "success") {
+        addLog("success", data.message);
+      } else if (data.type === "error") {
+        addWarning("error", data.message);
+      } else if (data.type === "warn") {
+        addWarning("warn", data.message);
+      }
+    } catch (err) {
+      addWarning("error", "⚠ SSE parse error: " + err.message);
+    }
+  };
+
+  eventSource.onerror = () => {
+    addWarning("error", "⚠ SSE connection lost.");
+    stopSSE();
+  };
+
+  addLog("info", "🔗 Connected to Live Log stream.");
 }
 
-// =======================
-// Main: Post Comment (old helper; kept unchanged)
-// =======================
-async function postComment(token, postLink, comment) {
-  try {
-    const postId = extractPostId(postLink);
-    if (!postId) {
-      addLine(warnBox, `❌ Could not extract post ID from link: ${postLink}`, "warn");
-      return false;
-    }
-    const url = `https://graph.facebook.com/${postId}/comments`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ access_token: token, message: comment })
-    });
-    const data = await res.json();
-    if (data.id) {
-      addLine(logBox, `✅ Commented → ${comment} (id: ${data.id})`, "success");
-      return true;
-    } else {
-      addLine(warnBox, `❌ Comment failed on ${postLink}`, "error");
-      console.error("Response:", data);
-      return false;
-    }
-  } catch (err) {
-    addLine(warnBox, `⚠️ Error while commenting: ${err.message}`, "error");
+function stopSSE() {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+    addLog("info", "🔌 Disconnected from Live Log stream.");
+  }
+}
+
+// ---------------------------
+// Mix Loop (Frontend Validation Only)
+// ---------------------------
+
+function validateMixLoopInputs(payload) {
+  const posts = [
+    { link: payload.link1, name: payload.name1, token: payload.token1 },
+    { link: payload.link2, name: payload.name2, token: payload.token2 },
+    { link: payload.link3, name: payload.name3, token: payload.token3 },
+    { link: payload.link4, name: payload.name4, token: payload.token4 },
+  ];
+
+  const validPosts = posts.filter(
+    (p) => p.link && p.name && p.token
+  );
+
+  if (validPosts.length === 0) {
+    addWarning("error", "⚠ At least one valid post+name+token required.");
     return false;
   }
+
+  addLog("info", `✅ ${validPosts.length} post(s) validated for mix loop.`);
+  return true;
+}
+
+// ---------------------------
+// On Page Load (UserID fetch)
+// ---------------------------
+window.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const res = await fetch("/userid");
+    const data = await res.json();
+    if (data.userId) {
+      document.getElementById("userIdBox").textContent = data.userId;
+      addLog("success", "✅ UserID loaded successfully.");
+    } else {
+      document.getElementById("userIdBox").textContent = "Error loading UserID";
+      addWarning("error", "❌ Failed to fetch UserID.");
+    }
+  } catch (err) {
+    document.getElementById("userIdBox").textContent = "Network error";
+    addWarning("error", "❌ UserID fetch error: " + err.message);
+  }
+});
+
+// ---------------------------
+// Debug Helper
+// ---------------------------
+function debugPayload(payload) {
+  console.group("Payload Debug");
+  console.log("Delay:", payload.delay);
+  console.log("Limit:", payload.limit);
+  console.log("Shuffle:", payload.shuffle);
+  console.log("Comment Category:", payload.commentCategory);
+  console.log("Post1:", payload.link1, payload.name1, payload.token1);
+  console.log("Post2:", payload.link2, payload.name2, payload.token2);
+  console.log("Post3:", payload.link3, payload.name3, payload.token3);
+  console.log("Post4:", payload.link4, payload.name4, payload.token4);
+  console.groupEnd();
 }
