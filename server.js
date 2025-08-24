@@ -23,13 +23,9 @@ const jwt = require("jsonwebtoken");
 
 // ===== Custom User ID Generator =====
 function generateUserId() {
-  const words = [
-    "ALPHA", "BETA", "GAMMA", "DELTA", "OMEGA",
-    "PHOENIX", "DRAGON", "TIGER", "EAGLE", "LION",
-    "KING", "QUEEN", "STAR", "MOON", "NOVA"
-  ];
-  const randomWord = words[Math.floor(Math.random() * words.length)];
-  return "USER-" + randomWord + "-" + Math.floor(Math.random() * 1000);
+  const prefix = "USER-ALPHA-";
+  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return prefix + randomPart;
 }
 
 // -------------------- App setup --------------------
