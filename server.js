@@ -387,8 +387,6 @@ app.post("/admin/approve", requireAdmin, (req, res) => {
   });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(users); // ✅ এখানে json এ সেভ হবে
-
   res.json({ ok: true, user });
 });
 
@@ -396,8 +394,6 @@ app.post("/admin/block", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const user = setUser(username, { status: "blocked", blocked: true });
   if (!user) return res.json({ ok: false, message: "User not found" });
-
-  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok: true, user });
 });
@@ -407,8 +403,6 @@ app.post("/admin/unblock", requireAdmin, (req, res) => {
   const user = setUser(username, { status: "approved", blocked: false });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(users); // ✅ সেভ করো
-
   res.json({ ok: true, user });
 });
 
@@ -417,16 +411,12 @@ app.post("/admin/expire", requireAdmin, (req, res) => {
   const user = setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(users); // ✅ সেভ করো
-
   res.json({ ok: true, user });
 });
 
 app.post("/admin/delete", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const ok = deleteUser(username);
-
-  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok });
 });
