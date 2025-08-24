@@ -1,16 +1,16 @@
-const { MongoClient } = require("mongodb");
-require("dotenv").config();
+const mongoose = require("mongoose");
 
-const uri = process.env.MONGO_URI;
-let client, db;
-
-async function connectDB() {
-  if (!db) {
-    client = new MongoClient(uri);
-    await client.connect();
-    db = client.db("auto_comment_tool"); // database name
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ MongoDB Connected...");
+  } catch (error) {
+    console.error("❌ MongoDB connection error:", error.message);
+    process.exit(1);
   }
-  return db;
-}
+};
 
 module.exports = connectDB;
