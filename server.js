@@ -1,9 +1,9 @@
 /**
- * Facebook Auto Comment Tool (V2.0)
- * --------------------------------
+ * Facebook Auto Comment Tool (V2.0) — MongoDB Edition
+ * ---------------------------------------------------
  * - Static: / -> views/index.html, /admin -> public/admin.html
  * - Cookie sid + /session + /events (SSE logs: ready, log, info, warn, error, success, summary)
- * - Multi-user store: data/users.json (pending/approved/blocked + expiry + notes)
+ * - Multi-user store: MongoDB (pending/approved/blocked + expiry + notes)
  * - Admin auth: /admin/login (JWT, simple user/pass) + protected routes:
  *     /admin/users, /admin/approve, /admin/block, /admin/unblock, /admin/expire, /admin/delete
  * - Upload tokens/comments/postlinks
@@ -16,10 +16,12 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
-const fetch = require("node-fetch"); // Node 18+ এ global fetch থাকলে এটাও কাজ করবে
+const _fetch = require("node-fetch");
+const fetch = global.fetch || _fetch;
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 // ===== Custom User ID Generator =====
 function generateUserId() {
@@ -40,27 +42,12 @@ app.use(cookieParser());
 const PUBLIC_DIR = path.join(__dirname, "public");
 const VIEWS_DIR = path.join(__dirname, "views");
 const DATA_DIR = path.join(__dirname, "data");
-const USERS_DB = path.join(__dirname, "users.json");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 if (!fs.existsSync(VIEWS_DIR)) fs.mkdirSync(VIEWS_DIR, { recursive: true });
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}, null, 2), "utf-8");
-
-// force root-level users.json
-const USERS_FILE = path.join(process.cwd(), "users.json");
-
-function loadUsers() {
-  if (!fs.existsSync(USERS_FILE)) return {};
-  return JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
-}
-
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  console.log("✅ Users saved at", USERS_FILE);
-}
 
 app.use(express.static(PUBLIC_DIR));
 
@@ -77,48 +64,63 @@ app.get("/admin", (_req, res) => {
 // -------------------- Upload setup --------------------
 const upload = multer({ dest: UPLOAD_DIR });
 
-// -------------------- User DB helpers --------------------
-function loadUsers() {
+// -------------------- MongoDB (Users) --------------------
+const connectDB = (() => {
   try {
-    return JSON.parse(fs.readFileSync(USERS_DB, "utf-8"));
+    // support both: module exports a function OR already connects
+    const mod = require("./db");
+    return typeof mod === "function" ? mod : null;
   } catch {
-    return {};
+    return null;
   }
-}
-function saveUsers(db) {
-  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
-}
-function ensureUser(sessionId) {
-  const db = loadUsers();
-  if (!db[sessionId]) {
+})();
+
+const UserSchema = new mongoose.Schema(
+  {
+    sessionId: { type: String, index: true, unique: true },
+    status: { type: String, enum: ["pending", "approved", "blocked"], default: "pending" },
+    blocked: { type: Boolean, default: false },
+    expiry: { type: Number, default: null }, // ms timestamp or null
+    notes: { type: String, default: "" },
+    approvedAt: { type: String, default: null },
+    createdAt: { type: Number, default: () => Date.now() },
+    updatedAt: { type: Number, default: () => Date.now() },
+  },
+  { versionKey: false }
+);
+
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
+
+async function ensureUser(sessionId) {
+  let u = await User.findOne({ sessionId }).lean();
+  if (!u) {
     const now = Date.now();
-    db[sessionId] = {
+    u = await User.create({
       sessionId,
-      status: "pending", // pending | approved | blocked
+      status: "pending",
       blocked: false,
-      expiry: null, // ms timestamp or null
+      expiry: null,
       notes: "",
       approvedAt: null,
       createdAt: now,
       updatedAt: now,
-    };
-    saveUsers(db);
+    });
+    u = u.toObject();
   }
-  return db[sessionId];
+  return u;
 }
-function setUser(sessionId, patch = {}) {
-  const db = loadUsers();
-  if (!db[sessionId]) return null;
-  db[sessionId] = { ...db[sessionId], ...patch, updatedAt: Date.now() };
-  saveUsers(db);
-  return db[sessionId];
+
+async function setUser(sessionId, patch = {}) {
+  const upd = { ...patch, updatedAt: Date.now() };
+  const u = await User.findOneAndUpdate({ sessionId }, { $set: upd }, { new: true }).lean();
+  return u || null;
 }
-function deleteUser(sessionId) {
-  const db = loadUsers();
-  delete db[sessionId];
-  saveUsers(db);
+
+async function deleteUser(sessionId) {
+  await User.deleteOne({ sessionId });
   return true;
 }
+
 function isUserAllowed(u) {
   if (!u) return { ok: false, reason: "UNKNOWN_USER" };
   if (u.status === "blocked" || u.blocked) return { ok: false, reason: "BLOCKED" };
@@ -128,19 +130,24 @@ function isUserAllowed(u) {
 }
 
 // -------------------- Cookie session --------------------
-app.use((req, res, next) => {
-  let sid = req.cookies?.sid;
-  if (!sid) {
-    sid = generateUserId();   // custom ID generator
-    res.cookie("sid", sid, {
+app.use(async (req, res, next) => {
+  try {
+    let sid = req.cookies?.sid;
+    if (!sid) {
+      sid = generateUserId(); // custom ID generator
+      res.cookie("sid", sid, {
         httpOnly: false,
         maxAge: 180 * 24 * 60 * 60 * 1000,
         sameSite: "lax",
-    });
-}
-  req.sessionId = sid;
-  ensureUser(sid);
-  next();
+      });
+    }
+    req.sessionId = sid;
+    await ensureUser(sid);
+    next();
+  } catch (e) {
+    console.error("Session init error:", e);
+    next(e);
+  }
 });
 
 // -------------------- Small utils --------------------
@@ -295,19 +302,19 @@ function sseLine(sessionId, type, text, extra = {}) {
 // -------------------- Health & session helpers --------------------
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.get("/session", (req, res) => {
+app.get("/session", async (req, res) => {
   const sid = req.sessionId;
-  const u = ensureUser(sid);
+  const u = await ensureUser(sid);
   res.json({ id: sid, status: u.status, expiry: u.expiry, blocked: u.blocked });
 });
 
-app.get("/whoami", (req, res) => {
-  const u = ensureUser(req.sessionId);
+app.get("/whoami", async (req, res) => {
+  const u = await ensureUser(req.sessionId);
   res.json({ ok: true, user: u });
 });
 
 // -------------------- SSE endpoint --------------------
-app.get("/events", (req, res) => {
+app.get("/events", async (req, res) => {
   let sessionId = req.query.sessionId || req.sessionId || randomUUID();
   if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
     res.cookie("sid", sessionId, {
@@ -317,7 +324,7 @@ app.get("/events", (req, res) => {
     });
   }
   const job = getJob(sessionId);
-  const user = ensureUser(sessionId);
+  const user = await ensureUser(sessionId);
 
   res.set({
     "Content-Type": "text/event-stream",
@@ -376,54 +383,48 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------- Admin protected APIs --------------------
-app.get("/admin/users", requireAdmin, (_req, res) => {
-  const obj = loadUsers();
-  const list = Object.values(obj).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+app.get("/admin/users", requireAdmin, async (_req, res) => {
+  const list = await User.find({}).lean().sort({ updatedAt: -1 });
   res.json({ ok: true, users: list });
 });
 
 // Approve (optional expiry; if absent => lifetime)
-app.post("/admin/approve", requireAdmin, (req, res) => {
+app.post("/admin/approve", requireAdmin, async (req, res) => {
   const { username, expiry } = req.body || {};
-  const user = setUser(username, {
+  const user = await setUser(username, {
     status: "approved",
     blocked: false,
     approvedAt: new Date().toISOString(),
     expiry: expiry ? Date.parse(expiry) || null : null,
   });
   if (!user) return res.json({ ok: false, message: "User not found" });
-
   res.json({ ok: true, user });
 });
 
-app.post("/admin/block", requireAdmin, (req, res) => {
+app.post("/admin/block", requireAdmin, async (req, res) => {
   const { username } = req.body || {};
-  const user = setUser(username, { status: "blocked", blocked: true });
+  const user = await setUser(username, { status: "blocked", blocked: true });
   if (!user) return res.json({ ok: false, message: "User not found" });
-
   res.json({ ok: true, user });
 });
 
-app.post("/admin/unblock", requireAdmin, (req, res) => {
+app.post("/admin/unblock", requireAdmin, async (req, res) => {
   const { username } = req.body || {};
-  const user = setUser(username, { status: "approved", blocked: false });
+  const user = await setUser(username, { status: "approved", blocked: false });
   if (!user) return res.json({ ok: false, message: "User not found" });
-
   res.json({ ok: true, user });
 });
 
-app.post("/admin/expire", requireAdmin, (req, res) => {
+app.post("/admin/expire", requireAdmin, async (req, res) => {
   const { username, expiry } = req.body || {};
-  const user = setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
+  const user = await setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
   if (!user) return res.json({ ok: false, message: "User not found" });
-
   res.json({ ok: true, user });
 });
 
-app.post("/admin/delete", requireAdmin, (req, res) => {
+app.post("/admin/delete", requireAdmin, async (req, res) => {
   const { username } = req.body || {};
-  const ok = deleteUser(username);
-
+  const ok = await deleteUser(username);
   res.json({ ok });
 });
 
@@ -489,11 +490,11 @@ app.post(
     { name: "comments", maxCount: 1 },
     { name: "postlinks", maxCount: 1 },
   ]),
-  (req, res) => {
+  async (req, res) => {
     const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId || null;
     if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
-    const user = ensureUser(sessionId);
+    const user = await ensureUser(sessionId);
     const allowed = isUserAllowed(user);
     if (!allowed.ok) {
       sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
@@ -549,7 +550,7 @@ app.post("/start", async (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
-  const user = ensureUser(sessionId);
+  const user = await ensureUser(sessionId);
   const allowed = isUserAllowed(user);
   if (!allowed.ok) {
     sseLine(sessionId, "error", `Access denied: ${allowed.reason}`);
@@ -750,6 +751,24 @@ app.post("/start", async (req, res) => {
 });
 
 // -------------------- Boot --------------------
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
+(async () => {
+  try {
+    if (connectDB) {
+      await connectDB();
+    } else if (!mongoose.connection.readyState) {
+      // Fallback: connect here if db.js didn't provide a function but also didn't connect.
+      if (!process.env.MONGO_URI) {
+        console.warn("⚠️  MONGO_URI not set and db.js didn't export a connector. Skipping explicit connect.");
+      } else {
+        await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
+      }
+    }
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error("DB connect/start error:", err);
+    process.exit(1);
+  }
+})();
