@@ -11,8 +11,8 @@
     <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
     <p>
       👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp;
-      🌀 Version: <b>2.0</b> &nbsp;|&nbsp;
-      🌍 Country: <b>INDIA</b>
+      🌍 Version: <b>2.0</b> &nbsp;|&nbsp;
+      🇮🇳 Country: <b>INDIA</b>
     </p>
     <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
   </header>
@@ -26,8 +26,9 @@
       <p>📋 Copy this UserID and send it to Admin for approval.</p>
     </section>
 
+    <!-- ✅ Upload Section (Global batch) -->
     <section class="card">
-      <h2>Upload Files</h2>
+      <h2>Upload Files (Global)</h2>
       <form id="uploadForm" enctype="multipart/form-data">
         <label>Upload Tokens (token.txt)</label>
         <input type="file" name="tokens" accept=".txt" required />
@@ -38,34 +39,82 @@
         <label>Upload Post Links (postlink.txt)</label>
         <input type="file" name="postlinks" accept=".txt" />
 
+        <label>Names for Upload Batch (one per line)</label>
+        <textarea name="uploadNames" placeholder="e.g. Rahul Jana&#10;Sumana Maity"></textarea>
+
         <button type="submit">Upload</button>
       </form>
     </section>
 
+    <!-- ✅ Manual Inputs Section -->
     <section class="card">
-      <h2>Manual Inputs</h2>
+      <h2>Manual Inputs (Post-specific)</h2>
       <form id="startForm">
-        <label>Single Post ID (optional)</label>
-        <input name="postId" type="text" placeholder="e.g. 123456789_987654321 or 1234567890" />
 
-        <div class="grid-3">
-          <div>
-            <label>Post Link 1</label>
-            <input name="link1" type="text" placeholder="Paste link (optional)" />
+        <!-- Post 1–4 -->
+        <div class="grid-2">
+          <div class="manual-block">
+            <h3>Post 1</h3>
+            <label>Post Link / ID</label>
+            <input name="link1" type="text" placeholder="Paste link or ID" />
+
+            <label>Upload Tokens (for Post 1)</label>
+            <input type="file" name="token1" accept=".txt" />
+
+            <label>Names (Post 1)</label>
+            <textarea name="names1" placeholder="e.g. Rahul Jana&#10;Sumana Maity"></textarea>
           </div>
-          <div>
-            <label>Post Link 2</label>
-            <input name="link2" type="text" placeholder="Paste link (optional)" />
-          </div>
-          <div>
-            <label>Post Link 3</label>
-            <input name="link3" type="text" placeholder="Paste link (optional)" />
+
+          <div class="manual-block">
+            <h3>Post 2</h3>
+            <label>Post Link / ID</label>
+            <input name="link2" type="text" placeholder="Paste link or ID" />
+
+            <label>Upload Tokens (for Post 2)</label>
+            <input type="file" name="token2" accept=".txt" />
+
+            <label>Names (Post 2)</label>
+            <textarea name="names2" placeholder="e.g. Rahul Jana&#10;Sumana Maity"></textarea>
           </div>
         </div>
 
-        <label>Names for Tagging (comma separated)</label>
-    <input name="tagNames" type="text" placeholder="e.g. Rahul, Sumona, Anik" />
+        <div class="grid-2">
+          <div class="manual-block">
+            <h3>Post 3</h3>
+            <label>Post Link / ID</label>
+            <input name="link3" type="text" placeholder="Paste link or ID" />
 
+            <label>Upload Tokens (for Post 3)</label>
+            <input type="file" name="token3" accept=".txt" />
+
+            <label>Names (Post 3)</label>
+            <textarea name="names3" placeholder="e.g. Rahul Jana&#10;Sumana Maity"></textarea>
+          </div>
+
+          <div class="manual-block">
+            <h3>Post 4</h3>
+            <label>Post Link / ID</label>
+            <input name="link4" type="text" placeholder="Paste link or ID" />
+
+            <label>Upload Tokens (for Post 4)</label>
+            <input type="file" name="token4" accept=".txt" />
+
+            <label>Names (Post 4)</label>
+            <textarea name="names4" placeholder="e.g. Rahul Jana&#10;Sumana Maity"></textarea>
+          </div>
+        </div>
+
+        <!-- ✅ Comment Set Dropdown -->
+        <label>Choose Comment Set (for Manual Posts)</label>
+        <select name="commentSet">
+          <option value="">-- Default (Upload comment.txt) --</option>
+          <option value="comment1">Bengali</option>
+          <option value="comment2">Benglish</option>
+          <option value="comment3">Hinglish</option>
+          <option value="comment4">Mix</option>
+        </select>
+
+        <!-- ✅ Controls -->
         <div class="grid-3">
           <div>
             <label>Delay (seconds)</label>
@@ -87,6 +136,7 @@
       </form>
     </section>
 
+    <!-- ✅ Logs -->
     <section class="card">
       <h2>Live Log</h2>
       <div id="logBox" class="logs"></div>
