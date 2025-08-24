@@ -238,20 +238,24 @@
     }
 
     // ===== TABLE =====
-    let USERS=[];
-    async function loadUsers(){
-      setDash("", "Loading…");
-      try{
-        const d = await api("/admin/users", {method:"GET"});
-        const ok = truthyOk(d);
-        const list = d?.users || d?.data?.users || (Array.isArray(d) ? d : (ok && d?.result ? d.result : []));
-        if(!Array.isArray(list)) throw new Error(d?.message || "Failed");
-        USERS = list;
-        renderUsers();
-        setDash("ok", `Loaded ${USERS.length}`);
-      }catch(e){ setDash("err", e.message||"Failed");}
-    }
+    async function loadUsers() {
+  setDash("...", "Loading...");
+  try {
+    const res = await fetch("/admin/users");
+    const data = await res.json();
 
+    if (data.ok && Array.isArray(data.users)) {
+      USERS = data.users;
+      renderUsers();
+      setDash("ok", `Loaded ${USERS.length}`);
+    } else {
+      throw new Error(data.message || "No users found");
+    }
+  } catch (e) {
+    setDash("err", e.message || "Failed");
+  }
+}
+    
     // --- SEARCH ---
     const normalize = (v)=> String(v==null ? "" : v).toLowerCase().trim();
 
