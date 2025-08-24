@@ -34,7 +34,7 @@ app.use(cookieParser());
 const PUBLIC_DIR = path.join(__dirname, "public");
 const VIEWS_DIR = path.join(__dirname, "views");
 const DATA_DIR = path.join(__dirname, "data");
-const USERS_DB = path.join(DATA_DIR, "users.json");
+const USERS_DB = path.join(__dirname, "users.json");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
@@ -44,12 +44,16 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}, null, 2), "utf-8");
 
 function loadUsers() {
-  if (!fs.existsSync(USERS_DB)) return {};
-  return JSON.parse(fs.readFileSync(USERS_DB, "utf8"));
+  try {
+    return JSON.parse(fs.readFileSync(USERS_DB, "utf-8"));
+  } catch {
+    return {};
+  }
 }
 
-function saveUsers(users) {
-  fs.writeFileSync(USERS_DB, JSON.stringify(users, null, 2));
+function saveUsers(db) {
+  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
+  console.log("✅ Users data saved to", USERS_DB, "at", new Date().toLocaleString());
 }
 
 app.use(express.static(PUBLIC_DIR));
@@ -383,7 +387,7 @@ app.post("/admin/approve", requireAdmin, (req, res) => {
   });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(loadUsers()); // ✅ এখানে json এ সেভ হবে
+  saveUsers(users); // ✅ এখানে json এ সেভ হবে
 
   res.json({ ok: true, user });
 });
@@ -393,7 +397,7 @@ app.post("/admin/block", requireAdmin, (req, res) => {
   const user = setUser(username, { status: "blocked", blocked: true });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(loadUsers()); // ✅ সেভ করো
+  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok: true, user });
 });
@@ -403,7 +407,7 @@ app.post("/admin/unblock", requireAdmin, (req, res) => {
   const user = setUser(username, { status: "approved", blocked: false });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(loadUsers()); // ✅ সেভ করো
+  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok: true, user });
 });
@@ -413,7 +417,7 @@ app.post("/admin/expire", requireAdmin, (req, res) => {
   const user = setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
   if (!user) return res.json({ ok: false, message: "User not found" });
 
-  saveUsers(loadUsers()); // ✅ সেভ করো
+  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok: true, user });
 });
@@ -422,7 +426,7 @@ app.post("/admin/delete", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const ok = deleteUser(username);
 
-  saveUsers(loadUsers()); // ✅ সেভ করো
+  saveUsers(users); // ✅ সেভ করো
 
   res.json({ ok });
 });
