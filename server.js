@@ -4,14 +4,14 @@
  * - Static: / -> views/index.html, /admin -> public/admin.html
  * - Cookie sid + /session + /events (SSE logs: ready, log, info, warn, error, success, summary)
  * - Multi-user store: MongoDB "users" collection (pending/approved/blocked + expiry + notes)
- * - Admin auth: /admin/login (JWT, simple user/pass) + protected routes:
+ * - Admin auth: /admin/login (JWT) + protected routes:
  *     /admin/users, /admin/approve, /admin/block, /admin/unblock, /admin/expire, /admin/delete
  * - Upload tokens/comments/postlinks (filesystem as before)
  * - Start/Stop job with delay/limit/shuffle
- * - FB link→commentable id resolver (pfbid, story.php, groups, numeric, actor_post) + /resolveLink
+ * - FB link→commentable id resolver + /resolveLink
  * - Error classifier + per-session SSE clients
  *
- * ENV (optional):
+ * ENV:
  *   PORT=3000
  *   MONGO_URI=mongodb://127.0.0.1:27017/fbtool
  *   JWT_SECRET=change_me
@@ -23,11 +23,12 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
-const fetch = require("node-fetch"); // Node 18+ এ global fetch থাকলে এটাও কাজ করবে
+const fetch = require("node-fetch");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const { randomUUID } = require("crypto");
 
 // ===== Custom User ID Generator =====
 function generateUserId() {
@@ -148,7 +149,7 @@ function isUserAllowed(u) {
 app.use(async (req, res, next) => {
   let sid = req.cookies?.sid;
   if (!sid) {
-    sid = generateUserId(); // custom ID generator
+    sid = generateUserId();
     res.cookie("sid", sid, {
       httpOnly: false,
       maxAge: 180 * 24 * 60 * 60 * 1000,
@@ -187,23 +188,18 @@ function canonicalizePfbidInput(raw) {
 
 function tryExtractGraphPostId(raw) {
   if (!raw) return null;
-  // numeric id OR actor_post id
   if (/^\d+$/.test(raw) || /^\d+_\d+$/.test(raw)) return raw;
   try {
     const u = new URL(raw);
-    // story.php?id=ACTOR&story_fbid=FBID
     const story = u.searchParams.get("story_fbid");
     const actor = u.searchParams.get("id");
     if (story && actor && /^\d+$/.test(story) && /^\d+$/.test(actor)) {
       return `${actor}_${story}`;
     }
-    // /{actor}/posts/{id}
     let m = u.pathname.match(/\/(\d+)\/posts\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
-    // /groups/{group}/permalink/{id}/
     m = u.pathname.match(/\/groups\/(\d+)\/permalink\/(\d+)/);
     if (m) return `${m[1]}_${m[2]}`;
-    // ?fbid=NUMERIC
     const fbid = u.searchParams.get("fbid");
     if (fbid && /^\d+$/.test(fbid)) return fbid;
     return null;
@@ -226,7 +222,7 @@ async function resolveViaGraphLookup(linkOrPfbidLike, token) {
 
 async function refineCommentTarget(id, token) {
   try {
-    if (/^\d+_\d+$/.test(id)) return id; // already actor_post style
+    if (/^\d+_\d+$/.test(id)) return id;
     const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(
       id
     )}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
@@ -291,7 +287,6 @@ function classifyError(err) {
 }
 
 // -------------------- SSE state per session --------------------
-/** Map<sessionId, { running:boolean, abort:boolean, clients:Set<res> }> */
 const jobs = new Map();
 function getJob(sessionId) {
   if (!sessionId) throw new Error("sessionId required");
@@ -349,7 +344,6 @@ app.get("/events", async (req, res) => {
 
   job.clients.add(res);
 
-  // named events: session, user
   res.write(`event: session\n`);
   res.write(`data: ${sessionId}\n\n`);
 
@@ -371,7 +365,7 @@ app.get("/events", async (req, res) => {
 });
 
 // -------------------- Admin auth (simple user/pass + JWT) --------------------
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123"; // CHANGE in production
+const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "Bullet";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "00000";
 
@@ -398,13 +392,10 @@ function requireAdmin(req, res, next) {
 
 // -------------------- Admin protected APIs --------------------
 app.get("/admin/users", requireAdmin, async (_req, res) => {
-  const list = await User.find({})
-    .sort({ updatedAt: -1 })
-    .lean();
+  const list = await User.find({}).sort({ updatedAt: -1 }).lean();
   res.json({ ok: true, users: list });
 });
 
-// Approve (optional expiry; if absent => lifetime)
 app.post("/admin/approve", requireAdmin, async (req, res) => {
   const { username, expiry } = req.body || {};
   const user = await setUser(username, {
@@ -456,7 +447,6 @@ function base58Decode(str) {
   return num.toString();
 }
 function pfbidToPostId(pfbid) {
-  // best-effort numeric tail from pfbid
   let clean = String(pfbid).replace(/^pfbid/i, "").replace(/[_-]/g, "");
   const decoded = base58Decode(clean);
   return decoded.slice(-16);
@@ -708,7 +698,6 @@ app.post("/start", async (req, res) => {
 
       sseLine(sessionId, "info", `Delay: ${delayMs / 1000}s, Limit: ${maxCount || "∞"}`);
 
-      // main loop (round-robin over tokens, comments, posts)
       let count = 0;
       let i = 0;
 
