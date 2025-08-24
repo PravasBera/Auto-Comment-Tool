@@ -43,6 +43,15 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}, null, 2), "utf-8");
 
+function loadUsers() {
+  if (!fs.existsSync(USERS_DB)) return {};
+  return JSON.parse(fs.readFileSync(USERS_DB, "utf8"));
+}
+
+function saveUsers(users) {
+  fs.writeFileSync(USERS_DB, JSON.stringify(users, null, 2));
+}
+
 app.use(express.static(PUBLIC_DIR));
 
 // index.html
@@ -363,7 +372,7 @@ app.get("/admin/users", requireAdmin, (_req, res) => {
   res.json({ ok: true, users: list });
 });
 
-// Approve (optional expiry; if absent → lifetime)
+// Approve (optional expiry; if absent => lifetime)
 app.post("/admin/approve", requireAdmin, (req, res) => {
   const { username, expiry } = req.body || {};
   const user = setUser(username, {
@@ -373,6 +382,9 @@ app.post("/admin/approve", requireAdmin, (req, res) => {
     expiry: expiry ? Date.parse(expiry) || null : null,
   });
   if (!user) return res.json({ ok: false, message: "User not found" });
+
+  saveUsers(loadUsers()); // ✅ এখানে json এ সেভ হবে
+
   res.json({ ok: true, user });
 });
 
@@ -380,6 +392,9 @@ app.post("/admin/block", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const user = setUser(username, { status: "blocked", blocked: true });
   if (!user) return res.json({ ok: false, message: "User not found" });
+
+  saveUsers(loadUsers()); // ✅ সেভ করো
+
   res.json({ ok: true, user });
 });
 
@@ -387,6 +402,9 @@ app.post("/admin/unblock", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const user = setUser(username, { status: "approved", blocked: false });
   if (!user) return res.json({ ok: false, message: "User not found" });
+
+  saveUsers(loadUsers()); // ✅ সেভ করো
+
   res.json({ ok: true, user });
 });
 
@@ -394,12 +412,18 @@ app.post("/admin/expire", requireAdmin, (req, res) => {
   const { username, expiry } = req.body || {};
   const user = setUser(username, { expiry: expiry ? Date.parse(expiry) || null : null });
   if (!user) return res.json({ ok: false, message: "User not found" });
+
+  saveUsers(loadUsers()); // ✅ সেভ করো
+
   res.json({ ok: true, user });
 });
 
 app.post("/admin/delete", requireAdmin, (req, res) => {
   const { username } = req.body || {};
   const ok = deleteUser(username);
+
+  saveUsers(loadUsers()); // ✅ সেভ করো
+
   res.json({ ok });
 });
 
