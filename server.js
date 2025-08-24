@@ -19,7 +19,7 @@ const path = require("path");
 const fetch = require("node-fetch"); // Node 18+ এ global fetch থাকলে এটাও কাজ করবে
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { randomUUID } = require("crypto");
+const { generateUserId } = require("crypto");
 const jwt = require("jsonwebtoken");
 
 // ===== Custom User ID Generator =====
