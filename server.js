@@ -1,15 +1,20 @@
 /**
- * Facebook Auto Comment Tool (V2.0) — Mongo Edition
- * -------------------------------------------------
+ * Facebook Auto Comment Tool (Pro) — Full Server (Mongo + Multi-Post + Packs)
+ * ---------------------------------------------------------------------------
+ * Features:
  * - Static: / -> views/index.html, /admin -> public/admin.html
  * - Cookie sid + /session + /events (SSE logs: ready, log, info, warn, error, success, summary)
- * - Multi-user store: MongoDB "users" collection (pending/approved/blocked + expiry + notes)
- * - Admin auth: /admin/login (JWT) + protected routes:
- *     /admin/users, /admin/approve, /admin/block, /admin/unblock, /admin/expire, /admin/delete
- * - Upload tokens/comments/postlinks (filesystem as before)
- * - Start/Stop job with delay/limit/shuffle
- * - FB link→commentable id resolver + /resolveLink
- * - Error classifier + per-session SSE clients
+ * - MongoDB users: pending/approved/blocked + expiry + notes
+ * - Admin (JWT): /admin/login + /admin/users + /admin/approve/block/unblock/expire/delete
+ * - Upload global token/comment/postlink (filesystem)
+ * - Manual Section: up to 4 posts, each with:
+ *      target (link or id), namesText (one per line), optional perPostTokensText,
+ *      commentPack: Bengali | Benglish | Hinglish | Mix | Default
+ * - Comment Packs (server-side files): uploads/packs/{bengali,benglish,hinglish,mix}.txt
+ * - Mix loop (token × comment × post round-robin)
+ * - Delay / Limit / Shuffle comments
+ * - FB link→commentable id resolver (+ /resolveLink)
+ * - Error classifier, graceful stop, per-session job state
  *
  * ENV:
  *   PORT=3000
@@ -42,8 +47,8 @@ const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fbtool";
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 
 // -------------------- MongoDB (Mongoose) --------------------
@@ -67,7 +72,6 @@ userSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
-
 const User = mongoose.model("User", userSchema);
 
 async function connectMongo() {
@@ -78,13 +82,15 @@ async function connectMongo() {
 }
 
 // -------------------- Paths --------------------
-const PUBLIC_DIR = path.join(__dirname, "public");
-const VIEWS_DIR = path.join(__dirname, "views");
-const UPLOAD_DIR = path.join(__dirname, "uploads");
+const ROOT = __dirname;
+const PUBLIC_DIR = path.join(ROOT, "public");
+const VIEWS_DIR = path.join(ROOT, "views");
+const UPLOAD_DIR = path.join(ROOT, "uploads");
+const PACKS_DIR = path.join(UPLOAD_DIR, "packs");
 
-if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-if (!fs.existsSync(VIEWS_DIR)) fs.mkdirSync(VIEWS_DIR, { recursive: true });
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+for (const dir of [PUBLIC_DIR, VIEWS_DIR, UPLOAD_DIR, PACKS_DIR]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
 app.use(express.static(PUBLIC_DIR));
 
@@ -166,7 +172,11 @@ app.use(async (req, res, next) => {
 
 // -------------------- Small utils --------------------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const cleanLines = (txt) => txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+const cleanLines = (txt) =>
+  String(txt || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
 
 // pfbid helpers
 const PFBID_RE = /^(pfbid[a-zA-Z0-9]+)$/i;
@@ -285,6 +295,25 @@ function classifyError(err) {
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
+// --------------- Name tag helpers (#First_Last) ----------------
+function toHashTagName(raw) {
+  if (!raw) return "";
+  const pieces = String(raw)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((s) => s.replace(/[^A-Za-z0-9]/g, ""));
+  if (!pieces.length) return "";
+  if (pieces.length === 1) return `#${pieces[0]}`;
+  return `#${pieces[0]}_${pieces.slice(1).join("_")}`;
+}
+function buildCommentWithNames(baseComment, namesList) {
+  // If names provided, prepend ALL names (space separated). Else just return base.
+  if (!namesList || !namesList.length) return baseComment;
+  const tags = namesList.map(toHashTagName).filter(Boolean).join(" ");
+  return `${tags} ${baseComment}`.trim();
+}
+
 // -------------------- SSE state per session --------------------
 const jobs = new Map();
 function getJob(sessionId) {
@@ -313,7 +342,12 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/session", async (req, res) => {
   const sid = req.sessionId;
   const u = await User.findOne({ sessionId: sid }).lean();
-  res.json({ id: sid, status: u?.status || "pending", expiry: u?.expiry || null, blocked: u?.blocked || false });
+  res.json({
+    id: sid,
+    status: u?.status || "pending",
+    expiry: u?.expiry || null,
+    blocked: u?.blocked || false,
+  });
 });
 
 app.get("/whoami", async (req, res) => {
@@ -323,7 +357,7 @@ app.get("/whoami", async (req, res) => {
 
 // -------------------- SSE endpoint --------------------
 app.get("/events", async (req, res) => {
-  let sessionId = req.query.sessionId || req.sessionId || randomUUID();
+  let sessionId = req.query.sessionId || req.sessionId || generateUserId();
   if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
     res.cookie("sid", sessionId, {
       httpOnly: false,
@@ -363,7 +397,7 @@ app.get("/events", async (req, res) => {
   });
 });
 
-// -------------------- Admin auth (simple user/pass + JWT) --------------------
+// -------------------- Admin auth (JWT) --------------------
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "Bullet";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "00000";
@@ -551,6 +585,23 @@ app.post("/stop", (req, res) => {
   res.json({ ok: true, message: "No active job" });
 });
 
+// --------- Comment pack loader ----------
+function loadPackComments(name) {
+  const map = {
+    bengali: "bengali.txt",
+    benglish: "benglish.txt",
+    hinglish: "hinglish.txt",
+    mix: "mix.txt",
+  };
+  const key = String(name || "").toLowerCase();
+  const file = map[key];
+  if (!file) return null;
+  const full = path.join(PACKS_DIR, file);
+  if (!fs.existsSync(full)) return null;
+  return cleanLines(fs.readFileSync(full, "utf-8"));
+}
+
+// -------------------- Start job (Manual + Upload Hybrid) --------------------
 app.post("/start", async (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
@@ -567,15 +618,13 @@ app.post("/start", async (req, res) => {
     return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
   }
 
+  // New manual payload
   const {
-    postId = "",
-    link1 = "",
-    link2 = "",
-    link3 = "",
+    posts = [], // up to 4
     delay = "5",
     limit = "0",
     useShuffle = "false",
-  } = req.body;
+  } = req.body || {};
 
   res.json({ ok: true, message: "Started" });
 
@@ -586,66 +635,81 @@ app.post("/start", async (req, res) => {
 
       sseLine(sessionId, "info", "Job started");
 
+      // Global files
       const pToken = path.join(UPLOAD_DIR, "token.txt");
       const pCmt = path.join(UPLOAD_DIR, "comment.txt");
       const pLinks = path.join(UPLOAD_DIR, "postlink.txt");
 
       if (!fs.existsSync(pToken)) {
-        sseLine(sessionId, "error", "token.txt missing. Upload first.");
-        return;
+        sseLine(sessionId, "warn", "token.txt missing (will rely on per-post tokens if provided)");
       }
       if (!fs.existsSync(pCmt)) {
-        sseLine(sessionId, "error", "comment.txt missing. Upload first.");
+        sseLine(sessionId, "warn", "comment.txt missing (use a pack or manual)");
+      }
+
+      const globalTokens = fs.existsSync(pToken) ? cleanLines(fs.readFileSync(pToken, "utf-8")) : [];
+      const globalComments = fs.existsSync(pCmt) ? cleanLines(fs.readFileSync(pCmt, "utf-8")) : [];
+      const fileLinks = fs.existsSync(pLinks) ? cleanLines(fs.readFileSync(pLinks, "utf-8")) : [];
+
+      // Build targets
+      // Manual posts (max 4), plus any links from postlink.txt if manual empty.
+      let manualTargets = Array.isArray(posts) ? posts.slice(0, 4) : [];
+      if (!manualTargets.length && fileLinks.length) {
+        manualTargets = fileLinks.map((lnk) => ({
+          target: lnk,
+          namesText: "",
+          perPostTokensText: "",
+          commentPack: "Default",
+        }));
+      }
+
+      if (!manualTargets.length) {
+        sseLine(sessionId, "error", "No posts provided (manual or postlink.txt).");
         return;
       }
 
-      let tokens = cleanLines(fs.readFileSync(pToken, "utf-8"));
-      let comments = cleanLines(fs.readFileSync(pCmt, "utf-8"));
-      let manual = [postId, link1, link2, link3].filter(Boolean);
-      let filelnk = fs.existsSync(pLinks) ? cleanLines(fs.readFileSync(pLinks, "utf-8")) : [];
-      let inputs = [...manual, ...filelnk];
+      // Resolve account names for all tokens we might use (global + per-post unique)
+      const tokenSet = new Set(globalTokens);
+      for (const p of manualTargets) {
+        const lines = cleanLines(p?.perPostTokensText || "");
+        for (const t of lines) tokenSet.add(t);
+      }
+      const allTokens = Array.from(tokenSet).filter(Boolean);
 
-      if (!tokens.length) {
-        sseLine(sessionId, "error", "No tokens in token.txt");
-        return;
-      }
-      if (!comments.length) {
-        sseLine(sessionId, "error", "No comments in comment.txt");
-        return;
-      }
-      if (!inputs.length) {
-        sseLine(sessionId, "error", "No Post ID/Link provided (form or postlink.txt)");
+      if (!allTokens.length) {
+        sseLine(sessionId, "error", "No tokens (global token.txt or per-post tokens) supplied.");
         return;
       }
 
-      // Resolve account names
-      sseLine(sessionId, "info", `Resolving account names for ${tokens.length} token(s)...`);
+      sseLine(sessionId, "info", `Resolving account names for ${allTokens.length} token(s)...`);
       const tokenName = {};
-      for (let i = 0; i < tokens.length; i++) {
+      for (let i = 0; i < allTokens.length; i++) {
         if (job.abort) {
           sseLine(sessionId, "warn", "Aborted while resolving names.");
           return;
         }
+        const t = allTokens[i];
         try {
-          tokenName[tokens[i]] = await getAccountName(tokens[i]);
+          tokenName[t] = await getAccountName(t);
         } catch {
-          tokenName[tokens[i]] = `Account#${i + 1}`;
+          tokenName[t] = `Account#${i + 1}`;
         }
         await sleep(120);
       }
 
       // Resolve links → final comment ids
-      sseLine(sessionId, "info", `Resolving ${inputs.length} post link/id(s)...`);
-      const resolvedPosts = [];
-      const wrongLinks = [];
-      const resolverToken = tokens[0];
+      // Use first available token for resolver
+      const resolverToken = allTokens[0];
 
-      for (const raw of inputs) {
+      sseLine(sessionId, "info", `Resolving ${manualTargets.length} target(s)...`);
+      const resolvedTargets = [];
+      for (const p of manualTargets) {
         if (job.abort) {
-          sseLine(sessionId, "warn", "Aborted while resolving posts.");
+          sseLine(sessionId, "warn", "Aborted while resolving targets.");
           return;
         }
-
+        const raw = (p?.target || "").trim();
+        if (!raw) continue;
         let finalId = null;
         const quick = tryExtractGraphPostId(raw);
         if (quick) {
@@ -654,30 +718,54 @@ app.post("/start", async (req, res) => {
           const via = await resolveViaGraphLookup(raw, resolverToken);
           if (via) finalId = await refineCommentTarget(via, resolverToken);
         }
-
         if (finalId) {
-          resolvedPosts.push({ raw, id: finalId });
-          sseLine(sessionId, "info", `Resolved: ${raw} → ${finalId}`);
+          // Prepare names list
+          const namesList = cleanLines(p?.namesText || "");
+          // Prepare comments for this post (pack or global)
+          let packKey = String(p?.commentPack || "Default").toLowerCase();
+          let postComments = null;
+          if (packKey !== "default") {
+            postComments = loadPackComments(packKey);
+          }
+          if (!postComments || !postComments.length) {
+            postComments = [...globalComments];
+          }
+          // Prepare token list for this post (per-post tokens or global)
+          const perPostTokens = cleanLines(p?.perPostTokensText || "");
+          const usableTokens = perPostTokens.length ? perPostTokens : [...globalTokens];
+
+          resolvedTargets.push({
+            raw,
+            id: finalId,
+            namesList,
+            comments: postComments,
+            tokens: usableTokens,
+          });
+
+          sseLine(
+            sessionId,
+            "info",
+            `Resolved: ${raw} → ${finalId} | names:${namesList.length} | comments:${postComments.length} | tokens:${usableTokens.length}`
+          );
         } else {
-          wrongLinks.push(raw);
           sseLine(sessionId, "warn", `Unresolved link: ${raw}`);
         }
         await sleep(100);
       }
 
-      if (!resolvedPosts.length) {
+      if (!resolvedTargets.length) {
         sseLine(sessionId, "error", "Could not resolve any post IDs from inputs.");
-        if (wrongLinks.length) sseLine(sessionId, "warn", `Unresolved: ${wrongLinks.length} link(s).`);
         return;
       }
-      sseLine(sessionId, "success", `Final resolvable posts: ${resolvedPosts.length}`);
-      if (wrongLinks.length) sseLine(sessionId, "warn", `Wrong/unsupported link(s): ${wrongLinks.length}`);
 
+      // Shuffle per post comments if asked
       const doShuffle = String(useShuffle) === "true";
-      if (doShuffle) {
-        for (let i = comments.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [comments[i], comments[j]] = [comments[j], comments[i]];
+      for (const tgt of resolvedTargets) {
+        if (doShuffle && tgt.comments.length > 1) {
+          for (let i = tgt.comments.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [tgt.comments[i], tgt.comments[j]] = [tgt.comments[j], tgt.comments[i]];
+          }
         }
       }
 
@@ -695,53 +783,97 @@ app.post("/start", async (req, res) => {
         UNKNOWN: 0,
       };
 
-      sseLine(sessionId, "info", `Delay: ${delayMs / 1000}s, Limit: ${maxCount || "∞"}`);
+      sseLine(
+        sessionId,
+        "success",
+        `Ready: posts=${resolvedTargets.length}, delay=${delayMs / 1000}s, limit=${
+          maxCount || "∞"
+        }`
+      );
 
-      let count = 0;
-      let i = 0;
+      // ---------- MIX LOOP ----------
+      // Round robins: post index, token index per post, comment index per post, name index per post.
+      const postCount = resolvedTargets.length;
+      const state = resolvedTargets.map((t) => ({
+        tokenIndex: 0,
+        commentIndex: 0,
+        nameIndex: 0,
+      }));
 
-      while (!job.abort && (!maxCount || count < maxCount)) {
-        const token = tokens[i % tokens.length];
-        const comment = comments[i % comments.length];
-        const post = resolvedPosts[i % resolvedPosts.length];
-        const acc = tokenName[token] || `Account#${(i % tokens.length) + 1}`;
+      let sent = 0;
+      let postIndex = 0;
+
+      while (!job.abort && (!maxCount || sent < maxCount)) {
+        const tgt = resolvedTargets[postIndex % postCount];
+        const st = state[postIndex % postCount];
+
+        if (!tgt.tokens.length) {
+          sseLine(sessionId, "warn", `Skipped: no tokens for post ${tgt.id}`);
+          // move to next post
+          postIndex++;
+          continue;
+        }
+        if (!tgt.comments.length) {
+          sseLine(sessionId, "warn", `Skipped: no comments for post ${tgt.id}`);
+          postIndex++;
+          continue;
+        }
+
+        const token = tgt.tokens[st.tokenIndex % tgt.tokens.length];
+        const commentBase = tgt.comments[st.commentIndex % tgt.comments.length];
+
+        // Build names for this turn (if any)
+        let namesSlice = [];
+        if (tgt.namesList.length) {
+          // 1 name per comment step; you can change to multiple if you want
+          namesSlice = [tgt.namesList[st.nameIndex % tgt.namesList.length]];
+        }
+
+        const message = buildCommentWithNames(commentBase, namesSlice);
 
         try {
-          const out = await postComment({ token, postId: post.id, message: comment });
+          const out = await postComment({ token, postId: tgt.id, message });
           okCount++;
-          count++;
-          sseLine(sessionId, "log", `✔ ${acc} → "${comment}" on ${post.id}`, {
-            account: acc,
-            comment,
-            postId: post.id,
+          sent++;
+          sseLine(sessionId, "log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
+            account: tokenName[token] || "Account",
+            comment: message,
+            postId: tgt.id,
             resultId: out.id || null,
           });
         } catch (err) {
           failCount++;
-          count++;
+          sent++;
           const cls = classifyError(err);
           counters[cls.kind] = (counters[cls.kind] || 0) + 1;
-          sseLine(sessionId, "error", `✖ ${acc} → ${cls.human} (${post.id})`, {
-            account: acc,
-            postId: post.id,
+          sseLine(sessionId, "error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
+            account: tokenName[token] || "Account",
+            postId: tgt.id,
             errKind: cls.kind,
-            errMsg: err.message || String(err),
+            errMsg: err?.message || String(err),
           });
         }
 
+        // advance per-post indices (mix loop)
+        st.tokenIndex++;
+        st.commentIndex++;
+        st.nameIndex++;
+
+        // advance post pointer
+        postIndex++;
+
         if (delayMs > 0 && !job.abort) await sleep(delayMs);
-        i++;
       }
 
-      const sent = okCount + failCount;
       if (job.abort) sseLine(sessionId, "warn", "Job aborted by user.");
 
       sseLine(sessionId, "summary", "Run finished", {
-        sent,
+        sent: okCount + failCount,
         ok: okCount,
         failed: failCount,
         counters,
-        message: "token expiry / id locked / wrong link / action blocked — all classified above",
+        message:
+          "token expiry / id locked / wrong link / action blocked — classified above (per SSE).",
       });
     } catch (e) {
       sseLine(sessionId, "error", `Fatal: ${e.message || e}`);
