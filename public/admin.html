@@ -241,7 +241,7 @@
     async function loadUsers() {
   setDash("...", "Loading...");
   try {
-    const res = await fetch("/admin/users");
+    const res = await api("/admin/users");
     const data = await res.json();
 
     if (data.ok && Array.isArray(data.users)) {
