@@ -22,6 +22,17 @@ const cookieParser = require("cookie-parser");
 const { randomUUID } = require("crypto");
 const jwt = require("jsonwebtoken");
 
+// ===== Custom User ID Generator =====
+function generateUserId() {
+  const words = [
+    "ALPHA", "BETA", "GAMMA", "DELTA", "OMEGA",
+    "PHOENIX", "DRAGON", "TIGER", "EAGLE", "LION",
+    "KING", "QUEEN", "STAR", "MOON", "NOVA"
+  ];
+  const randomWord = words[Math.floor(Math.random() * words.length)];
+  return "USER-" + randomWord + "-" + Math.floor(Math.random() * 1000);
+}
+
 // -------------------- App setup --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -125,13 +136,14 @@ function isUserAllowed(u) {
 app.use((req, res, next) => {
   let sid = req.cookies?.sid;
   if (!sid) {
-    sid = randomUUID();
+    if (!sid) {
+    sid = generateUserId();   // custom ID generator
     res.cookie("sid", sid, {
-      httpOnly: false,
-      maxAge: 180 * 24 * 60 * 60 * 1000,
-      sameSite: "lax",
+        httpOnly: false,
+        maxAge: 180 * 24 * 60 * 60 * 1000,
+        sameSite: "lax",
     });
-  }
+}
   req.sessionId = sid;
   ensureUser(sid);
   next();
