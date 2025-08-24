@@ -83,7 +83,7 @@ document.getElementById("startForm")?.addEventListener("submit", async (e) => {
   });
 
   payload["shuffle"] = formData.get("useShuffle") ? true : false;
-  payload["commentCategory"] = formData.get("commentCategory") || "";
+  payload["commentSet"] = formData.get("commentSet") || "";
 
   try {
     const res = await fetch("/start", {
