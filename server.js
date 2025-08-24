@@ -28,7 +28,6 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
-const { randomUUID } = require("crypto");
 
 // ===== Custom User ID Generator =====
 function generateUserId() {
