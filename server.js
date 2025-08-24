@@ -1,5 +1,5 @@
 /**
- * Facebook Auto Comment Tool (Pro)
+ * Facebook Auto Comment Tool (V2.0)
  * --------------------------------
  * - Static: / -> views/index.html, /admin -> public/admin.html
  * - Cookie sid + /session + /events (SSE logs: ready, log, info, warn, error, success, summary)
@@ -135,7 +135,6 @@ function isUserAllowed(u) {
 app.use((req, res, next) => {
   let sid = req.cookies?.sid;
   if (!sid) {
-    if (!sid) {
     sid = generateUserId();   // custom ID generator
     res.cookie("sid", sid, {
         httpOnly: false,
