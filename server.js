@@ -49,17 +49,17 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 if (!fs.existsSync(USERS_DB)) fs.writeFileSync(USERS_DB, JSON.stringify({}, null, 2), "utf-8");
 
+// force root-level users.json
+const USERS_FILE = path.join(process.cwd(), "users.json");
+
 function loadUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_DB, "utf-8"));
-  } catch {
-    return {};
-  }
+  if (!fs.existsSync(USERS_FILE)) return {};
+  return JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
 }
 
-function saveUsers(db) {
-  fs.writeFileSync(USERS_DB, JSON.stringify(db, null, 2), "utf-8");
-  console.log("✅ Users data saved to", USERS_DB, "at", new Date().toLocaleString());
+function saveUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  console.log("✅ Users saved at", USERS_FILE);
 }
 
 app.use(express.static(PUBLIC_DIR));
