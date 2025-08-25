@@ -196,22 +196,22 @@ function validateMixLoopInputs(payload) {
 }
 
 // ---------------------------
-// On Page Load (UserID fetch)
+// On Page Load (Session fetch)
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   try {
-    const res = await fetch("/userid");
+    const res = await fetch("/session");   // 🔥 "/userid" → "/session"
     const data = await res.json();
-    if (data.userId) {
-      document.getElementById("userIdBox").textContent = data.userId;
-      addLog("success", "✅ UserID loaded successfully.");
+    if (data.id) {
+      document.getElementById("userIdBox").textContent = data.id;
+      addLog("success", "✅ Session ID loaded successfully.");
     } else {
-      document.getElementById("userIdBox").textContent = "Error loading UserID";
-      addWarning("error", "❌ Failed to fetch UserID.");
+      document.getElementById("userIdBox").textContent = "Error loading Session ID";
+      addWarning("error", "❌ Failed to fetch Session ID.");
     }
   } catch (err) {
     document.getElementById("userIdBox").textContent = "Network error";
-    addWarning("error", "❌ UserID fetch error: " + err.message);
+    addWarning("error", "❌ Session fetch error: " + err.message);
   }
 });
 
