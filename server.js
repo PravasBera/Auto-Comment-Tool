@@ -526,11 +526,13 @@ app.post(
   upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
-    { name: "postlinks", maxCount: 1 },
+    { name: "postLinks", maxCount: 1 },
   ]),
   async (req, res) => {
-    const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId || null;
-    if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+    const sessionId = req.query.sessionId || req.body.sessionId || null;
+    if (!sessionId) {
+      return res.status(400).json({ ok: false, message: "sessionId required" });
+    }
 
     const user = await User.findOne({ sessionId }).lean();
     const allowed = isUserAllowed(user);
@@ -540,51 +542,79 @@ app.post(
     }
 
     try {
-      if (req.files?.tokens?.[0])
+      // save tokens
+      if (req.files?.tokens?.[0]) {
         fs.renameSync(req.files.tokens[0].path, path.join(UPLOAD_DIR, "token.txt"));
-      if (req.files?.comments?.[0])
+      }
+      // save comments
+      if (req.files?.comments?.[0]) {
         fs.renameSync(req.files.comments[0].path, path.join(UPLOAD_DIR, "comment.txt"));
-      if (req.files?.postlinks?.[0])
-        fs.renameSync(req.files.postlinks[0].path, path.join(UPLOAD_DIR, "postlink.txt"));
+      }
+      // save postLinks
+      if (req.files?.postLinks?.[0]) {
+        fs.renameSync(req.files.postLinks[0].path, path.join(UPLOAD_DIR, "postlink.txt"));
+      }
+      // save uploadNames (textarea input, not file)
+      const { uploadNames = "" } = req.body;
+      if (uploadNames.trim()) {
+        fs.writeFileSync(path.join(UPLOAD_DIR, "uploadNames.txt"), uploadNames, "utf-8");
+      }
 
+      // count files
       const tCount = fs.existsSync(path.join(UPLOAD_DIR, "token.txt"))
-        ? cleanLines(fs.readFileSync(path.join(UPLOAD_DIR, "token.txt"), "utf-8")).length
-        : 0;
-      const cCount = fs.existsSync(path.join(UPLOAD_DIR, "comment.txt"))
-        ? cleanLines(fs.readFileSync(path.join(UPLOAD_DIR, "comment.txt"), "utf-8")).length
-        : 0;
-      const pCount = fs.existsSync(path.join(UPLOAD_DIR, "postlink.txt"))
-        ? cleanLines(fs.readFileSync(path.join(UPLOAD_DIR, "postlink.txt"), "utf-8")).length
+        ? fs.readFileSync(path.join(UPLOAD_DIR, "token.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
         : 0;
 
+      const cCount = fs.existsSync(path.join(UPLOAD_DIR, "comment.txt"))
+        ? fs.readFileSync(path.join(UPLOAD_DIR, "comment.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+        : 0;
+
+      const pCount = fs.existsSync(path.join(UPLOAD_DIR, "postlink.txt"))
+        ? fs.readFileSync(path.join(UPLOAD_DIR, "postlink.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+        : 0;
+
+      const nCount = fs.existsSync(path.join(UPLOAD_DIR, "uploadNames.txt"))
+        ? fs.readFileSync(path.join(UPLOAD_DIR, "uploadNames.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+        : 0;
+
+      // log + response
       sseLine(
         sessionId,
         "info",
-        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount})`
+        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`
       );
-      res.json({ ok: true, success: true, tokens: tCount, comments: cCount, postlinks: pCount, names: 0 });
+
+      res.json({
+        ok: true,
+        success: true,
+        tokens: tCount,
+        comments: cCount,
+        postlinks: pCount,
+        names: nCount,
+      });
     } catch (e) {
       sseLine(sessionId, "error", `Upload failed: ${e.message}`);
-      res.status(500).json({ ok: false, message: "Upload failed", error: e.message });
+      res.status(500).json({ ok: false, message: "upload failed", error: e.message });
     }
   }
 );
 
-// -------------------- Stop/ job --------------------
+// ---------------- Stop job ----------------
 app.post("/stop", (req, res) => {
-  const sessionId = req.body?.sessionId || req.sessionId || null;
+  const sessionId = req.body?.sessionId || req.query?.sessionId || null;
   if (!sessionId) {
     return res.status(400).json({ success: false, message: "sessionId required" });
   }
 
   const job = getJob(sessionId);
-  if (job.running) {
+  if (job && job.running) {
     job.abort = true;
+    job.running = false;
     sseLine(sessionId, "warn", "Stop requested by user");
-    return res.json({ success: true, message: "Stopping..." });
+    return res.json({ success: true, message: "Job stopping..." });
   }
 
-  res.json({ success: false, message: "No active job" });
+  return res.json({ success: false, message: "No active job" });
 });
 
 // --------- Comment pack loader ----------
