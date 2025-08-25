@@ -18,12 +18,11 @@
  *
  * ENV:
  *   PORT=3000
- *   MONGO_URI=mongodb://127.0.0.1:27017/fbtool
- *   JWT_SECRET=change_me
- *   ADMIN_USERNAME=Bullet
- *   ADMIN_PASSWORD=00000
+ *   const MONGO_URI = process.env.MONGO_URI;
+ *   JWT_SECRET=change_m
  */
 
+require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -44,7 +43,11 @@ function generateUserId() {
 // -------------------- App setup --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fbtool";
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error("❌ MONGO_URI missing in .env");
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
