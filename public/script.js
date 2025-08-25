@@ -116,6 +116,19 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   addLog("info", "🚀 Sending start request…");
 
   try {
+    // collect manual posts
+    const posts = [];
+    document.querySelectorAll(".manual-post").forEach((row) => {
+      const target = row.querySelector(".target")?.value.trim();
+      const namesText = row.querySelector(".names")?.value.trim();
+      const perPostTokensText = row.querySelector(".tokens")?.value.trim();
+      const commentPack = row.querySelector(".comments")?.value.trim();
+      if (target && commentPack) {
+        posts.push({ target, namesText, perPostTokensText, commentPack });
+      }
+    });
+
+    // একবারই fetch কল করবে
     const res = await fetch("/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -125,30 +138,10 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         limit,
         shuffle,
         sessionId: window.sessionId || null,
-      // collect manual posts
-const posts = [];
-document.querySelectorAll(".manual-post").forEach((row) => {
-  const target = row.querySelector(".target")?.value.trim();
-  const namesText = row.querySelector(".names")?.value.trim();
-  const perPostTokensText = row.querySelector(".tokens")?.value.trim();
-  const commentPack = row.querySelector(".comments")?.value.trim();
-  if (target && commentPack) {
-    posts.push({ target, namesText, perPostTokensText, commentPack });
-  }
-});
+        posts, // ✅ manual posts server এ যাবে
+      }),
+    });
 
-const res = await fetch("/start", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  credentials: "include",
-  body: JSON.stringify({
-    delay,
-    limit,
-    shuffle,
-    sessionId: window.sessionId || null,
-    posts, // ✅ এখন manual posts server এ যাবে
-  }),
-});
     const data = await res.json();
     if (data.ok) {
       addLog("success", "✅ Commenting started.");
