@@ -1,5 +1,5 @@
 // ===============================
-// Facebook Auto Comment Tool v2.0
+// Facebook Auto Comment Tool Pro
 // Frontend Script (Client-Side)
 // ===============================
 
@@ -51,10 +51,10 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
       body: formData,
     });
     const data = await res.json();
-    if (data.success) {
+    if (data.ok) {
       addLog("success", "✅ Files uploaded successfully.");
     } else {
-      addWarning("error", "❌ Upload failed: " + data.message);
+      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
     addWarning("error", "❌ Upload error: " + err.message);
