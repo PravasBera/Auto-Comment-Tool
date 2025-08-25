@@ -67,7 +67,15 @@ async function loadSession() {
 document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
+
+  // sessionId থাকলে সেটাও পাঠানো হবে
   if (window.sessionId) formData.append("sessionId", window.sessionId);
+
+  // NameBox ভ্যালু collect
+  const nameBox = document.getElementById("nameBox")?.value.trim();
+  if (nameBox) {
+    formData.append("name", nameBox);
+  }
 
   try {
     addLog("info", "⏳ Uploading files…");
@@ -77,10 +85,18 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
       credentials: "include",
     });
     const data = await res.json();
+
     if (data.ok) {
-      addLog("success", `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postlinks || 0}).`);
+      addLog(
+        "success",
+        `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postlinks || 0}, name:${data.name || "N/A"}).`
+      );
     } else {
-      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
+      addWarning(
+        "error",
+        "❌ Upload failed: " +
+          (data.message || data.error || "Unknown")
+      );
     }
   } catch (err) {
     addWarning("error", "❌ Upload error: " + err.message);
