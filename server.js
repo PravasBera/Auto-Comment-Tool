@@ -643,71 +643,164 @@ function loadPackComments(name) {
 }
 
 // -------------------- Start job (Manual + Upload Hybrid) --------------------
+// --------------------- Start job (Manual + Upload Hybrid) ---------------------
 app.post("/start", async (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+  if (!sessionId) {
+    return res.status(400).json({ ok: false, message: "sessionId required" });
+  }
 
+  // validate user
   const user = await User.findOne({ sessionId }).lean();
   const allowed = isUserAllowed(user);
   if (!allowed.ok) {
     sseLine(sessionId, "error", `Access denied: ${allowed.reason}`);
-    return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
+    return res
+      .status(403)
+      .json({ ok: false, message: "Not allowed", reason: allowed.reason });
   }
 
+  // only one job per session
   const job = getJob(sessionId);
   if (job.running) {
-    return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
+    return res
+      .status(409)
+      .json({ ok: false, message: "Another job is running. Stop it first." });
   }
 
-  // New manual payload
-  const {
-  posts = [],
-  delay = req.body.delay || "20",
-  limit = req.body.limit || "0",
-  useShuffle = req.body.shuffle || "false",
-} = req.body || {};
+  // payload
+  const posts = Array.isArray(req.body.posts) ? req.body.posts.slice(0, 4) : [];
+  const delay = req.body.delay || "20";
+  const limit = req.body.limit || "0";
+  const useShuffle = req.body.shuffle || "false";
 
   res.json({ ok: true, message: "Started" });
 
+  // ---------------- async job run ----------------
   (async () => {
     try {
       job.running = true;
       job.abort = false;
-
       sseLine(sessionId, "info", "Job started");
 
-      // Global files
+      // global files (inside user sessionDir)
       const pToken = path.join(UPLOAD_DIR, "token.txt");
       const pCmt = path.join(UPLOAD_DIR, "comment.txt");
       const pLinks = path.join(UPLOAD_DIR, "postlink.txt");
 
       if (!fs.existsSync(pToken)) {
-        sseLine(sessionId, "warn", "token.txt missing (will rely on per-post tokens if provided)");
+        sseLine(
+          sessionId,
+          "warn",
+          "token.txt missing (will rely on per-post tokens if provided)"
+        );
       }
       if (!fs.existsSync(pCmt)) {
-        sseLine(sessionId, "warn", "comment.txt missing (use a pack or manual)");
+        sseLine(
+          sessionId,
+          "warn",
+          "comment.txt missing (use a pack or manual comments)"
+        );
       }
 
-      const globalTokens = fs.existsSync(pToken) ? cleanLines(fs.readFileSync(pToken, "utf-8")) : [];
-      const globalComments = fs.existsSync(pCmt) ? cleanLines(fs.readFileSync(pCmt, "utf-8")) : [];
-      const fileLinks = fs.existsSync(pLinks) ? cleanLines(fs.readFileSync(pLinks, "utf-8")) : [];
+      const globalTokens = fs.existsSync(pToken)
+        ? cleanLines(fs.readFileSync(pToken, "utf-8"))
+        : [];
+      const globalComments = fs.existsSync(pCmt)
+        ? cleanLines(fs.readFileSync(pCmt, "utf-8"))
+        : [];
+      const fileLinks = fs.existsSync(pLinks)
+        ? cleanLines(fs.readFileSync(pLinks, "utf-8"))
+        : [];
 
-      // Build targets
-      // Manual posts (max 4), plus any links from postlink.txt if manual empty.
-      let manualTargets = Array.isArray(posts) ? posts.slice(0, 4) : [];
+      // Build targets → priority manual posts → fallback fileLinks
+      let manualTargets = posts.length
+        ? posts.map((lnk) => ({
+            target: lnk,
+            namesText: "",
+            perPostTokensTxt: "",
+            commentPack: "Default",
+          }))
+        : [];
+
       if (!manualTargets.length && fileLinks.length) {
         manualTargets = fileLinks.map((lnk) => ({
           target: lnk,
           namesText: "",
-          perPostTokensText: "",
+          perPostTokensTxt: "",
           commentPack: "Default",
         }));
       }
 
       if (!manualTargets.length) {
         sseLine(sessionId, "error", "No posts provided (manual or postlink.txt).");
+        job.running = false;
         return;
       }
+
+      // resolve account names for all tokens
+      const tokenSet = new Set(globalTokens);
+      for (const p of manualTargets) {
+        if (p.perPostTokensTxt) {
+          cleanLines(p.perPostTokensTxt).forEach((tk) => tokenSet.add(tk));
+        }
+      }
+
+      // Build each target with proper comments
+      for (const target of manualTargets) {
+        if (job.abort) break;
+
+        // choose comment source
+        let comments = [];
+        if (target.commentPack && target.commentPack !== "Default") {
+          comments = loadPackComments(target.commentPack) || [];
+        }
+        if (!comments.length && globalComments.length) {
+          comments = globalComments;
+        }
+        if (!comments.length) {
+          sseLine(
+            sessionId,
+            "error",
+            `No comments found for target: ${target.target}`
+          );
+          continue;
+        }
+
+        // shuffle if needed
+        if (useShuffle === "true") {
+          comments = shuffleArray(comments);
+        }
+
+        // apply delay + limit
+        const maxCount = limit && parseInt(limit) > 0 ? parseInt(limit) : comments.length;
+        const finalComments = comments.slice(0, maxCount);
+
+        sseLine(sessionId, "info", `Target: ${target.target}, ${finalComments.length} comments`);
+
+        // loop comments
+        for (const cmt of finalComments) {
+          if (job.abort) break;
+
+          try {
+            await sendComment(target.target, cmt, globalTokens);
+            sseLine(sessionId, "success", `Commented: ${cmt}`);
+          } catch (err) {
+            sseLine(sessionId, "error", `Failed: ${cmt} → ${err.message}`);
+          }
+
+          await new Promise((r) => setTimeout(r, parseInt(delay) * 1000));
+        }
+      }
+
+      job.running = false;
+      sseLine(sessionId, "info", "Job completed");
+    } catch (err) {
+      job.running = false;
+      sseLine(sessionId, "error", `Fatal: ${err.message}`);
+    }
+  })();
+});
 
       // Resolve account names for all tokens we might use (global + per-post unique)
       const tokenSet = new Set(globalTokens);
