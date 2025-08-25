@@ -64,44 +64,33 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 // ---------------------------
 // Manual Form Start Section
 // ---------------------------
-document.getElementById("startForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
+document.getElementById("startBtn")?.addEventListener("click", async () => {
+  const delay = parseInt(document.getElementById("delay").value) || 5;
+  const limit = parseInt(document.getElementById("limit").value) || 0;
+  const shuffle = document.getElementById("shuffle").checked;
 
-  if (isRunning) {
-    addWarning("warn", "⚠ Already running. Stop first.");
-    return;
-  }
-
-  clearLogs();
-  addLog("info", "▶ Starting Auto Comment Tool...");
-
-  const formData = new FormData(e.target);
-  const payload = {};
-
-  formData.forEach((val, key) => {
-    payload[key] = val.trim();
-  });
-
-  payload["shuffle"] = formData.get("useShuffle") ? true : false;
-  payload["commentSet"] = formData.get("commentSet") || "";
+  addLog("info", "🚀 Sending start request...");
 
   try {
     const res = await fetch("/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        delay,
+        limit,
+        shuffle,
+        sessionId: window.sessionId || null
+      }),
     });
 
     const data = await res.json();
-    if (data.success) {
-      addLog("success", "🚀 Task started successfully.");
-      startSSE();
-      isRunning = true;
+    if (data.ok) {
+      addLog("success", "✅ Commenting started.");
     } else {
-      addWarning("error", "❌ Failed to start: " + data.message);
+      addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Start error: " + err.message);
+    addWarning("error", "❌ Start request error: " + err.message);
   }
 });
 
