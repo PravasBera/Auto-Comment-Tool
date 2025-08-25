@@ -619,11 +619,11 @@ app.post("/start", async (req, res) => {
 
   // New manual payload
   const {
-    posts = [], // up to 4
-    delay = "20",
-    limit = "0",
-    useShuffle = "false",
-  } = req.body || {};
+  posts = [],
+  delay = req.body.delay || "20",
+  limit = req.body.limit || "0",
+  useShuffle = req.body.shuffle || "false",
+} = req.body || {};
 
   res.json({ ok: true, message: "Started" });
 
