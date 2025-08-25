@@ -642,7 +642,6 @@ function loadPackComments(name) {
   return cleanLines(fs.readFileSync(full, "utf-8"));
 }
 
-// -------------------- Start job (Manual + Upload Hybrid) --------------------
 // --------------------- Start job (Manual + Upload Hybrid) ---------------------
 app.post("/start", async (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
