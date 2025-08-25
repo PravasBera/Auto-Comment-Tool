@@ -103,32 +103,36 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   }
 });
 
-// ---------------------------
-//
+// -------------------------
 // Start
-//
-// ---------------------------
+// -------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
-  const delay = parseInt(document.getElementById("delay")?.value, 10) || 20;
-  const limit = parseInt(document.getElementById("limit")?.value, 10) || 0;
-  const shuffle = !!document.getElementById("shuffle")?.checked;
+  const delay = parseInt(document.getElementById("delay")?.value || "20", 10);
+  const limit = parseInt(document.getElementById("limit")?.value || "0", 10);
+  const shuffle = document.getElementById("shuffle")?.checked || false;
 
   addLog("info", "🚀 Sending start request…");
 
   try {
-    // collect manual posts
+    // Collect manual posts
     const posts = [];
     document.querySelectorAll(".manual-post").forEach((row) => {
       const target = row.querySelector(".target")?.value.trim();
       const namesText = row.querySelector(".names")?.value.trim();
-      const perPostTokensText = row.querySelector(".tokens")?.value.trim();
-      const commentPack = row.querySelector(".comments")?.value.trim();
-      if (target && commentPack) {
-        posts.push({ target, namesText, perPostTokensText, commentPack });
+      const tokensText = parseInt(row.querySelector(".tokens")?.value.trim() || "0", 10);
+      const commentsText = row.querySelector(".comments")?.value.trim();
+
+      if (target && commentsText) {
+        posts.push({
+          target: target,
+          names: namesText || "",
+          tokens: tokensText,
+          comments: commentsText || ""
+        });
       }
     });
 
-    // একবারই fetch কল করবে
+    // Server request
     const res = await fetch("/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -137,16 +141,17 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         delay,
         limit,
         shuffle,
-        sessionId: window.sessionId || null,
-        posts, // ✅ manual posts server এ যাবে
+        sessionId: window.sessionId || "",
+        posts // manual posts server এ যাবে
       }),
     });
 
     const data = await res.json();
-    if (data.ok) {
+
+    if (data.success) {
       addLog("success", "✅ Commenting started.");
       isRunning = true;
-      startSSE(); // Live logs
+      startSSE(); // Live logs চালু
     } else {
       addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
     }
