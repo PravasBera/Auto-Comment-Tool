@@ -32,9 +32,10 @@ const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 
-// ===== Custom User ID Generator =====
+// ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
 function generateUserId() {
-  const prefix = "USER-ALPHA-";
+  const prefixes = ["USER-ALPHA-", "USER-BETA-", "USER-GAMMA-", "USER-DELTA-"];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
   const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
   return prefix + randomPart;
 }
