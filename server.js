@@ -620,7 +620,7 @@ app.post("/start", async (req, res) => {
   // New manual payload
   const {
     posts = [], // up to 4
-    delay = "5",
+    delay = "20",
     limit = "0",
     useShuffle = "false",
   } = req.body || {};
