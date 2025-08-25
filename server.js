@@ -521,60 +521,69 @@ app.post("/resolveLink", async (req, res) => {
 });
 
 // -------------------- Upload (protected by user access) --------------------
+
 app.post(
   "/upload",
   upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
     { name: "postLinks", maxCount: 1 },
+    { name: "uploadNames", maxCount: 1 }
   ]),
   async (req, res) => {
-    const sessionId = req.query.sessionId || req.body.sessionId || null;
-    if (!sessionId) {
-      return res.status(400).json({ ok: false, message: "sessionId required" });
-    }
-
-    const user = await User.findOne({ sessionId }).lean();
-    const allowed = isUserAllowed(user);
-    if (!allowed.ok) {
-      sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
-      return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
-    }
-
     try {
+      const sessionId = req.query.sessionId || req.body.sessionId || null;
+      if (!sessionId) {
+        return res.status(400).json({ ok: false, message: "sessionId required" });
+      }
+
+      const user = await User.findOne({ sessionId }).lean();
+      const allowed = isUserAllowed(user);
+      if (!allowed.ok) {
+        sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
+        return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
+      }
+
+      // ✅ make session folder
+      const sessionDir = path.join(UPLOAD_DIR, sessionId);
+      if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+
       // save tokens
       if (req.files?.tokens?.[0]) {
-        fs.renameSync(req.files.tokens[0].path, path.join(UPLOAD_DIR, "token.txt"));
+        fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "token.txt"));
       }
+
       // save comments
       if (req.files?.comments?.[0]) {
-        fs.renameSync(req.files.comments[0].path, path.join(UPLOAD_DIR, "comment.txt"));
+        fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comment.txt"));
       }
-      // save postLinks
+
+      // save postlinks
       if (req.files?.postLinks?.[0]) {
-        fs.renameSync(req.files.postLinks[0].path, path.join(UPLOAD_DIR, "postlink.txt"));
+        fs.renameSync(req.files.postLinks[0].path, path.join(sessionDir, "postlink.txt"));
       }
-      // save uploadNames (textarea input, not file)
-      const { uploadNames = "" } = req.body;
+
+      // save uploadNames (textarea input)
+      const uploadNames = req.body.uploadNames || "";
       if (uploadNames.trim()) {
-        fs.writeFileSync(path.join(UPLOAD_DIR, "uploadNames.txt"), uploadNames, "utf-8");
+        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
       }
 
-      // count files
-      const tCount = fs.existsSync(path.join(UPLOAD_DIR, "token.txt"))
-        ? fs.readFileSync(path.join(UPLOAD_DIR, "token.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+      // ✅ count files inside this session only
+      const tCount = fs.existsSync(path.join(sessionDir, "token.txt"))
+        ? fs.readFileSync(path.join(sessionDir, "token.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
         : 0;
 
-      const cCount = fs.existsSync(path.join(UPLOAD_DIR, "comment.txt"))
-        ? fs.readFileSync(path.join(UPLOAD_DIR, "comment.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+      const cCount = fs.existsSync(path.join(sessionDir, "comment.txt"))
+        ? fs.readFileSync(path.join(sessionDir, "comment.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
         : 0;
 
-      const pCount = fs.existsSync(path.join(UPLOAD_DIR, "postlink.txt"))
-        ? fs.readFileSync(path.join(UPLOAD_DIR, "postlink.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+      const pCount = fs.existsSync(path.join(sessionDir, "postlink.txt"))
+        ? fs.readFileSync(path.join(sessionDir, "postlink.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
         : 0;
 
-      const nCount = fs.existsSync(path.join(UPLOAD_DIR, "uploadNames.txt"))
-        ? fs.readFileSync(path.join(UPLOAD_DIR, "uploadNames.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
+      const nCount = fs.existsSync(path.join(sessionDir, "uploadNames.txt"))
+        ? fs.readFileSync(path.join(sessionDir, "uploadNames.txt"), "utf-8").split(/\r?\n/).filter(Boolean).length
         : 0;
 
       // log + response
@@ -589,12 +598,12 @@ app.post(
         success: true,
         tokens: tCount,
         comments: cCount,
-        postlinks: pCount,
-        names: nCount,
+        postLinks: pCount,
+        names: nCount
       });
-    } catch (e) {
-      sseLine(sessionId, "error", `Upload failed: ${e.message}`);
-      res.status(500).json({ ok: false, message: "upload failed", error: e.message });
+    } catch (err) {
+      console.error("Upload failed:", err);
+      res.status(500).json({ ok: false, error: err.message });
     }
   }
 );
