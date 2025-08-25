@@ -1,19 +1,18 @@
 // ===============================
 // Facebook Auto Comment Tool Pro
-// Frontend Script (Client-Side)
+// Frontend Script (Client-Side) — FIXED
 // ===============================
 
-// Global variables
 let eventSource = null;
 let isRunning = false;
+window.sessionId = null;
 
 // ---------------------------
-// Utility Functions
+// UI Helpers
 // ---------------------------
-
-// Add log messages to Live Log
 function addLog(type, message) {
   const logBox = document.getElementById("logBox");
+  if (!logBox) return;
   const div = document.createElement("div");
   div.className = type;
   div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
@@ -21,9 +20,9 @@ function addLog(type, message) {
   logBox.scrollTop = logBox.scrollHeight;
 }
 
-// Add warning or summary messages
 function addWarning(type, message) {
   const warnBox = document.getElementById("warnBox");
+  if (!warnBox) return;
   const div = document.createElement("div");
   div.className = type;
   div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
@@ -31,28 +30,55 @@ function addWarning(type, message) {
   warnBox.scrollTop = warnBox.scrollHeight;
 }
 
-// Clear log boxes
 function clearLogs() {
-  document.getElementById("logBox").innerHTML = "";
-  document.getElementById("warnBox").innerHTML = "";
+  const logBox = document.getElementById("logBox");
+  const warnBox = document.getElementById("warnBox");
+  if (logBox) logBox.innerHTML = "";
+  if (warnBox) warnBox.innerHTML = "";
 }
 
 // ---------------------------
-// File Upload Section
+// Session bootstrap
+// ---------------------------
+async function loadSession() {
+  try {
+    const res = await fetch("/session", { credentials: "include" });
+    const data = await res.json();
+    if (data && data.id) {
+      window.sessionId = data.id;
+      const box = document.getElementById("userIdBox");
+      if (box) box.textContent = data.id;
+      addLog("success", "✅ Session ID loaded.");
+    } else {
+      throw new Error("No session id in response");
+    }
+  } catch (err) {
+    const box = document.getElementById("userIdBox");
+    if (box) box.textContent = "Session load failed";
+    addWarning("error", "❌ Failed to load session: " + err.message);
+  }
+}
+
+// ---------------------------
+//
+// File Upload
+//
 // ---------------------------
 document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
+  if (window.sessionId) formData.append("sessionId", window.sessionId);
 
   try {
-    addLog("info", "⏳ Uploading files...");
+    addLog("info", "⏳ Uploading files…");
     const res = await fetch("/upload", {
       method: "POST",
       body: formData,
+      credentials: "include",
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", "✅ Files uploaded successfully.");
+      addLog("success", `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postlinks || 0}).`);
     } else {
       addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
@@ -62,30 +88,36 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 });
 
 // ---------------------------
-// Manual Form Start Section
+//
+// Start
+//
 // ---------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
-  const delay = parseInt(document.getElementById("delay").value) || 5;
-  const limit = parseInt(document.getElementById("limit").value) || 0;
-  const shuffle = document.getElementById("shuffle").checked;
+  const delay = parseInt(document.getElementById("delay")?.value, 10) || 20;
+  const limit = parseInt(document.getElementById("limit")?.value, 10) || 0;
+  const shuffle = !!document.getElementById("shuffle")?.checked;
 
-  addLog("info", "🚀 Sending start request...");
+  addLog("info", "🚀 Sending start request…");
 
   try {
     const res = await fetch("/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         delay,
         limit,
         shuffle,
-        sessionId: window.sessionId || null
+        sessionId: window.sessionId || null,
+        // ⚠️ যদি manual posts পাঠাতে চাও, এখানে structure দাও:
+        // posts: [{ target, namesText, perPostTokensText, commentPack }]
       }),
     });
-
     const data = await res.json();
     if (data.ok) {
       addLog("success", "✅ Commenting started.");
+      isRunning = true;
+      startSSE(); // Live logs
     } else {
       addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
     }
@@ -95,23 +127,29 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
 });
 
 // ---------------------------
-// Stop Button
+//
+// Stop
+//
 // ---------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
   if (!isRunning) {
     addWarning("warn", "⚠ Nothing is running.");
     return;
   }
-
   try {
-    const res = await fetch("/stop", { method: "POST" });
+    const res = await fetch("/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ sessionId: window.sessionId || null }),
+    });
     const data = await res.json();
-    if (data.success) {
+    if (data.ok || data.success) {
       addLog("success", "🛑 Stopped successfully.");
-      stopSSE();
       isRunning = false;
+      stopSSE();
     } else {
-      addWarning("error", "❌ Stop failed: " + data.message);
+      addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
     addWarning("error", "❌ Stop error: " + err.message);
@@ -119,24 +157,59 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
 });
 
 // ---------------------------
-// SSE (Server-Sent Events) for Live Logs
+//
+// SSE (Server-Sent Events)
+//
 // ---------------------------
 function startSSE() {
   if (eventSource) eventSource.close();
 
-  eventSource = new EventSource("/events");
+  // sessionId query দিলে সার্ভার সেট করেও দেয় (cookie না থাকলেও)
+  const url = window.sessionId ? `/events?sessionId=${encodeURIComponent(window.sessionId)}` : `/events`;
+  eventSource = new EventSource(url);
 
+  // Named events from server: "session" + "user"
+  eventSource.addEventListener("session", (e) => {
+    const sid = e.data;
+    if (sid) {
+      window.sessionId = sid;
+      const box = document.getElementById("userIdBox");
+      if (box) box.textContent = sid;
+      addLog("info", "🔗 SSE session synced.");
+    }
+  });
+
+  eventSource.addEventListener("user", (e) => {
+    try {
+      const u = JSON.parse(e.data || "{}");
+      addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
+    } catch { /* ignore */ }
+  });
+
+  // Default event (our sseLine payloads)
   eventSource.onmessage = (e) => {
     try {
-      const data = JSON.parse(e.data);
-      if (data.type === "log") {
-        addLog("info", data.message);
-      } else if (data.type === "success") {
-        addLog("success", data.message);
-      } else if (data.type === "error") {
-        addWarning("error", data.message);
-      } else if (data.type === "warn") {
-        addWarning("warn", data.message);
+      // Server sends: { t, type, text, ...extra }
+      const d = JSON.parse(e.data);
+      const typ = d.type || "log";
+      const msg = (d.text || "").toString();
+
+      // route by type
+      if (typ === "ready") {
+        addLog("info", "🔗 Live log connected.");
+      } else if (typ === "log" || typ === "info") {
+        addLog("info", msg);
+      } else if (typ === "success") {
+        addLog("success", msg);
+      } else if (typ === "warn") {
+        addWarning("warn", msg);
+      } else if (typ === "error") {
+        addWarning("error", msg);
+      } else if (typ === "summary") {
+        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
+        isRunning = false; // job finished
+      } else {
+        addLog("info", msg || JSON.stringify(d));
       }
     } catch (err) {
       addWarning("error", "⚠ SSE parse error: " + err.message);
@@ -147,22 +220,21 @@ function startSSE() {
     addWarning("error", "⚠ SSE connection lost.");
     stopSSE();
   };
-
-  addLog("info", "🔗 Connected to Live Log stream.");
 }
 
 function stopSSE() {
   if (eventSource) {
     eventSource.close();
     eventSource = null;
-    addLog("info", "🔌 Disconnected from Live Log stream.");
+    addLog("info", "🔌 Live log disconnected.");
   }
 }
 
 // ---------------------------
-// Mix Loop (Frontend Validation Only)
+//
+// Validation helper (optional)
+//
 // ---------------------------
-
 function validateMixLoopInputs(payload) {
   const posts = [
     { link: payload.link1, name: payload.name1, token: payload.token1 },
@@ -170,52 +242,21 @@ function validateMixLoopInputs(payload) {
     { link: payload.link3, name: payload.name3, token: payload.token3 },
     { link: payload.link4, name: payload.name4, token: payload.token4 },
   ];
-
-  const validPosts = posts.filter(
-    (p) => p.link && p.name && p.token
-  );
-
-  if (validPosts.length === 0) {
+  const valid = posts.filter(p => p.link && p.name && p.token);
+  if (!valid.length) {
     addWarning("error", "⚠ At least one valid post+name+token required.");
     return false;
   }
-
-  addLog("info", `✅ ${validPosts.length} post(s) validated for mix loop.`);
+  addLog("info", `✅ ${valid.length} post(s) validated for mix loop.`);
   return true;
 }
 
 // ---------------------------
-// On Page Load (Session fetch)
+//
+// Page init
+//
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const res = await fetch("/session");   // 🔥 "/userid" → "/session"
-    const data = await res.json();
-    if (data.id) {
-      document.getElementById("userIdBox").textContent = data.id;
-      addLog("success", "✅ Session ID loaded successfully.");
-    } else {
-      document.getElementById("userIdBox").textContent = "Error loading Session ID";
-      addWarning("error", "❌ Failed to fetch Session ID.");
-    }
-  } catch (err) {
-    document.getElementById("userIdBox").textContent = "Network error";
-    addWarning("error", "❌ Session fetch error: " + err.message);
-  }
+  await loadSession();     // loads + shows session id
+  // SSE will be started on Start button click
 });
-
-// ---------------------------
-// Debug Helper
-// ---------------------------
-function debugPayload(payload) {
-  console.group("Payload Debug");
-  console.log("Delay:", payload.delay);
-  console.log("Limit:", payload.limit);
-  console.log("Shuffle:", payload.shuffle);
-  console.log("Comment Category:", payload.commentCategory);
-  console.log("Post1:", payload.link1, payload.name1, payload.token1);
-  console.log("Post2:", payload.link2, payload.name2, payload.token2);
-  console.log("Post3:", payload.link3, payload.name3, payload.token3);
-  console.log("Post4:", payload.link4, payload.name4, payload.token4);
-  console.groupEnd();
-}
