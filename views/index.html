@@ -29,7 +29,7 @@
     <!-- ✅ Upload Section (Global batch) -->
     <section class="card">
       <h2>Upload Files (Global)</h2>
-      <form id="uploadForm" enctype="multipart/form-data">
+      <form id="uploadForm" method="post" enctype="multipart/form-data">
         <label>Upload Tokens (token.txt)</label>
         <input type="file" name="tokens" accept=".txt" required />
 
@@ -49,7 +49,7 @@
     <!-- ✅ Manual Inputs Section -->
     <section class="card">
       <h2>Manual Inputs (Post-specific)</h2>
-      <form id="startForm">
+      <form id="startForm" method="post">
 
         <!-- Post 1–4 -->
         <div class="grid-2">
