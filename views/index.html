@@ -47,62 +47,57 @@
     </section>
 
     <!-- ✅ Manual Inputs Section -->
-    <section class="card">
-      <h2>Manual Inputs (Post-specific)</h2>
-      <form id="startForm" method="post">
+<div class="grid-2">
+  <div class="manual-block">
+    <h3>Post 1</h3>
+    <label>Post Link / ID</label>
+    <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-        <!-- Post 1–4 -->
-        <div class="grid-2">
-          <div class="manual-block">
-            <h3>Post 1</h3>
-            <label>Post Link / ID</label>
-            <input name="link1" type="text" placeholder="Paste link or ID" />
+    <label>Upload Tokens (for Post 1)</label>
+    <input type="file" name="token1" accept=".txt" />
 
-            <label>Upload Tokens (for Post 1)</label>
-            <input type="file" name="token1" accept=".txt" />
+    <label>Names (Post 1)</label>
+    <textarea name="names1" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+  </div>
 
-            <label>Names (Post 1)</label>
-            <textarea name="names1" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-          </div>
+  <div class="manual-block">
+    <h3>Post 2</h3>
+    <label>Post Link / ID</label>
+    <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-          <div class="manual-block">
-            <h3>Post 2</h3>
-            <label>Post Link / ID</label>
-            <input name="link2" type="text" placeholder="Paste link or ID" />
+    <label>Upload Tokens (for Post 2)</label>
+    <input type="file" name="token2" accept=".txt" />
 
-            <label>Upload Tokens (for Post 2)</label>
-            <input type="file" name="token2" accept=".txt" />
+    <label>Names (Post 2)</label>
+    <textarea name="names2" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+  </div>
+</div>
 
-            <label>Names (Post 2)</label>
-            <textarea name="names2" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-          </div>
-        </div>
+<div class="grid-2">
+  <div class="manual-block">
+    <h3>Post 3</h3>
+    <label>Post Link / ID</label>
+    <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-        <div class="grid-2">
-          <div class="manual-block">
-            <h3>Post 3</h3>
-            <label>Post Link / ID</label>
-            <input name="link3" type="text" placeholder="Paste link or ID" />
+    <label>Upload Tokens (for Post 3)</label>
+    <input type="file" name="token3" accept=".txt" />
 
-            <label>Upload Tokens (for Post 3)</label>
-            <input type="file" name="token3" accept=".txt" />
+    <label>Names (Post 3)</label>
+    <textarea name="names3" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+  </div>
 
-            <label>Names (Post 3)</label>
-            <textarea name="names3" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-          </div>
+  <div class="manual-block">
+    <h3>Post 4</h3>
+    <label>Post Link / ID</label>
+    <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-          <div class="manual-block">
-            <h3>Post 4</h3>
-            <label>Post Link / ID</label>
-            <input name="link4" type="text" placeholder="Paste link or ID" />
+    <label>Upload Tokens (for Post 4)</label>
+    <input type="file" name="token4" accept=".txt" />
 
-            <label>Upload Tokens (for Post 4)</label>
-            <input type="file" name="token4" accept=".txt" />
-
-            <label>Names (Post 4)</label>
-            <textarea name="names4" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-          </div>
-        </div>
+    <label>Names (Post 4)</label>
+    <textarea name="names4" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+  </div>
+</div>
 
         <!-- ✅ Comment Set Dropdown -->
         <label>Choose Comment Set (for Manual Posts)</label>
