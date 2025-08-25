@@ -160,33 +160,34 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   }
 });
 
-// ---------------------------
-//
+// -------------------------
 // Stop
-//
-// ---------------------------
+// -------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
   if (!isRunning) {
-    addWarning("warn", "⚠ Nothing is running.");
+    addWarning("warn", "⚠️ Nothing is running.");
     return;
   }
+
   try {
     const res = await fetch("/stop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ sessionId: window.sessionId || null }),
+      body: JSON.stringify({ sessionId: window.sessionId || "" }),
     });
+
     const data = await res.json();
-    if (data.ok || data.success) {
+
+    if (data.success) {
       addLog("success", "🛑 Stopped successfully.");
       isRunning = false;
-      stopSSE();
+      stopSSE(); // live log বন্ধ হবে
     } else {
       addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Stop error: " + err.message);
+    addWarning("error", "❌ Stop request error: " + err.message);
   }
 });
 
