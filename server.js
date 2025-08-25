@@ -562,7 +562,7 @@ app.post(
         "info",
         `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount})`
       );
-      res.json({ ok: true, tokens: tCount, comments: cCount, postlinks: pCount });
+      res.json({ ok: true, success: true, tokens: tCount, comments: cCount, postlinks: pCount, names: 0 });
     } catch (e) {
       sseLine(sessionId, "error", `Upload failed: ${e.message}`);
       res.status(500).json({ ok: false, message: "Upload failed", error: e.message });
@@ -570,18 +570,21 @@ app.post(
   }
 );
 
-// -------------------- Stop/Start job --------------------
+// -------------------- Stop/ job --------------------
 app.post("/stop", (req, res) => {
   const sessionId = req.body?.sessionId || req.sessionId || null;
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+  if (!sessionId) {
+    return res.status(400).json({ success: false, message: "sessionId required" });
+  }
 
   const job = getJob(sessionId);
   if (job.running) {
     job.abort = true;
     sseLine(sessionId, "warn", "Stop requested by user");
-    return res.json({ ok: true, message: "Stopping..." });
+    return res.json({ success: true, message: "Stopping..." });
   }
-  res.json({ ok: true, message: "No active job" });
+
+  res.json({ success: false, message: "No active job" });
 });
 
 // --------- Comment pack loader ----------
