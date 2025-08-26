@@ -1,64 +1,84 @@
 /* =========================================================
-   Facebook Auto Comment Tool — Colorful Dual Theme
+   Facebook Auto Comment Tool — Colorful Dual Theme (Full)
+   Requirements covered:
+   - Gradient Light/Dark themes
+   - Header one-line title + top-right toggle
+   - Centered UserID box
+   - Big Start/Stop buttons covering full row
+   - Large Live Log & Warnings boxes
+   - Delay + Limit on first row, Shuffle on next line
+   - Clean cards, forms, responsive tweaks
    ========================================================= */
 
-/* -----------------------------
-   Root Variables (Light Theme)
-------------------------------*/
+/* ---------------------------------------------------------
+   1) THEME VARIABLES — LIGHT (default)
+   --------------------------------------------------------- */
 :root {
+  /* Base */
   --bg-color: #fdfdfd;
   --text-color: #1a1a1a;
   --muted: #5f6d82;
 
-  --header-bg: linear-gradient(90deg, #2563eb, #ff7a1a);
+  /* Header (gradient, colorful) */
+  --header-bg: linear-gradient(90deg, #2563eb 0%, #7c3aed 50%, #ff7a1a 100%);
   --header-text: #ffffff;
 
+  /* Card */
   --card-bg: #ffffff;
   --card-border: #e5e7eb;
-  --card-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
 
+  /* Accents */
   --accent: #ff7a1a;
   --accent-2: #2563eb;
 
+  /* Inputs */
   --input-bg: #ffffff;
   --input-border: #cfd7e3;
   --input-focus: #2563eb;
 
+  /* Buttons (gradients) */
   --btn-primary: linear-gradient(135deg, #2563eb, #00c3ff);
   --btn-primary-hover: linear-gradient(135deg, #1e4ed8, #00a8e8);
   --btn-danger: linear-gradient(135deg, #ff4e50, #f9d423);
   --btn-danger-hover: linear-gradient(135deg, #e63946, #ffae00);
 
+  /* Logs */
   --log-bg: #1e1e2e;
   --log-text: #22c55e;
 
+  /* UserID */
   --userid-bg: linear-gradient(135deg, #eaf3ff, #ffe9d6);
   --userid-border: #febc2d;
 
-  --footer-bg: linear-gradient(90deg, #2563eb, #ff7a1a);
+  /* Footer */
+  --footer-bg: linear-gradient(90deg, #2563eb, #7c3aed, #ff7a1a);
   --footer-text: #ffffff;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 
-/* -----------------------------
-   Dark Theme Override
-------------------------------*/
+/* ---------------------------------------------------------
+   2) THEME VARIABLES — DARK (override)
+   --------------------------------------------------------- */
 body.dark {
-  --bg-color: #0f172a;
+  --bg-color: #0f172a;               /* deep navy */
   --text-color: #e2e8f0;
   --muted: #9ca3af;
 
   --header-bg: linear-gradient(90deg, #9333ea, #22d3ee);
-  --header-text: #fdfdfd;
+  --header-text: #ffffff;
 
-  --card-bg: #1e293b;
-  --card-border: #334155;
-  --card-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  --card-bg: #111827;                /* slate/near black */
+  --card-border: #1f2937;
+  --card-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
 
   --accent: #a855f7;
   --accent-2: #22d3ee;
 
-  --input-bg: #0f172a;
-  --input-border: #475569;
+  --input-bg: #0b1221;
+  --input-border: #334155;
   --input-focus: #9333ea;
 
   --btn-primary: linear-gradient(135deg, #9333ea, #3b82f6);
@@ -67,92 +87,123 @@ body.dark {
   --btn-danger-hover: linear-gradient(135deg, #e11d48, #ea580c);
 
   --log-bg: #000000;
-  --log-text: #38f9d7;
+  --log-text: #39ffb6;
 
-  --userid-bg: linear-gradient(135deg, #1e293b, #312e81);
+  --userid-bg: linear-gradient(135deg, #1f2937, #312e81);
   --userid-border: #a855f7;
 
   --footer-bg: linear-gradient(90deg, #9333ea, #22d3ee);
   --footer-text: #ffffff;
+
+  --ring: 0 0 0 3px rgba(147, 51, 234, 0.28);
 }
 
-/* -----------------------------
-   Base
-------------------------------*/
+/* ---------------------------------------------------------
+   3) BASE / TYPOGRAPHY
+   --------------------------------------------------------- */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   margin: 0;
   background: var(--bg-color);
   color: var(--text-color);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   line-height: 1.6;
-  transition: background 0.4s, color 0.4s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background .35s ease, color .35s ease;
 }
 
-/* -----------------------------
-   Header
-------------------------------*/
+/* ---------------------------------------------------------
+   4) HEADER (title one-line + toggle top-right)
+   --------------------------------------------------------- */
 .app-header {
   position: relative;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
   background: var(--header-bg);
   color: var(--header-text);
-  padding: 20px 16px;
+  padding: 22px 16px 28px;
   border-bottom: 5px solid var(--accent);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.25);
 }
 .app-header h1 {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 800;
+  white-space: nowrap;           /* keep in one line */
+  letter-spacing: .3px;
+  text-shadow: 0 2px 0 rgba(0,0,0,.18);
 }
+.app-header p { margin: 2px 0; }
+.app-header .team { margin-top: 6px; font-weight: 800; color: #ffd166; }
+
+/* Toggle container fixed in header's top-right */
 .theme-toggle {
   position: absolute;
-  top: 50%;
-  right: 20px;
-  transform: translateY(-50%);
+  top: 14px;
+  right: 16px;
+  z-index: 5;
 }
 
-/* -----------------------------
-   Theme Switch
-------------------------------*/
+/* ---------------------------------------------------------
+   5) MODERN THEME SWITCH (pill with icons)
+   HTML:
+   <div class="theme-toggle">
+     <label class="switch">
+       <input id="themeCheck" type="checkbox">
+       <span class="track"><span class="thumb">🌙</span></span>
+     </label>
+   </div>
+   --------------------------------------------------------- */
 .switch {
-  --h: 30px; --w: 65px;
+  --h: 36px;
+  --w: 76px;
   position: relative;
   display: inline-block;
-  width: var(--w); height: var(--h);
+  width: var(--w);
+  height: var(--h);
 }
 .switch input { display: none; }
 .switch .track {
-  width: 100%; height: 100%;
-  background: #9ca3af;
+  width: 100%;
+  height: 100%;
   border-radius: 999px;
+  background: linear-gradient(90deg, #a855f7, #3b82f6); /* default vibrant */
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.35),
+              0 6px 14px rgba(0,0,0,.25);
   cursor: pointer;
-  transition: .3s;
   position: relative;
+  transition: background .3s ease, box-shadow .3s ease;
 }
 .switch .thumb {
-  position: absolute; top: 3px; left: 3px;
-  width: 24px; height: 24px;
-  background: #fff;
-  border-radius: 50%;
-  transition: .3s;
-  font-size: 14px;
-  display: flex; align-items: center; justify-content: center;
-}
-.switch input:checked + .track {
-  background: linear-gradient(90deg, var(--accent-2), var(--accent));
-}
-.switch input:checked + .track .thumb {
-  left: calc(100% - 27px);
+  position: absolute;
+  top: 4px; left: 4px;
+  width: calc(var(--h) - 8px);
+  height: calc(var(--h) - 8px);
+  border-radius: 999px;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  color: #6d28d9;
+  box-shadow: 0 6px 16px rgba(0,0,0,.25);
+  transition: left .28s ease, color .28s ease, background .28s ease;
 }
 
-/* -----------------------------
-   Container / Card
-------------------------------*/
+/* When checked (switching to light), keep it colorful too */
+.switch input:checked + .track {
+  background: linear-gradient(90deg, #22d3ee, #ff7a1a);
+}
+.switch input:checked + .track .thumb {
+  left: calc(100% - (var(--h) - 8px) - 4px);
+  color: #0ea5e9;
+}
+
+/* ---------------------------------------------------------
+   6) LAYOUT
+   --------------------------------------------------------- */
 .container {
   max-width: 1100px;
   margin: 26px auto;
@@ -160,29 +211,41 @@ body {
   display: grid;
   gap: 20px;
 }
+
+/* ---------------------------------------------------------
+   7) CARDS
+   --------------------------------------------------------- */
 .card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 20px;
   box-shadow: var(--card-shadow);
-  transition: background 0.3s, box-shadow 0.3s;
+  transition: transform .2s ease, box-shadow .2s ease, background .3s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px rgba(0,0,0,.12);
 }
 .card h2 {
-  margin: 0 0 16px;
+  margin: 0 0 14px 0;
   font-size: 20px;
   color: var(--accent);
+  font-weight: 800;
 }
 
-/* -----------------------------
-   Forms & Inputs
-------------------------------*/
+/* ---------------------------------------------------------
+   8) FORMS & INPUTS
+   --------------------------------------------------------- */
 label {
   display: block;
-  margin: .5rem 0 .35rem;
+  margin: .6rem 0 .35rem;
   font-weight: 600;
 }
-input, select, textarea {
+input[type="text"],
+input[type="number"],
+select,
+textarea {
   width: 100%;
   padding: 12px 14px;
   border-radius: 10px;
@@ -190,17 +253,19 @@ input, select, textarea {
   background: var(--input-bg);
   color: var(--text-color);
   font-size: 15px;
-  transition: border 0.3s, box-shadow 0.3s;
+  transition: border .25s ease, box-shadow .25s ease, background .25s ease;
 }
+textarea { min-height: 92px; resize: vertical; }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px var(--input-focus);
+  box-shadow: var(--ring);
 }
+input[type="file"] { margin: .35rem 0 .8rem; }
 
-/* -----------------------------
-   UserID Box
-------------------------------*/
+/* ---------------------------------------------------------
+   9) USERID BOX (centered text)
+   --------------------------------------------------------- */
 #userIdBox {
   display: flex;
   align-items: center;
@@ -210,61 +275,89 @@ input:focus, select:focus, textarea:focus {
   background: var(--userid-bg);
   border: 2px dashed var(--userid-border);
   border-radius: 12px;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 20px;
-  text-align: center;
-  margin-bottom: 14px;
+  letter-spacing: .4px;
+  text-align: center;      /* keep centered on wrap */
+  margin-bottom: 12px;
 }
 
-/* -----------------------------
-   Logs
-------------------------------*/
+/* ---------------------------------------------------------
+   10) COMMENT SETTINGS GRID
+       - Delay & Limit first row (wide)
+       - Shuffle goes next line (full width)
+   --------------------------------------------------------- */
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;   /* first row: two big columns */
+  gap: 14px;
+}
+.grid-3 .chk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;             /* move to next line and span full width */
+  margin-top: 6px;
+}
+
+/* ---------------------------------------------------------
+   11) LOGS (bigger boxes)
+   --------------------------------------------------------- */
 .logs {
   background: var(--log-bg);
   color: var(--log-text);
   border-radius: 12px;
   padding: 16px;
-  min-height: 230px;
+  min-height: 280px;     /* larger as requested */
+  max-height: 460px;
   overflow: auto;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
   font-size: 14px;
-  box-shadow: inset 0 0 10px rgba(0,0,0,0.4);
+  line-height: 1.45;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
 }
 
-/* -----------------------------
-   Buttons
-------------------------------*/
+/* ---------------------------------------------------------
+   12) BUTTONS
+   --------------------------------------------------------- */
 button {
   padding: 15px 20px;
   border: 0;
   border-radius: 12px;
   background: var(--btn-primary);
-  color: #fff;
-  font-weight: 700;
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: .2px;
   cursor: pointer;
-  transition: transform .2s, box-shadow .2s, background .3s;
+  transition: transform .15s ease, filter .15s ease, box-shadow .2s ease, background .3s ease;
+  box-shadow: 0 10px 22px rgba(0,0,0,.18);
 }
 button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 14px 28px rgba(0,0,0,.22);
 }
+button:active { transform: translateY(0); }
 button.danger { background: var(--btn-danger); }
 button.danger:hover { background: var(--btn-danger-hover); }
 
-#startBtn, #stopBtn {
-  font-size: 18px;
+/* Big Start / Stop that cover the full row */
+#startBtn,
+#stopBtn {
+  font-size: 19px;
   padding: 18px;
+  border-radius: 14px;
 }
 .btn-row {
   display: flex;
   gap: 14px;
   margin-top: 14px;
 }
-.btn-row > button { flex: 1; }
+.btn-row > button { flex: 1; }   /* cover full row */
 
-/* -----------------------------
-   Footer
-------------------------------*/
+/* ---------------------------------------------------------
+   13) FOOTER
+   --------------------------------------------------------- */
 .footer {
   text-align: center;
   padding: 16px;
@@ -275,10 +368,42 @@ button.danger:hover { background: var(--btn-danger-hover); }
 }
 .footer a { color: #fff; text-decoration: underline; }
 
-/* -----------------------------
-   Responsive
-------------------------------*/
-@media (max-width: 700px) {
+/* ---------------------------------------------------------
+   14) SELECT (custom arrow)
+   --------------------------------------------------------- */
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 20px) calc(1em + 2px),
+    calc(100% - 15px) calc(1em + 2px),
+    calc(100% - 3.1em) 0.5em;
+  background-size: 5px 5px, 5px 5px, 1px 1.8em;
+  background-repeat: no-repeat;
+}
+
+/* ---------------------------------------------------------
+   15) RESPONSIVE
+   --------------------------------------------------------- */
+@media (max-width: 880px) {
+  .app-header h1 { font-size: 24px; }
+}
+@media (max-width: 680px) {
+  .app-header h1 { font-size: 22px; }
+  .grid-3 { grid-template-columns: 1fr; }
   .btn-row { flex-direction: column; }
   .btn-row > button { width: 100%; }
+  .logs { min-height: 320px; }
+}
+
+/* ---------------------------------------------------------
+   16) PRINT (optional)
+   --------------------------------------------------------- */
+@media print {
+  .theme-toggle { display: none; }
+  .app-header, .footer { box-shadow: none; border: 0; }
+  .card { box-shadow: none; }
 }
