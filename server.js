@@ -626,6 +626,19 @@ app.post(
         fs.renameSync(postFile.path, path.join(sessionDir, "postlinks.txt"));
       }
 
+      const postLinksPath = path.join(sessionDir, "postlinks.txt");
+let rawLinks = fs.readFileSync(postLinksPath, "utf8");
+console.log("📂 postlinks.txt content:\n", rawLinks);
+
+let links = rawLinks
+  .split(/\r?\n/)
+  .map(l => l.trim())
+  .filter(l => l.length > 0)
+  .map(cleanPostLink)
+  .filter(l => l !== null);
+
+console.log("✅ Parsed links:", links);
+
       // ✅ names textarea (optional)
       const uploadNames = req.body.uploadNames || "";
       if (uploadNames.trim()) {
