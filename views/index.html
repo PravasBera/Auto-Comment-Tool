@@ -37,7 +37,7 @@
         <input type="file" name="comments" accept=".txt" />
 
         <label>Upload Post Links (postlinks.txt)</label>
-<input type="file" name="postlinks" accept=".txt" />
+        <input type="file" name="postlinks" accept=".txt" />
 
         <label>Names for Upload Batch (one per line)</label>
         <textarea name="uploadNames" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
@@ -46,89 +46,89 @@
       </form>
     </section>
 
-    <!-- ✅ Manual Inputs Section -->
-<div class="grid-2">
-  <div class="manual-block">
-    <h3>Post 1</h3>
-    <label>Post Link / ID</label>
-    <input name="postLinks" type="text" placeholder="Paste link or ID" />
+    <!-- ✅ Manual Post 1 -->
+    <section class="card">
+      <h2>Manual Post 1</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-    <label>Upload Tokens (for Post 1)</label>
-    <input type="file" name="token1" accept=".txt" />
+      <label>Upload Tokens (for Post 1)</label>
+      <input type="file" name="token1" accept=".txt" />
 
-    <label>Names (Post 1)</label>
-    <textarea name="names1" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-  </div>
+      <label>Names (Post 1)</label>
+      <textarea name="names1" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+    </section>
 
-  <div class="manual-block">
-    <h3>Post 2</h3>
-    <label>Post Link / ID</label>
-    <input name="postLinks" type="text" placeholder="Paste link or ID" />
+    <!-- ✅ Manual Post 2 -->
+    <section class="card">
+      <h2>Manual Post 2</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-    <label>Upload Tokens (for Post 2)</label>
-    <input type="file" name="token2" accept=".txt" />
+      <label>Upload Tokens (for Post 2)</label>
+      <input type="file" name="token2" accept=".txt" />
 
-    <label>Names (Post 2)</label>
-    <textarea name="names2" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-  </div>
-</div>
+      <label>Names (Post 2)</label>
+      <textarea name="names2" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+    </section>
 
-<div class="grid-2">
-  <div class="manual-block">
-    <h3>Post 3</h3>
-    <label>Post Link / ID</label>
-    <input name="postLinks" type="text" placeholder="Paste link or ID" />
+    <!-- ✅ Manual Post 3 -->
+    <section class="card">
+      <h2>Manual Post 3</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-    <label>Upload Tokens (for Post 3)</label>
-    <input type="file" name="token3" accept=".txt" />
+      <label>Upload Tokens (for Post 3)</label>
+      <input type="file" name="token3" accept=".txt" />
 
-    <label>Names (Post 3)</label>
-    <textarea name="names3" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-  </div>
+      <label>Names (Post 3)</label>
+      <textarea name="names3" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+    </section>
 
-  <div class="manual-block">
-    <h3>Post 4</h3>
-    <label>Post Link / ID</label>
-    <input name="postLinks" type="text" placeholder="Paste link or ID" />
+    <!-- ✅ Manual Post 4 -->
+    <section class="card">
+      <h2>Manual Post 4</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks" type="text" placeholder="Paste link or ID" />
 
-    <label>Upload Tokens (for Post 4)</label>
-    <input type="file" name="token4" accept=".txt" />
+      <label>Upload Tokens (for Post 4)</label>
+      <input type="file" name="token4" accept=".txt" />
 
-    <label>Names (Post 4)</label>
-    <textarea name="names4" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-  </div>
-</div>
+      <label>Names (Post 4)</label>
+      <textarea name="names4" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+    </section>
 
-        <!-- ✅ Comment Set Dropdown -->
-        <label>Choose Comment Set (for Manual Posts)</label>
-        <select name="commentSet">
-          <option value="">-- Default (Upload comment.txt) --</option>
-          <option value="comment1">Bengali</option>
-          <option value="comment2">Benglish</option>
-          <option value="comment3">Hinglish</option>
-          <option value="comment4">Mix</option>
-        </select>
+    <!-- ✅ Comment Set Dropdown -->
+    <section class="card">
+      <h2>Comment Settings</h2>
+      <label>Choose Comment Set (for Manual Posts)</label>
+      <select name="commentSet">
+        <option value="">-- Default (Upload comment.txt) --</option>
+        <option value="comment1">Bengali</option>
+        <option value="comment2">Benglish</option>
+        <option value="comment3">Hinglish</option>
+        <option value="comment4">Mix</option>
+      </select>
 
-        <!-- ✅ Controls -->
-        <div class="grid-3">
-          <div>
-            <label>Delay (seconds)</label>
-            <input name="delay" type="number" min="0" value="20" />
-          </div>
-          <div>
-            <label>Limit (0 = unlimited)</label>
-            <input name="limit" type="number" min="0" value="0" />
-          </div>
-          <div class="chk">
-            <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
-          </div>
+      <!-- ✅ Controls -->
+      <div class="grid-3">
+        <div>
+          <label>Delay (seconds)</label>
+          <input name="delay" type="number" min="0" value="20" />
         </div>
-
-        <div class="btn-row">
-          <button id="startBtn" type="button">▶ Start</button>
-          <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+        <div>
+          <label>Limit (0 = unlimited)</label>
+          <input name="limit" type="number" min="0" value="0" />
         </div>
-      </form>
+        <div class="chk">
+          <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="startBtn" type="button">▶ Start</button>
+        <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+      </div>
     </section>
 
     <!-- ✅ Logs -->
