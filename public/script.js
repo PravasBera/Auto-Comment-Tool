@@ -1,6 +1,7 @@
+<!-- /public/script.js -->
 // ===============================
 // Facebook Auto Comment Tool Pro
-// Frontend Script (Client-Side) — FIXED
+// Frontend Script (Client-Side) — FIXED for your index.html
 // ===============================
 
 let eventSource = null;
@@ -19,7 +20,6 @@ function addLog(type, message) {
   logBox.appendChild(div);
   logBox.scrollTop = logBox.scrollHeight;
 }
-
 function addWarning(type, message) {
   const warnBox = document.getElementById("warnBox");
   if (!warnBox) return;
@@ -29,7 +29,6 @@ function addWarning(type, message) {
   warnBox.appendChild(div);
   warnBox.scrollTop = warnBox.scrollHeight;
 }
-
 function clearLogs() {
   const logBox = document.getElementById("logBox");
   const warnBox = document.getElementById("warnBox");
@@ -49,9 +48,7 @@ async function loadSession() {
       const box = document.getElementById("userIdBox");
       if (box) box.textContent = data.id;
       addLog("success", "✅ Session ID loaded.");
-    } else {
-      throw new Error("No session id in response");
-    }
+    } else throw new Error("No session id in response");
   } catch (err) {
     const box = document.getElementById("userIdBox");
     if (box) box.textContent = "Session load failed";
@@ -60,22 +57,14 @@ async function loadSession() {
 }
 
 // ---------------------------
-//
-// File Upload
-//
+// File Upload  (matches your form field names)
 // ---------------------------
 document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
 
-  // sessionId থাকলে সেটাও পাঠানো হবে
+  // sessionId পাঠাই
   if (window.sessionId) formData.append("sessionId", window.sessionId);
-
-  // NameBox ভ্যালু collect
-  const nameBox = document.getElementById("nameBox")?.value.trim();
-  if (nameBox) {
-    formData.append("name", nameBox);
-  }
 
   try {
     addLog("info", "⏳ Uploading files…");
@@ -89,14 +78,10 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
     if (data.ok) {
       addLog(
         "success",
-        `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postlinks || 0}, name:${data.name || "N/A"}).`
+        `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postLinks || 0}, names:${data.names || 0}).`
       );
     } else {
-      addWarning(
-        "error",
-        "❌ Upload failed: " +
-          (data.message || data.error || "Unknown")
-      );
+      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
     addWarning("error", "❌ Upload error: " + err.message);
@@ -104,35 +89,39 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 });
 
 // -------------------------
-// Start
+// Start (selectors match your index.html)
 // -------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
-  const delay = parseInt(document.getElementById("delay")?.value || "20", 10);
-  const limit = parseInt(document.getElementById("limit")?.value || "0", 10);
-  const shuffle = document.getElementById("shuffle")?.checked || false;
+  const delayEl   = document.querySelector('[name="delay"]');
+  const limitEl   = document.querySelector('[name="limit"]');
+  const shuffleEl = document.querySelector('[name="useShuffle"]');
+  const packEl    = document.querySelector('[name="commentSet"]');
+
+  const delay   = parseInt(delayEl?.value || "20", 10);
+  const limit   = parseInt(limitEl?.value || "0", 10);
+  const shuffle = !!(shuffleEl?.checked);
+  const commentPack = (packEl?.value || "").trim(); // "" => Default
+
+  // Collect up to 4 manual posts (fields exactly as in index.html)
+  const posts = [];
+  for (let i = 1; i <= 4; i++) {
+    const target = document.querySelector(`[name="postLinks${i}"]`)?.value.trim();
+    const names  = document.querySelector(`[name="names${i}"]`)?.value.trim();
+    if (target) {
+      posts.push({
+        target,
+        names: names || "",
+        // server expects these keys; tokens per-post via file is not supported here
+        tokens: "",                 // keep empty -> will use session tokens.txt
+        comments: "",               // keep empty -> will use comments.txt or pack
+        commentPack: commentPack || "Default",
+      });
+    }
+  }
 
   addLog("info", "🚀 Sending start request…");
 
   try {
-    // Collect manual posts
-    const posts = [];
-    document.querySelectorAll(".manual-post").forEach((row) => {
-      const target = row.querySelector(".target")?.value.trim();
-      const namesText = row.querySelector(".names")?.value.trim();
-      const tokensText = parseInt(row.querySelector(".tokens")?.value.trim() || "0", 10);
-      const commentsText = row.querySelector(".comments")?.value.trim();
-
-      if (target && commentsText) {
-        posts.push({
-          target: target,
-          names: namesText || "",
-          tokens: tokensText,
-          comments: commentsText || ""
-        });
-      }
-    });
-
-    // Server request
     const res = await fetch("/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,16 +131,15 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         limit,
         shuffle,
         sessionId: window.sessionId || "",
-        posts // manual posts server এ যাবে
+        posts, // may be []
       }),
     });
-
     const data = await res.json();
 
-    if (data.success) {
+    if (data.ok) {
       addLog("success", "✅ Commenting started.");
       isRunning = true;
-      startSSE(); // Live logs চালু
+      startSSE();
     } else {
       addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
     }
@@ -168,7 +156,6 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     addWarning("warn", "⚠️ Nothing is running.");
     return;
   }
-
   try {
     const res = await fetch("/stop", {
       method: "POST",
@@ -176,13 +163,11 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
       credentials: "include",
       body: JSON.stringify({ sessionId: window.sessionId || "" }),
     });
-
     const data = await res.json();
-
     if (data.success) {
       addLog("success", "🛑 Stopped successfully.");
       isRunning = false;
-      stopSSE(); // live log বন্ধ হবে
+      stopSSE();
     } else {
       addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
     }
@@ -192,18 +177,13 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
 });
 
 // ---------------------------
-//
 // SSE (Server-Sent Events)
-//
 // ---------------------------
 function startSSE() {
   if (eventSource) eventSource.close();
-
-  // sessionId query দিলে সার্ভার সেট করেও দেয় (cookie না থাকলেও)
   const url = window.sessionId ? `/events?sessionId=${encodeURIComponent(window.sessionId)}` : `/events`;
   eventSource = new EventSource(url);
 
-  // Named events from server: "session" + "user"
   eventSource.addEventListener("session", (e) => {
     const sid = e.data;
     if (sid) {
@@ -218,34 +198,24 @@ function startSSE() {
     try {
       const u = JSON.parse(e.data || "{}");
       addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
-    } catch { /* ignore */ }
+    } catch {}
   });
 
-  // Default event (our sseLine payloads)
   eventSource.onmessage = (e) => {
     try {
-      // Server sends: { t, type, text, ...extra }
       const d = JSON.parse(e.data);
       const typ = d.type || "log";
       const msg = (d.text || "").toString();
 
-      // route by type
-      if (typ === "ready") {
-        addLog("info", "🔗 Live log connected.");
-      } else if (typ === "log" || typ === "info") {
-        addLog("info", msg);
-      } else if (typ === "success") {
-        addLog("success", msg);
-      } else if (typ === "warn") {
-        addWarning("warn", msg);
-      } else if (typ === "error") {
-        addWarning("error", msg);
-      } else if (typ === "summary") {
+      if (typ === "ready") addLog("info", "🔗 Live log connected.");
+      else if (typ === "log" || typ === "info") addLog("info", msg);
+      else if (typ === "success") addLog("success", msg);
+      else if (typ === "warn") addWarning("warn", msg);
+      else if (typ === "error") addWarning("error", msg);
+      else if (typ === "summary") {
         addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
-        isRunning = false; // job finished
-      } else {
-        addLog("info", msg || JSON.stringify(d));
-      }
+        isRunning = false;
+      } else addLog("info", msg || JSON.stringify(d));
     } catch (err) {
       addWarning("error", "⚠ SSE parse error: " + err.message);
     }
@@ -256,7 +226,6 @@ function startSSE() {
     stopSSE();
   };
 }
-
 function stopSSE() {
   if (eventSource) {
     eventSource.close();
@@ -266,32 +235,9 @@ function stopSSE() {
 }
 
 // ---------------------------
-//
-// Validation helper (optional)
-//
-// ---------------------------
-function validateMixLoopInputs(payload) {
-  const posts = [
-    { link: payload.link1, name: payload.name1, token: payload.token1 },
-    { link: payload.link2, name: payload.name2, token: payload.token2 },
-    { link: payload.link3, name: payload.name3, token: payload.token3 },
-    { link: payload.link4, name: payload.name4, token: payload.token4 },
-  ];
-  const valid = posts.filter(p => p.link && p.name && p.token);
-  if (!valid.length) {
-    addWarning("error", "⚠ At least one valid post+name+token required.");
-    return false;
-  }
-  addLog("info", `✅ ${valid.length} post(s) validated for mix loop.`);
-  return true;
-}
-
-// ---------------------------
-//
 // Page init
-//
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
-  await loadSession();     // loads + shows session id
-  // SSE will be started on Start button click
+  await loadSession();
+  // SSE will start after Start button
 });
