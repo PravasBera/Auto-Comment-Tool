@@ -530,14 +530,24 @@ app.post(
   upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
+    // accept BOTH spellings so frontend <input name="postlinks"> কাজ করে
+    { name: "postlinks", maxCount: 1 },
     { name: "postLinks", maxCount: 1 },
-    { name: "uploadNames", maxCount: 1 }
+    { name: "uploadNames", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
-      const sessionId = req.query.sessionId || req.body.sessionId || null;
-      if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+      // ✅ sessionId fallback: query/body না থাকলে cookie-session ব্যবহার
+      const sessionId =
+        req.query.sessionId ||
+        req.body.sessionId ||
+        req.sessionId;
 
+      if (!sessionId) {
+        return res.status(400).json({ ok: false, message: "sessionId required" });
+      }
+
+      // ✅ access check (approved/blocked/expired)
       const user = await User.findOne({ sessionId }).lean();
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
@@ -545,38 +555,58 @@ app.post(
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
+      // ✅ per-session folder
       const sessionDir = path.join(UPLOAD_DIR, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
+      // ✅ save tokens/comments
       if (req.files?.tokens?.[0]) {
         fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "token.txt"));
       }
       if (req.files?.comments?.[0]) {
         fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comment.txt"));
       }
-      if (req.files?.postLinks?.[0]) {
-        fs.renameSync(req.files.postLinks[0].path, path.join(sessionDir, "postlink.txt"));
+
+      // ✅ postlinks vs postLinks — যেটা আছে সেটাই নাও
+      const postFile = (req.files?.postlinks?.[0]) || (req.files?.postLinks?.[0]);
+      if (postFile) {
+        fs.renameSync(postFile.path, path.join(sessionDir, "postlink.txt"));
       }
 
+      // ✅ names textarea (optional)
       const uploadNames = req.body.uploadNames || "";
       if (uploadNames.trim()) {
         fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
       }
 
+      // ✅ simple counter (per-session ফাইল থেকেই)
       const countLines = (p) =>
-        fs.existsSync(p) ? fs.readFileSync(p, "utf-8").split(/\r?\n/).filter(Boolean).length : 0;
+        fs.existsSync(p)
+          ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
+          : 0;
 
       const tCount = countLines(path.join(sessionDir, "token.txt"));
       const cCount = countLines(path.join(sessionDir, "comment.txt"));
       const pCount = countLines(path.join(sessionDir, "postlink.txt"));
       const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
 
-      sseLine(sessionId, "info", `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`);
+      sseLine(
+        sessionId,
+        "info",
+        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`
+      );
 
-      res.json({ ok: true, success: true, tokens: tCount, comments: cCount, postLinks: pCount, names: nCount });
+      return res.json({
+        ok: true,
+        success: true,
+        tokens: tCount,
+        comments: cCount,
+        postLinks: pCount,
+        names: nCount,
+      });
     } catch (err) {
       console.error("Upload failed:", err);
-      res.status(500).json({ ok: false, error: err.message });
+      return res.status(500).json({ ok: false, error: err.message });
     }
   }
 );
@@ -723,33 +753,59 @@ app.post("/start", async (req, res) => {
 
   // ---- parse options
   const body = req.body || {};
-  let delay = parseInt(String(body.delay ?? "20"), 10);
-  if (Number.isNaN(delay) || delay < 0) delay = 20;
-  let limit = parseInt(String(body.limit ?? "0"), 10);
-  if (Number.isNaN(limit) || limit < 0) limit = 0;
+
+  // ✅ delay: সবসময় seconds → ms
+  let delaySec = parseInt(body.delay, 10);
+  if (isNaN(delaySec) || delaySec < 0) delaySec = 20; // default 20 sec
+  const delayMs = delaySec * 1000;
+
+  // ✅ limit
+  let limit = parseInt(body.limit, 10);
+  if (isNaN(limit) || limit < 0) limit = 0;
+
+  // ✅ shuffle
   const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
 
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
-  const pToken = path.join(sessionDir, "token.txt");
-  const pCmt = path.join(sessionDir, "comment.txt");
-  const pLinks = path.join(sessionDir, "postlink.txt");
-  const pNames = path.join(sessionDir, "uploadNames.txt");
 
-  const fileTokens = fs.existsSync(pToken) ? cleanLines(fs.readFileSync(pToken, "utf-8")) : [];
-  const fileComments = fs.existsSync(pCmt) ? cleanLines(fs.readFileSync(pCmt, "utf-8")) : [];
-  const fileLinks = fs.existsSync(pLinks) ? cleanLines(fs.readFileSync(pLinks, "utf-8")) : [];
-  const fileNames = fs.existsSync(pNames) ? cleanLines(fs.readFileSync(pNames, "utf-8")) : [];
+  const pToken  = path.join(sessionDir, "token.txt");
+  const pCmt    = path.join(sessionDir, "comment.txt");
+  const pLinks  = path.join(sessionDir, "postlink.txt");
+  const pNames  = path.join(sessionDir, "uploadNames.txt");
 
-  if (!fileTokens.length) sseLine(sessionId, "warn", "No tokens uploaded for this session.");
-  if (!fileComments.length) sseLine(sessionId, "warn", "No comments uploaded for this session (use pack or manual).");
+  const readLines = (p) =>
+    fs.existsSync(p) ? cleanLines(fs.readFileSync(p, "utf-8")) : [];
 
-  // ---- manual posts (max 4) or fallback to postlink.txt
-  let manualTargets = Array.isArray(body.posts) ? body.posts.slice(0, 4) : [];
-  if (!manualTargets.length && fileLinks.length) {
-    manualTargets = fileLinks.map((lnk) => ({
+  const fileTokens   = readLines(pToken);
+  const fileComments = readLines(pCmt);
+  const fileLinks    = readLines(pLinks);
+  const fileNames    = readLines(pNames);
+
+  if (!fileTokens.length) {
+    sseLine(sessionId, "warn", "No tokens uploaded for this session.");
+  }
+  if (!fileComments.length) {
+    sseLine(sessionId, "warn", "No comments uploaded for this session.");
+  }
+  if (!fileLinks.length) {
+    sseLine(sessionId, "warn", "No post links uploaded for this session.");
+  }
+
+  // ---- manual posts
+  let manualTargets = [];
+  if (Array.isArray(body.posts) && body.posts.length) {
+    manualTargets = body.posts.slice(0, 4).map(lnk => ({
       target: lnk,
-      namesText: fileNames.join("\n"),
+      namesTxt: "",
+      perPostTokensText: "",
+      commentPack: "Default",
+    }));
+  }
+  if (!manualTargets.length && fileLinks.length) {
+    manualTargets = fileLinks.map(lnk => ({
+      target: lnk,
+      namesTxt: fileNames.join("\n"),
       perPostTokensText: "",
       commentPack: "Default",
     }));
@@ -759,7 +815,7 @@ app.post("/start", async (req, res) => {
     return res.status(400).json({ ok: false, message: "No posts" });
   }
 
-  // ---- build targets (tokens/comments/names per post with packs + shuffle)
+  // ---- build targets
   let targets = manualTargets.map((p) => {
     const perPostTokens = p.perPostTokensText ? cleanLines(p.perPostTokensText) : [];
     const chosenPack = (p.commentPack && p.commentPack !== "Default") ? (loadPackComments(p.commentPack) || []) : [];
@@ -781,8 +837,7 @@ app.post("/start", async (req, res) => {
     };
   });
 
-  // ---- resolve targets to commentable ids
-  // pick a token for lookups (first available)
+  // ---- resolve targets
   const anyToken = targets.find(t => t.tokens.length)?.tokens[0] || fileTokens[0] || null;
   if (!anyToken) {
     sseLine(sessionId, "error", "No token available to resolve links.");
@@ -809,13 +864,12 @@ app.post("/start", async (req, res) => {
       sseLine(sessionId, "warn", `Resolve failed for ${t.rawTarget}: ${e?.message || e}`);
     }
   }
-
   if (!resolvedTargets.length) {
     sseLine(sessionId, "error", "No valid targets after resolve.");
     return res.status(400).json({ ok: false, message: "No valid targets" });
   }
 
-  // ---- build tokenName map (account names)
+  // ---- tokenName map
   const tokenSet = new Set();
   resolvedTargets.forEach(t => t.tokens.forEach(tok => tokenSet.add(tok)));
   const tokenName = {};
@@ -828,13 +882,13 @@ app.post("/start", async (req, res) => {
   job.abort = false;
 
   res.json({ ok: true, message: "Job started" });
-  sseLine(sessionId, "info", `Starting… posts:${resolvedTargets.length}, delay:${delay}ms, limit:${limit || "∞"}, shuffle:${shuffle}`);
+  sseLine(sessionId, "info", `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, shuffle:${shuffle}`);
 
   runJob(job, {
     sessionId,
     resolvedTargets,
     tokenName,
-    delayMs: delay,
+    delayMs,   // 👈 এখন সবসময় ms এ যাবে
     maxCount: limit
   });
 });
