@@ -6,32 +6,192 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
   <style>
+    /* 🌗 THEME VARIABLES */
+    :root {
+      --primary: #1877f2;
+      --bg: #0b0f13;
+      --card: #11161c;
+      --text: #e8f0fe;
+      --muted: #9fb3c8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+    }
+    body.light {
+      --bg: #f6f8fa;
+      --card: #ffffff;
+      --text: #1a1d21;
+      --muted: #666f7a;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background .3s, color .3s;
+    }
+
+    /* ✅ HEADER */
     .app-header {
       display: flex;
       flex-direction: column;
       align-items: center;
+      text-align: center;
       position: relative;
-      padding: 20px;
+      padding: 22px 12px 16px;
+      background: linear-gradient(180deg, #18202b, #0b0f13);
     }
+    body.light .app-header {
+      background: linear-gradient(180deg, #f1f4f8, #e5e9ef);
+    }
+    .app-header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+    .app-header p {
+      margin: 4px 0;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .app-header .team {
+      font-weight: bold;
+      color: var(--primary);
+      margin-top: 4px;
+    }
+
+    /* ✅ THEME TOGGLE */
     .theme-toggle {
       position: absolute;
-      top: 15px;
+      top: 18px;
       right: 20px;
+    }
+    .theme-toggle label {
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .theme-toggle input {
+      margin-right: 6px;
+      transform: scale(1.1);
+      cursor: pointer;
+    }
+
+    /* ✅ MAIN CONTAINER */
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 16px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 18px;
+      margin: 16px 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,.2);
+      transition: background .3s;
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      margin: 6px 0 3px;
+      font-size: 14px;
+    }
+    input[type="text"], input[type="number"], textarea, select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    input[type="file"] {
+      margin-bottom: 10px;
+    }
+    textarea {
+      min-height: 70px;
+    }
+    button {
+      background: var(--primary);
+      border: none;
+      color: #fff;
+      font-size: 15px;
       font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button:hover {
+      background: #0f5ad2;
+    }
+    .danger {
+      background: var(--red);
+    }
+
+    /* ✅ GRID for comment settings */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .chk {
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    /* ✅ UserID Box */
+    .user-id-box {
+      padding: 12px;
+      border: 2px dashed var(--primary);
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      border-radius: 10px;
+      background: rgba(24,119,242,0.1);
+    }
+
+    /* ✅ Logs */
+    .logs {
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+      padding: 12px;
+      border-radius: 8px;
+      min-height: 80px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+
+    /* ✅ FOOTER */
+    .footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 13px;
+      background: var(--card);
+      color: var(--muted);
+      margin-top: 20px;
     }
   </style>
 </head>
 <body class="dark">
   <header class="app-header">
     <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-    <p>
-      👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp;
-      🌍 Version: <b>Pro</b> &nbsp;|&nbsp;
-      🇮🇳 Country: <b>INDIA</b>
-    </p>
+    <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
     <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
 
-    <!-- ✅ Theme Toggle (Top Right Corner) -->
+    <!-- ✅ Theme Toggle -->
     <div class="theme-toggle">
       <label>
         <input type="checkbox" id="themeToggle" /> 🌗 Light Mode
@@ -48,7 +208,7 @@
       <p>📋 Copy this UserID and send it to Admin for approval.</p>
     </section>
 
-    <!-- ✅ Upload Section (Global batch) -->
+    <!-- ✅ Upload Section -->
     <section class="card">
       <h2>Upload Files (Global)</h2>
       <form id="uploadForm" method="post" enctype="multipart/form-data">
@@ -68,47 +228,47 @@
       </form>
     </section>
 
-    <!-- ✅ Manual Posts (1–4) -->
+    <!-- ✅ Manual Posts -->
     <section class="card"><h2>Manual Post 1</h2>
       <label>Post Link / ID</label>
-      <input name="postLinks" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens (for Post 1)</label>
+      <input name="postLinks1" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens</label>
       <input type="file" name="token1" accept=".txt" />
-      <label>Names (Post 1)</label>
+      <label>Names</label>
       <textarea name="names1"></textarea>
     </section>
 
     <section class="card"><h2>Manual Post 2</h2>
       <label>Post Link / ID</label>
-      <input name="postLinks" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens (for Post 2)</label>
+      <input name="postLinks2" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens</label>
       <input type="file" name="token2" accept=".txt" />
-      <label>Names (Post 2)</label>
+      <label>Names</label>
       <textarea name="names2"></textarea>
     </section>
 
     <section class="card"><h2>Manual Post 3</h2>
       <label>Post Link / ID</label>
-      <input name="postLinks" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens (for Post 3)</label>
+      <input name="postLinks3" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens</label>
       <input type="file" name="token3" accept=".txt" />
-      <label>Names (Post 3)</label>
+      <label>Names</label>
       <textarea name="names3"></textarea>
     </section>
 
     <section class="card"><h2>Manual Post 4</h2>
       <label>Post Link / ID</label>
-      <input name="postLinks" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens (for Post 4)</label>
+      <input name="postLinks4" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens</label>
       <input type="file" name="token4" accept=".txt" />
-      <label>Names (Post 4)</label>
+      <label>Names</label>
       <textarea name="names4"></textarea>
     </section>
 
-    <!-- ✅ Comment Set Dropdown -->
+    <!-- ✅ Comment Set -->
     <section class="card">
       <h2>Comment Settings</h2>
-      <label>Choose Comment Set (for Manual Posts)</label>
+      <label>Choose Comment Set</label>
       <select name="commentSet">
         <option value="">-- Default (Upload comment.txt) --</option>
         <option value="comment1">Bengali</option>
@@ -132,8 +292,8 @@
       </div>
 
       <div class="btn-row">
-        <button id="startBtn" type="button" style="font-size:18px;padding:14px 22px;">▶ Start</button>
-        <button id="stopBtn" type="button" class="danger" style="font-size:18px;padding:14px 22px;">⏹ Stop</button>
+        <button id="startBtn" type="button">▶ Start</button>
+        <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
       </div>
     </section>
 
@@ -147,19 +307,17 @@
   </footer>
 
   <script>
-    // Theme Toggle Script
+    // ✅ Theme Toggle Script
     const toggle = document.getElementById("themeToggle");
     const body = document.body;
-
     toggle.addEventListener("change", () => {
-      if (toggle.checked) {
-        body.classList.remove("dark");
-        body.classList.add("light");
-      } else {
-        body.classList.remove("light");
-        body.classList.add("dark");
-      }
+      body.classList.toggle("light", toggle.checked);
+      body.classList.toggle("dark", !toggle.checked);
     });
+
+    // ✅ Example: Generate Random UserID
+    const userIdBox = document.getElementById("userIdBox");
+    userIdBox.textContent = "UID-" + Math.floor(Math.random() * 999999999);
   </script>
   <script src="/script.js"></script>
 </body>
