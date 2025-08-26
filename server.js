@@ -207,26 +207,32 @@ const shuffleArr = (arr) => {
 // ------------------ Link Cleaner ------------------
 function cleanPostLink(link) {
   if (!link) return null;
+  link = String(link).trim();
 
-  // ফেসবুকের post ID ধরার জন্য regex
-  const numericMatch = link.match(/\/posts\/(\d+)/);
-  if (numericMatch) {
-    return numericMatch[1]; // numeric post id
-  }
+  // শুধুই সংখ্যায় post id
+  if (/^\d+$/.test(link)) return link;
 
-  // যদি pfbid থাকে
-  const pfbidMatch = link.match(/(pfbid\w+)/);
-  if (pfbidMatch) {
-    return pfbidMatch[1];
-  }
+  // story.php?id=UID&story_fbid=PID
+  const storyMatch = link.match(/story\.php\?[^#]*story_fbid=(\d+)&id=(\d+)/);
+  if (storyMatch) return `${storyMatch[2]}_${storyMatch[1]}`;
 
-  // যদি পুরো numeric profile/post format হয়
-  const longIdMatch = link.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
-  if (longIdMatch) {
-    return longIdMatch[2];
-  }
+  // /groups/GID/permalink/PID/
+  const groupMatch = link.match(/\/groups\/(\d+)\/permalink\/(\d+)/);
+  if (groupMatch) return `${groupMatch[1]}_${groupMatch[2]}`;
 
-  return null; // কিছুই না পেলে
+  // /USERID/posts/POSTID (শেষে slash/query থাকতে পারে)
+  const userPostMatch = link.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
+  if (userPostMatch) return `${userPostMatch[1]}_${userPostMatch[2]}`;
+
+  // /posts/POSTID (কোন UID নেই)
+  const simplePost = link.match(/\/posts\/(\d+)/);
+  if (simplePost) return simplePost[1];
+
+  // pfbid ধরার জন্য
+  const pfbidMatch = link.match(/(pfbid\w+)/i);
+  if (pfbidMatch) return pfbidMatch[1];
+
+  return null;
 }
 
 // pfbid helpers
