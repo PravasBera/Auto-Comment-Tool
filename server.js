@@ -838,6 +838,11 @@ if (Array.isArray(body.posts) && body.posts.length) {
       commentPack: "Default",
     }));
   }
+
+console.log("📂 File Links from postlinks.txt:", fileLinks);
+console.log("📝 Manual Posts from body:", body.posts);
+console.log("🎯 Final Manual Targets:", manualTargets);
+  
   if (!manualTargets.length) {
     sseLine(sessionId, "error", "No posts provided (manual or postlink.txt).");
     return res.status(400).json({ ok: false, message: "No posts" });
