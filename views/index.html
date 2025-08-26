@@ -1,324 +1,280 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Facebook Auto Comment Tool</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/style.css" />
   <style>
-    /* 🌗 THEME VARIABLES */
-    :root {
-      --primary: #1877f2;
-      --bg: #0b0f13;
-      --card: #11161c;
-      --text: #e8f0fe;
-      --muted: #9fb3c8;
-      --green: #22c55e;
-      --yellow: #eab308;
-      --red: #ef4444;
-    }
-    body.light {
-      --bg: #f6f8fa;
-      --card: #ffffff;
-      --text: #1a1d21;
-      --muted: #666f7a;
-    }
-
-    body {
+    /* ================= Base Styles ================= */
+    * {
       margin: 0;
-      font-family: "Segoe UI", sans-serif;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+    body {
       background: var(--bg);
       color: var(--text);
-      transition: background .3s, color .3s;
+      transition: background 0.3s, color 0.3s;
+    }
+    :root {
+      --bg: #f4f4f9;
+      --card: #ffffff;
+      --text: #222;
+      --primary: #1877f2;
+      --danger: #d9534f;
+      --success: #5cb85c;
+    }
+    body.dark {
+      --bg: #18191a;
+      --card: #242526;
+      --text: #e4e6eb;
+      --primary: #3a86ff;
+      --danger: #ff6b6b;
+      --success: #51cf66;
     }
 
-    /* ✅ HEADER */
-    .app-header {
+    /* ================= Layout ================= */
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 15px 20px;
       display: flex;
-      flex-direction: column;
+      justify-content: space-between;
       align-items: center;
-      text-align: center;
-      position: relative;
-      padding: 22px 12px 16px;
-      background: linear-gradient(180deg, #18202b, #0b0f13);
     }
-    body.light .app-header {
-      background: linear-gradient(180deg, #f1f4f8, #e5e9ef);
-    }
-    .app-header h1 {
-      margin: 0;
+    header h1 {
       font-size: 22px;
-      font-weight: 700;
-      letter-spacing: .4px;
-    }
-    .app-header p {
-      margin: 4px 0;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .app-header .team {
       font-weight: bold;
-      color: var(--primary);
-      margin-top: 4px;
     }
 
-    /* ✅ THEME TOGGLE */
-    .theme-toggle {
-      position: absolute;
-      top: 18px;
-      right: 20px;
-    }
-    .theme-toggle label {
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .theme-toggle input {
-      margin-right: 6px;
-      transform: scale(1.1);
-      cursor: pointer;
+    main {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-gap: 20px;
     }
 
-    /* ✅ MAIN CONTAINER */
-    .container {
-      max-width: 900px;
-      margin: auto;
-      padding: 16px;
-    }
     .card {
       background: var(--card);
-      border-radius: 12px;
-      padding: 18px;
-      margin: 16px 0;
-      box-shadow: 0 2px 5px rgba(0,0,0,.2);
-      transition: background .3s;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
     }
     .card h2 {
-      margin-top: 0;
       font-size: 18px;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
     }
-    label {
-      display: block;
-      margin: 6px 0 3px;
-      font-size: 14px;
+
+    /* ================= Buttons ================= */
+    .controls {
+      display: flex;
+      gap: 10px;
     }
-    input[type="text"], input[type="number"], textarea, select {
-      width: 100%;
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 14px;
-      margin-bottom: 10px;
-    }
-    input[type="file"] {
-      margin-bottom: 10px;
-    }
-    textarea {
-      min-height: 70px;
-    }
-    button {
-      background: var(--primary);
+    .btn {
+      flex: 1;
+      padding: 15px;
       border: none;
-      color: #fff;
-      font-size: 15px;
-      font-weight: 600;
-      padding: 10px 18px;
+      font-size: 16px;
       border-radius: 8px;
       cursor: pointer;
-      transition: background .2s;
+      transition: 0.3s;
+      font-weight: bold;
     }
-    button:hover {
-      background: #0f5ad2;
+    .btn.start {
+      background: var(--success);
+      color: #fff;
     }
-    .danger {
-      background: var(--red);
+    .btn.start:hover {
+      background: #45a049;
     }
-
-    /* ✅ GRID for comment settings */
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin: 12px 0;
+    .btn.stop {
+      background: var(--danger);
+      color: #fff;
     }
-    .chk {
-      display: flex;
-      align-items: center;
-      font-size: 14px;
+    .btn.stop:hover {
+      background: #c9302c;
     }
 
-    /* ✅ UserID Box */
-    .user-id-box {
-      padding: 12px;
-      border: 2px dashed var(--primary);
-      text-align: center;
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      border-radius: 10px;
-      background: rgba(24,119,242,0.1);
-    }
-
-    /* ✅ Logs */
+    /* ================= Logs ================= */
     .logs {
+      height: 200px;
+      overflow-y: auto;
       background: #000;
       color: #0f0;
       font-family: monospace;
-      padding: 12px;
-      border-radius: 8px;
-      min-height: 80px;
-      max-height: 220px;
-      overflow-y: auto;
-      font-size: 13px;
+      font-size: 14px;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      padding: 10px;
+      border-radius: 6px;
+      color: #856404;
+      margin-top: 10px;
     }
 
-    /* ✅ FOOTER */
-    .footer {
-      text-align: center;
-      padding: 14px;
-      font-size: 13px;
-      background: var(--card);
-      color: var(--muted);
-      margin-top: 20px;
+    /* ================= Theme Toggle ================= */
+    .theme-toggle {
+      position: relative;
+    }
+    .switch {
+      display: inline-block;
+      position: relative;
+      width: 60px;
+      height: 30px;
+    }
+    .switch input {
+      display: none;
+    }
+    .track {
+      background: #ccc;
+      border-radius: 30px;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .track .icon {
+      font-size: 14px;
+      pointer-events: none;
+    }
+    .thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fff;
+      transition: 0.3s;
+    }
+    .switch input:checked + .track .thumb {
+      transform: translateX(30px);
+    }
+    .switch input:checked + .track {
+      background: var(--primary);
+    }
+
+    /* ================= Forms ================= */
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .form-group textarea {
+      resize: vertical;
+      height: 100px;
+    }
+
+    /* Scroll */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary);
+      border-radius: 6px;
     }
   </style>
 </head>
-<body class="dark">
-  <header class="app-header">
-    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-    <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
-    <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
-
-    <!-- ✅ Theme Toggle -->
+<body>
+  <header>
+    <h1>Facebook Auto Comment Tool</h1>
     <div class="theme-toggle">
-      <label>
-        <input type="checkbox" id="themeToggle" /> 🌗 Light Mode
+      <label class="switch">
+        <input id="themeToggle" type="checkbox">
+        <span class="track">
+          <span class="icon left">🌙</span>
+          <span class="icon right">☀️</span>
+          <span class="thumb"></span>
+        </span>
       </label>
     </div>
   </header>
 
-  <main class="container">
-
-    <!-- ✅ UserID Section -->
-    <section class="card">
-      <h2>Your UserID</h2>
-      <div id="userIdBox" class="user-id-box">Loading...</div>
-      <p>📋 Copy this UserID and send it to Admin for approval.</p>
-    </section>
-
-    <!-- ✅ Upload Section -->
-    <section class="card">
-      <h2>Upload Files (Global)</h2>
-      <form id="uploadForm" method="post" enctype="multipart/form-data">
-        <label>Upload Tokens (token.txt)</label>
-        <input type="file" name="tokens" accept=".txt" />
-
-        <label>Upload Comments (comment.txt)</label>
-        <input type="file" name="comments" accept=".txt" />
-
-        <label>Upload Post Links (postlinks.txt)</label>
-        <input type="file" name="postlinks" accept=".txt" />
-
-        <label>Names for Upload Batch (one per line)</label>
-        <textarea name="uploadNames" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
-
-        <button type="submit">Upload</button>
-      </form>
-    </section>
-
-    <!-- ✅ Manual Posts -->
-    <section class="card"><h2>Manual Post 1</h2>
-      <label>Post Link / ID</label>
-      <input name="postLinks1" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens</label>
-      <input type="file" name="token1" accept=".txt" />
-      <label>Names</label>
-      <textarea name="names1"></textarea>
-    </section>
-
-    <section class="card"><h2>Manual Post 2</h2>
-      <label>Post Link / ID</label>
-      <input name="postLinks2" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens</label>
-      <input type="file" name="token2" accept=".txt" />
-      <label>Names</label>
-      <textarea name="names2"></textarea>
-    </section>
-
-    <section class="card"><h2>Manual Post 3</h2>
-      <label>Post Link / ID</label>
-      <input name="postLinks3" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens</label>
-      <input type="file" name="token3" accept=".txt" />
-      <label>Names</label>
-      <textarea name="names3"></textarea>
-    </section>
-
-    <section class="card"><h2>Manual Post 4</h2>
-      <label>Post Link / ID</label>
-      <input name="postLinks4" type="text" placeholder="Paste link or ID" />
-      <label>Upload Tokens</label>
-      <input type="file" name="token4" accept=".txt" />
-      <label>Names</label>
-      <textarea name="names4"></textarea>
-    </section>
-
-    <!-- ✅ Comment Set -->
-    <section class="card">
-      <h2>Comment Settings</h2>
-      <label>Choose Comment Set</label>
-      <select name="commentSet">
-        <option value="">-- Default (Upload comment.txt) --</option>
-        <option value="comment1">Bengali</option>
-        <option value="comment2">Benglish</option>
-        <option value="comment3">Hinglish</option>
-        <option value="comment4">Mix</option>
-      </select>
-
-      <div class="grid-3">
-        <div>
-          <label>Delay (seconds)</label>
-          <input name="delay" type="number" min="0" value="20" />
-        </div>
-        <div>
-          <label>Limit (0 = unlimited)</label>
-          <input name="limit" type="number" min="0" value="0" />
-        </div>
-        <div class="chk">
-          <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
-        </div>
+  <main>
+    <!-- Manual Section -->
+    <div class="card">
+      <h2>Manual Posts</h2>
+      <div class="form-group">
+        <label>Post 1</label>
+        <input type="text" placeholder="Enter Post Link">
       </div>
-
-      <div class="btn-row">
-        <button id="startBtn" type="button">▶ Start</button>
-        <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+      <div class="form-group">
+        <label>Post 2</label>
+        <input type="text" placeholder="Enter Post Link">
       </div>
-    </section>
+      <div class="form-group">
+        <label>Post 3</label>
+        <input type="text" placeholder="Enter Post Link">
+      </div>
+      <div class="form-group">
+        <label>Post 4</label>
+        <input type="text" placeholder="Enter Post Link">
+      </div>
+    </div>
 
-    <!-- ✅ Logs -->
-    <section class="card"><h2>Live Log</h2><div id="logBox" class="logs"></div></section>
-    <section class="card"><h2>Warnings & Summary</h2><div id="warnBox" class="logs"></div></section>
+    <!-- Settings Section -->
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="form-group">
+        <label>Delay (sec)</label>
+        <input type="number" min="1" max="60" value="5">
+      </div>
+      <div class="form-group">
+        <label>Limit</label>
+        <input type="number" min="1" max="100" value="10">
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox"> Shuffle Comments</label>
+      </div>
+    </div>
+
+    <!-- Logs Section -->
+    <div class="card" style="grid-column: span 2;">
+      <h2>Live Log</h2>
+      <div class="logs" id="logBox">
+        [INFO] Tool started...
+      </div>
+      <div class="warning">⚠️ Warning summary will appear here.</div>
+    </div>
+
+    <!-- Controls Section -->
+    <div class="card" style="grid-column: span 2;">
+      <h2>Controls</h2>
+      <div class="controls">
+        <button class="btn start">▶ Start</button>
+        <button class="btn stop">⏹ Stop</button>
+      </div>
+    </div>
   </main>
 
-  <footer class="footer">
-    © 2025 | Facebook Auto Comment Tool | Developed With ❤️ by BULLET TEAM ☠️
-  </footer>
-
   <script>
-    // ✅ Theme Toggle Script
     const toggle = document.getElementById("themeToggle");
-    const body = document.body;
     toggle.addEventListener("change", () => {
-      body.classList.toggle("light", toggle.checked);
-      body.classList.toggle("dark", !toggle.checked);
+      document.body.classList.toggle("dark", toggle.checked);
     });
-
-    // ✅ Example: Generate Random UserID
-    const userIdBox = document.getElementById("userIdBox");
-    userIdBox.textContent = "UID-" + Math.floor(Math.random() * 999999999);
   </script>
-  <script src="/script.js"></script>
 </body>
 </html>
