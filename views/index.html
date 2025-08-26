@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
+<body class="dark">
   <header class="app-header">
     <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
     <p>
@@ -15,6 +15,13 @@
       🇮🇳 Country: <b>INDIA</b>
     </p>
     <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+
+    <!-- ✅ Theme Toggle -->
+    <div style="margin-top:10px;">
+      <label style="font-weight:600;">
+        <input type="checkbox" id="themeToggle" /> 🌗 Light Mode
+      </label>
+    </div>
   </header>
 
   <main class="container">
@@ -22,7 +29,7 @@
     <!-- ✅ UserID Section -->
     <section class="card">
       <h2>Your UserID</h2>
-      <div id="userIdBox">Loading...</div>
+      <div id="userIdBox" class="user-id-box">Loading...</div>
       <p>📋 Copy this UserID and send it to Admin for approval.</p>
     </section>
 
@@ -46,56 +53,41 @@
       </form>
     </section>
 
-    <!-- ✅ Manual Post 1 -->
-    <section class="card">
-      <h2>Manual Post 1</h2>
+    <!-- ✅ Manual Posts (1–4) -->
+    <section class="card"><h2>Manual Post 1</h2>
       <label>Post Link / ID</label>
       <input name="postLinks" type="text" placeholder="Paste link or ID" />
-
       <label>Upload Tokens (for Post 1)</label>
       <input type="file" name="token1" accept=".txt" />
-
       <label>Names (Post 1)</label>
-      <textarea name="names1" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+      <textarea name="names1"></textarea>
     </section>
 
-    <!-- ✅ Manual Post 2 -->
-    <section class="card">
-      <h2>Manual Post 2</h2>
+    <section class="card"><h2>Manual Post 2</h2>
       <label>Post Link / ID</label>
       <input name="postLinks" type="text" placeholder="Paste link or ID" />
-
       <label>Upload Tokens (for Post 2)</label>
       <input type="file" name="token2" accept=".txt" />
-
       <label>Names (Post 2)</label>
-      <textarea name="names2" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+      <textarea name="names2"></textarea>
     </section>
 
-    <!-- ✅ Manual Post 3 -->
-    <section class="card">
-      <h2>Manual Post 3</h2>
+    <section class="card"><h2>Manual Post 3</h2>
       <label>Post Link / ID</label>
       <input name="postLinks" type="text" placeholder="Paste link or ID" />
-
       <label>Upload Tokens (for Post 3)</label>
       <input type="file" name="token3" accept=".txt" />
-
       <label>Names (Post 3)</label>
-      <textarea name="names3" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+      <textarea name="names3"></textarea>
     </section>
 
-    <!-- ✅ Manual Post 4 -->
-    <section class="card">
-      <h2>Manual Post 4</h2>
+    <section class="card"><h2>Manual Post 4</h2>
       <label>Post Link / ID</label>
       <input name="postLinks" type="text" placeholder="Paste link or ID" />
-
       <label>Upload Tokens (for Post 4)</label>
       <input type="file" name="token4" accept=".txt" />
-
       <label>Names (Post 4)</label>
-      <textarea name="names4" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+      <textarea name="names4"></textarea>
     </section>
 
     <!-- ✅ Comment Set Dropdown -->
@@ -110,7 +102,6 @@
         <option value="comment4">Mix</option>
       </select>
 
-      <!-- ✅ Controls -->
       <div class="grid-3">
         <div>
           <label>Delay (seconds)</label>
@@ -126,27 +117,35 @@
       </div>
 
       <div class="btn-row">
-        <button id="startBtn" type="button">▶ Start</button>
-        <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
+        <button id="startBtn" type="button" style="font-size:18px;padding:14px 22px;">▶ Start</button>
+        <button id="stopBtn" type="button" class="danger" style="font-size:18px;padding:14px 22px;">⏹ Stop</button>
       </div>
     </section>
 
     <!-- ✅ Logs -->
-    <section class="card">
-      <h2>Live Log</h2>
-      <div id="logBox" class="logs"></div>
-    </section>
-
-    <section class="card">
-      <h2>Warnings & Summary</h2>
-      <div id="warnBox" class="logs"></div>
-    </section>
+    <section class="card"><h2>Live Log</h2><div id="logBox" class="logs"></div></section>
+    <section class="card"><h2>Warnings & Summary</h2><div id="warnBox" class="logs"></div></section>
   </main>
 
   <footer class="footer">
     © 2025 | Facebook Auto Comment Tool | Developed With ❤️ by BULLET TEAM ☠️
   </footer>
 
+  <script>
+    // Theme Toggle Script
+    const toggle = document.getElementById("themeToggle");
+    const body = document.body;
+
+    toggle.addEventListener("change", () => {
+      if (toggle.checked) {
+        body.classList.remove("dark");
+        body.classList.add("light");
+      } else {
+        body.classList.remove("light");
+        body.classList.add("dark");
+      }
+    });
+  </script>
   <script src="/script.js"></script>
 </body>
 </html>
