@@ -343,18 +343,19 @@ select{
 }
 
 /* --------------------------------------------------------------------------
-   10) LOG AREAS — BIGGER
+   10) LOG AREAS — BIGGER (updated)
 ---------------------------------------------------------------------------*/
 .logs{
   background:var(--log-bg);
   color:var(--log-text);
   border-radius:var(--r-md);
-  padding:16px;
-  min-height:300px;       /* bigger as required */
-  max-height:480px;
+  padding:20px;
+  min-height:420px;       /* আগে ছিল 300px, এখন বড় */
+  max-height:650px;       /* আগে ছিল 480px */
   overflow:auto;
   font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
-  font-size:14px; line-height:1.45;
+  font-size:15px;         /* সামান্য বড় */
+  line-height:1.55;
   box-shadow:inset 0 0 0 1px var(--inner-stroke);
 }
 
