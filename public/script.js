@@ -1,4 +1,4 @@
-<!-- /public/script.js -->
+// /public/script.js
 // ===============================
 // Facebook Auto Comment Tool Pro
 // Frontend Script (Client-Side) — FIXED for your index.html
@@ -63,7 +63,6 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
 
-  // sessionId পাঠাই
   if (window.sessionId) formData.append("sessionId", window.sessionId);
 
   try {
@@ -78,7 +77,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
     if (data.ok) {
       addLog(
         "success",
-        `✅ Uploaded (tokens:${data.tokens || 0}, comments:${data.comments || 0}, posts:${data.postLinks || 0}, names:${data.names || 0}).`
+        `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`
       );
     } else {
       addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
@@ -89,7 +88,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 });
 
 // -------------------------
-// Start (selectors match your index.html)
+// Start
 // -------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
   const delayEl   = document.querySelector('[name="delay"]');
@@ -100,20 +99,20 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   const delay   = parseInt(delayEl?.value || "20", 10);
   const limit   = parseInt(limitEl?.value || "0", 10);
   const shuffle = !!(shuffleEl?.checked);
-  const commentPack = (packEl?.value || "").trim(); // "" => Default
+  const commentPack = (packEl?.value || "").trim();
 
-  // Collect up to 4 manual posts (fields exactly as in index.html)
   const posts = [];
   for (let i = 1; i <= 4; i++) {
-    const target = document.querySelector(`[name="postLinks${i}"]`)?.value.trim();
-    const names  = document.querySelector(`[name="names${i}"]`)?.value.trim();
+    const targetEl = document.querySelector(`[name="postLinks${i}"]`);
+    const namesEl  = document.querySelector(`[name="names${i}"]`);
+    const target   = targetEl ? targetEl.value.trim() : "";
+    const names    = namesEl ? namesEl.value.trim() : "";
     if (target) {
       posts.push({
         target,
         names: names || "",
-        // server expects these keys; tokens per-post via file is not supported here
-        tokens: "",                 // keep empty -> will use session tokens.txt
-        comments: "",               // keep empty -> will use comments.txt or pack
+        tokens: "",
+        comments: "",
         commentPack: commentPack || "Default",
       });
     }
@@ -131,7 +130,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         limit,
         shuffle,
         sessionId: window.sessionId || "",
-        posts, // may be []
+        posts,
       }),
     });
     const data = await res.json();
@@ -198,7 +197,9 @@ function startSSE() {
     try {
       const u = JSON.parse(e.data || "{}");
       addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
-    } catch {}
+    } catch {
+      addWarning("warn", "⚠ User event parse error");
+    }
   });
 
   eventSource.onmessage = (e) => {
@@ -215,9 +216,11 @@ function startSSE() {
       else if (typ === "summary") {
         addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
         isRunning = false;
-      } else addLog("info", msg || JSON.stringify(d));
+      } else {
+        addLog("info", msg || JSON.stringify(d));
+      }
     } catch (err) {
-      addWarning("error", "⚠ SSE parse error: " + err.message);
+      addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
     }
   };
 
@@ -239,5 +242,4 @@ function stopSSE() {
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   await loadSession();
-  // SSE will start after Start button
 });
