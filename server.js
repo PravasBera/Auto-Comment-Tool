@@ -820,15 +820,16 @@ app.post("/start", async (req, res) => {
   }
 
   // ---- manual posts
-  let manualTargets = [];
-  if (Array.isArray(body.posts) && body.posts.length) {
-    manualTargets = body.posts.slice(0, 4).map(lnk => ({
-      target: lnk,
-      namesTxt: "",
-      perPostTokensText: "",
-      commentPack: "Default",
-    }));
-  }
+let manualTargets = [];
+if (Array.isArray(body.posts) && body.posts.length) {
+  manualTargets = body.posts.slice(0, 4).map(p => ({
+    target: p.target || p,                 // যদি object হয় তাহলে p.target, নইলে string
+    namesTxt: p.names || "",
+    perPostTokensText: p.tokens || "",
+    commentPack: p.commentPack || "Default",
+    commentsTxt: p.comments || ""
+  }));
+}
   if (!manualTargets.length && fileLinks.length) {
     manualTargets = fileLinks.map(lnk => ({
       target: lnk,
@@ -847,7 +848,9 @@ app.post("/start", async (req, res) => {
     const perPostTokens = p.perPostTokensText ? cleanLines(p.perPostTokensText) : [];
     const chosenPack = (p.commentPack && p.commentPack !== "Default") ? (loadPackComments(p.commentPack) || []) : [];
     let tokens = perPostTokens.length ? perPostTokens : fileTokens;
-    let comments = chosenPack.length ? chosenPack : fileComments;
+    let comments = chosenPack.length
+  ? chosenPack
+  : (p.commentsTxt ? cleanLines(p.commentsTxt) : fileComments);
     let names = p.namesText ? cleanLines(p.namesText) : fileNames;
 
     if (shuffle) {
