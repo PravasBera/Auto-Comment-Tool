@@ -343,6 +343,15 @@
 
       <div class="grid-3">
         <div>
+          <!-- ✅ Delay Mode Options -->
+<div style="margin-top:8px;">
+  <label>Speed Mode</label>
+  <div class="chk" style="gap:16px; flex-wrap: wrap;">
+    <label><input type="radio" name="delayMode" value="fast" checked /> Fast (Safe)</label>
+    <label><input type="radio" name="delayMode" value="superfast" /> Super Fast (Medium Risk)</label>
+    <label><input type="radio" name="delayMode" value="extreme" /> Extreme Fast (High Risk)</label>
+  </div>
+</div>
           <label>Delay (seconds)</label>
           <input name="delay" type="number" min="0" value="20" />
         </div>
