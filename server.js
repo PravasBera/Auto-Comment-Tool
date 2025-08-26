@@ -46,9 +46,9 @@ const storage = multer.diskStorage({
     if (file.fieldname === "postlinks") {
       cb(null, "postlinks.txt");
     } else if (file.fieldname === "comments") {
-      cb(null, "comment.txt");
+      cb(null, "comments.txt");
     } else if (file.fieldname === "tokens") {
-      cb(null, "token.txt");
+      cb(null, "tokens.txt");
     } else {
       cb(null, file.originalname);
     }
