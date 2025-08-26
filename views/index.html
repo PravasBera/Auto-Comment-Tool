@@ -23,6 +23,12 @@
       --text: #1a1d21;
       --muted: #666f7a;
     }
+    body.dark {
+      --bg: #0b0f13;
+      --card: #11161c;
+      --text: #e8f0fe;
+      --muted: #9fb3c8;
+    }
 
     body {
       margin: 0;
@@ -135,10 +141,18 @@
       padding: 8px;
       border-radius: 6px;
       border: 1px solid #444;
-      background: var(--bg);
+      background: var(--card);
       color: var(--text);
       font-size: 14px;
       margin-bottom: 10px;
+    }
+    body.light input[type="text"], 
+    body.light input[type="number"], 
+    body.light textarea, 
+    body.light select {
+      background: #fff;
+      border: 1px solid #ccc;
+      color: #1a1d21;
     }
     input[type="file"] {
       margin-bottom: 10px;
@@ -201,6 +215,10 @@
       overflow-y: auto;
       font-size: 15px;
     }
+    #warnBox {
+      color: #ff4444;
+      background: #111;
+    }
 
     /* ✅ FOOTER */
     .footer {
@@ -243,17 +261,17 @@
     <section class="card">
       <h2>Upload Files (Global)</h2>
       <form id="uploadForm" method="post" enctype="multipart/form-data">
-        <label>Upload Tokens (token.txt)</label>
+        <label>Upload Tokens (tokens.txt)</label>
         <input type="file" name="tokens" accept=".txt" />
 
-        <label>Upload Comments (comment.txt)</label>
+        <label>Upload Comments (comments.txt)</label>
         <input type="file" name="comments" accept=".txt" />
 
         <label>Upload Post Links (postlinks.txt)</label>
         <input type="file" name="postlinks" accept=".txt" />
 
-        <label>Names for Upload Batch (one per line)</label>
-        <textarea name="uploadNames" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+        <label>Names for Upload Batch (names.txt)</label>
+        <textarea name="names" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
 
         <button type="submit">Upload</button>
       </form>
@@ -264,10 +282,10 @@
 
       <section class="card"><h2>Manual Post 1</h2>
         <label>Post Link / ID</label>
-        <input name="postLinks1" type="text" placeholder="Paste link or ID" />
+        <input name="postlinks1" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="token1" accept=".txt" />
+        <input type="file" name="tokens1" accept=".txt" />
 
         <label>Names <small>(optional)</small></label>
         <textarea name="names1" placeholder="Leave empty if not needed"></textarea>
@@ -275,10 +293,10 @@
 
       <section class="card"><h2>Manual Post 2</h2>
         <label>Post Link / ID</label>
-        <input name="postLinks2" type="text" placeholder="Paste link or ID" />
+        <input name="postlinks2" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="token2" accept=".txt" />
+        <input type="file" name="tokens2" accept=".txt" />
 
         <label>Names <small>(optional)</small></label>
         <textarea name="names2" placeholder="Leave empty if not needed"></textarea>
@@ -286,10 +304,10 @@
 
       <section class="card"><h2>Manual Post 3</h2>
         <label>Post Link / ID</label>
-        <input name="postLinks3" type="text" placeholder="Paste link or ID" />
+        <input name="postlinks3" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="token3" accept=".txt" />
+        <input type="file" name="tokens3" accept=".txt" />
 
         <label>Names <small>(optional)</small></label>
         <textarea name="names3" placeholder="Leave empty if not needed"></textarea>
@@ -297,10 +315,10 @@
 
       <section class="card"><h2>Manual Post 4</h2>
         <label>Post Link / ID</label>
-        <input name="postLinks4" type="text" placeholder="Paste link or ID" />
+        <input name="postlinks4" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="token4" accept=".txt" />
+        <input type="file" name="tokens4" accept=".txt" />
 
         <label>Names <small>(optional)</small></label>
         <textarea name="names4" placeholder="Leave empty if not needed"></textarea>
@@ -316,7 +334,7 @@
       <h2>Comment Settings</h2>
       <label>Choose Comment Set</label>
       <select name="commentSet">
-        <option value="">-- Default (Upload comment.txt) --</option>
+        <option value="">-- Default (Upload comments.txt) --</option>
         <option value="comment1">Bengali</option>
         <option value="comment2">Benglish</option>
         <option value="comment3">Hinglish</option>
@@ -376,10 +394,9 @@
       }
     });
 
-    // ⚠️ Warning: Client side Random UID
-    // Server auto-generate UID, consider removing this for consistency
+    // ⚠️ Server should set real UID
     const userIdBox = document.getElementById("userIdBox");
-    userIdBox.textContent = "UID-" + Math.floor(Math.random() * 999999999);
+    userIdBox.textContent = "Loading UID from server...";
   </script>
   <script src="/script.js"></script>
 </body>
