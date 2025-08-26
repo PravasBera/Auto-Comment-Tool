@@ -5,6 +5,21 @@
   <title>Facebook Auto Comment Tool</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
+  <style>
+    .app-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      padding: 20px;
+    }
+    .theme-toggle {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body class="dark">
   <header class="app-header">
@@ -16,9 +31,9 @@
     </p>
     <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
 
-    <!-- ✅ Theme Toggle -->
-    <div style="margin-top:10px;">
-      <label style="font-weight:600;">
+    <!-- ✅ Theme Toggle (Top Right Corner) -->
+    <div class="theme-toggle">
+      <label>
         <input type="checkbox" id="themeToggle" /> 🌗 Light Mode
       </label>
     </div>
