@@ -182,6 +182,31 @@ const shuffleArr = (arr) => {
   return a;
 };
 
+// ------------------ Link Cleaner ------------------
+function cleanPostLink(link) {
+  if (!link) return null;
+
+  // ফেসবুকের post ID ধরার জন্য regex
+  const numericMatch = link.match(/\/posts\/(\d+)/);
+  if (numericMatch) {
+    return numericMatch[1]; // numeric post id
+  }
+
+  // যদি pfbid থাকে
+  const pfbidMatch = link.match(/(pfbid\w+)/);
+  if (pfbidMatch) {
+    return pfbidMatch[1];
+  }
+
+  // যদি পুরো numeric profile/post format হয়
+  const longIdMatch = link.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
+  if (longIdMatch) {
+    return longIdMatch[2];
+  }
+
+  return null; // কিছুই না পেলে
+}
+
 // pfbid helpers
 const PFBID_RE = /^(pfbid[a-zA-Z0-9]+)$/i;
 const PFBID_IN_TEXT_RE = /(pfbid[a-zA-Z0-9]+)/i;
@@ -779,7 +804,9 @@ app.post("/start", async (req, res) => {
 
   const fileTokens   = readLines(pToken);
   const fileComments = readLines(pCmt);
-  const fileLinks    = readLines(pLinks);
+  const fileLinks = readLines(pLinks)
+  .map(cleanPostLink)
+  .filter(l => l !== null);
   const fileNames    = readLines(pNames);
 
   if (!fileTokens.length) {
