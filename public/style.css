@@ -349,9 +349,9 @@ select{
   background:var(--log-bg);
   color:var(--log-text);
   border-radius:var(--r-md);
-  padding:20px;
+  padding:12px;
   min-height:420px;       /* আগে ছিল 300px, এখন বড় */
-  max-height:650px;       /* আগে ছিল 480px */
+  max-height:700px;       /* আগে ছিল 480px */
   overflow:auto;
   font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
   font-size:15px;         /* সামান্য বড় */
