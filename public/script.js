@@ -95,6 +95,9 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   const limitEl   = document.querySelector('[name="limit"]');
   const shuffleEl = document.querySelector('[name="useShuffle"]');
   const packEl    = document.querySelector('[name="commentSet"]');
+  // inside startBtn click handler
+const modeEl = document.querySelector('input[name="delayMode"]:checked');
+const delayMode = modeEl ? modeEl.value : "fast";
 
   const delay   = parseInt(delayEl?.value || "20", 10);
   const limit   = parseInt(limitEl?.value || "0", 10);
@@ -122,17 +125,18 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
 
   try {
     const res = await fetch("/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        delay,
-        limit,
-        shuffle,
-        sessionId: window.sessionId || "",
-        posts,
-      }),
-    });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({
+    delay,
+    limit,
+    shuffle,
+    delayMode,  // ✅ নতুন field
+    sessionId: window.sessionId || "",
+    posts,
+  }),
+});
     const data = await res.json();
 
     if (data.ok) {
