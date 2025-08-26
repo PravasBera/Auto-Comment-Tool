@@ -35,25 +35,13 @@ const mongoose = require("mongoose");
 // ✅ Multer Storage Setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
+    cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    // নাম ফিক্স করা হচ্ছে
-    if (file.fieldname === "postlinks") {
-      cb(null, "postlinks.txt");
-    } else if (file.fieldname === "comments") {
-      cb(null, "comments.txt");
-    } else if (file.fieldname === "tokens") {
-      cb(null, "tokens.txt");
-    } else {
-      cb(null, file.originalname);
-    }
-  },
+    cb(null, file.originalname); // ✅ user যে নাম দিয়েছে সেটাই থাকবে
+  }
 });
+
 const upload = multer({ storage });
 
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
