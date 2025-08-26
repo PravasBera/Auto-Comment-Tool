@@ -32,6 +32,30 @@ const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 
+// ✅ Multer Storage Setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    // নাম ফিক্স করা হচ্ছে
+    if (file.fieldname === "postlinks") {
+      cb(null, "postlinks.txt");
+    } else if (file.fieldname === "comments") {
+      cb(null, "comment.txt");
+    } else if (file.fieldname === "tokens") {
+      cb(null, "token.txt");
+    } else {
+      cb(null, file.originalname);
+    }
+  },
+});
+const upload = multer({ storage });
+
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
 function generateUserId() {
   const prefixes = ["USER-ALPHA-", "USER-BETA-", "USER-GAMMA-", "USER-DELTA-"];
@@ -99,8 +123,6 @@ app.get("/", (_req, res) => res.sendFile(path.join(VIEWS_DIR, "index.html")));
 // admin.html (static UI)
 app.get("/admin", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "admin.html")));
 
-// -------------------- Upload setup --------------------
-const upload = multer({ dest: UPLOAD_DIR });
 
 // -------------------- User DB helpers (Mongo) --------------------
 async function ensureUser(sessionId) {
@@ -586,16 +608,16 @@ app.post(
 
       // ✅ save tokens/comments
       if (req.files?.tokens?.[0]) {
-        fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "token.txt"));
+        fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "tokens.txt"));
       }
       if (req.files?.comments?.[0]) {
-        fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comment.txt"));
+        fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comments.txt"));
       }
 
       // ✅ postlinks vs postLinks — যেটা আছে সেটাই নাও
       const postFile = (req.files?.postlinks?.[0]) || (req.files?.postLinks?.[0]);
       if (postFile) {
-        fs.renameSync(postFile.path, path.join(sessionDir, "postlink.txt"));
+        fs.renameSync(postFile.path, path.join(sessionDir, "postlinks.txt"));
       }
 
       // ✅ names textarea (optional)
@@ -610,10 +632,10 @@ app.post(
           ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
           : 0;
 
-      const tCount = countLines(path.join(sessionDir, "token.txt"));
-      const cCount = countLines(path.join(sessionDir, "comment.txt"));
-      const pCount = countLines(path.join(sessionDir, "postlink.txt"));
-      const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
+      const tCount = countLines(path.join(sessionDir, "tokens.txt"));
+      const cCount = countLines(path.join(sessionDir, "comments.txt"));
+      const pCount = countLines(path.join(sessionDir, "postlinks.txt"));
+      const pCount = countLines(path.join(sessionDir, "uploadNames.txt"));
 
       sseLine(
         sessionId,
@@ -794,20 +816,20 @@ app.post("/start", async (req, res) => {
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
 
-  const pToken  = path.join(sessionDir, "token.txt");
-  const pCmt    = path.join(sessionDir, "comment.txt");
-  const pLinks  = path.join(sessionDir, "postlink.txt");
-  const pNames  = path.join(sessionDir, "uploadNames.txt");
+  const pTokens = path.join(sessionDir, "tokens.txt");
+const pCmts  = path.join(sessionDir, "comments.txt");
+const pLinks = path.join(sessionDir, "postlinks.txt");   // plural
+const pNames = path.join(sessionDir, "uploadNames.txt");
 
   const readLines = (p) =>
     fs.existsSync(p) ? cleanLines(fs.readFileSync(p, "utf-8")) : [];
 
-  const fileTokens   = readLines(pToken);
-  const fileComments = readLines(pCmt);
-  const fileLinks = readLines(pLinks)
+  const fileTokens   = readLines(pTokens);
+const fileComments = readLines(pCmts);
+const fileLinks    = readLines(pLinks)
   .map(cleanPostLink)
   .filter(l => l !== null);
-  const fileNames    = readLines(pNames);
+const fileNames    = readLines(pNames);
 
   if (!fileTokens.length) {
     sseLine(sessionId, "warn", "No tokens uploaded for this session.");
