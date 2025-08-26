@@ -635,7 +635,7 @@ app.post(
       const tCount = countLines(path.join(sessionDir, "tokens.txt"));
       const cCount = countLines(path.join(sessionDir, "comments.txt"));
       const pCount = countLines(path.join(sessionDir, "postlinks.txt"));
-      const uCount = countLines(path.join(sessionDir, "uploadNames.txt"));
+      const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
 
       sseLine(
         sessionId,
