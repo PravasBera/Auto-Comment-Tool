@@ -164,7 +164,7 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
       body: JSON.stringify({ sessionId: window.sessionId || "" }),
     });
     const data = await res.json();
-    if (data.success) {
+    if (data.ok) {
       addLog("success", "🛑 Stopped successfully.");
       isRunning = false;
       stopSSE();
