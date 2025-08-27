@@ -476,29 +476,29 @@
   </footer>
 
   <script>
-    // ✅ Theme Toggle Script
-    const toggle = document.getElementById("themeToggle");
-    const body = document.body;
+  // ✅ Theme Toggle Script
+  const toggle = document.getElementById("themeToggle");
+  const body = document.body;
 
-    // Load saved theme
-    if(localStorage.getItem("theme") === "light") {
+  // Load saved theme
+  if (localStorage.getItem("theme") === "light") {
+    body.classList.add("light");
+    body.classList.remove("dark");
+    toggle.checked = true;
+  }
+
+  toggle.addEventListener("change", () => {
+    if (toggle.checked) {
       body.classList.add("light");
       body.classList.remove("dark");
-      toggle.checked = true;
+      localStorage.setItem("theme", "light");
+    } else {
+      body.classList.add("dark");
+      body.classList.remove("light");
+      localStorage.setItem("theme", "dark");
     }
-
-    toggle.addEventListener("change", () => {
-      if(toggle.checked) {
-        body.classList.add("light");
-        body.classList.remove("dark");
-        localStorage.setItem("theme", "light");
-      } else {
-        body.classList.add("dark");
-        body.classList.remove("light");
-        localStorage.setItem("theme", "dark");
-      }
-    });
-
-  <script src="/script.js"></script>
+  });
+</script>
+<script src="/script.js"></script>
 </body>
 </html>
