@@ -1,16 +1,18 @@
 // /public/script.js
 // ===============================
 // Facebook Auto Comment Tool Pro
-// Frontend Script (Client-Side) — FIXED for your index.html
+// Frontend Script (Client-Side) — READY
 // ===============================
 
 let eventSource = null;
 let isRunning = false;
 window.sessionId = null;
+window.__autoScroll = true; // auto-scroll toggle (checkbox থাকলে bind হবে)
 
 // ---------------------------
 // UI Helpers
 // ---------------------------
+
 // Only show first 5 words of the quoted comment in a log line
 function previewQuotedComment(line) {
   if (!line) return "";
@@ -21,6 +23,7 @@ function previewQuotedComment(line) {
   const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "…";
   return line.replace(`"${m[1]}"`, `"${short}"`);
 }
+
 function addLog(type, message) {
   const logBox = document.getElementById("logBox");
   if (!logBox) return;
@@ -28,8 +31,9 @@ function addLog(type, message) {
   div.className = type;
   div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
   logBox.appendChild(div);
-  logBox.scrollTop = logBox.scrollHeight;
+  if (window.__autoScroll) logBox.scrollTop = logBox.scrollHeight;
 }
+
 function addWarning(type, message) {
   const warnBox = document.getElementById("warnBox");
   if (!warnBox) return;
@@ -37,13 +41,74 @@ function addWarning(type, message) {
   div.className = type;
   div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
   warnBox.appendChild(div);
-  warnBox.scrollTop = warnBox.scrollHeight;
+  if (window.__autoScroll) warnBox.scrollTop = warnBox.scrollHeight;
 }
+
 function clearLogs() {
   const logBox = document.getElementById("logBox");
   const warnBox = document.getElementById("warnBox");
   if (logBox) logBox.innerHTML = "";
   if (warnBox) warnBox.innerHTML = "";
+}
+
+// ---- Token report helpers ----
+function tokenReport() {
+  const removed = [];
+  const backoff = [];
+  tokenMap.forEach((info, token) => {
+    const pos = info.pos ?? null;
+    const st  = info.status || "?";
+    if (st === "REMOVED" || st === "INVALID_TOKEN" || st === "ID_LOCKED") {
+      removed.push({ pos, token, status: st });
+    } else if (st === "BACKOFF") {
+      backoff.push({ pos, token, status: st, until: info.until || null });
+    }
+  });
+  removed.sort((a,b)=>(a.pos??9999)-(b.pos??9999));
+  backoff.sort((a,b)=>(a.pos??9999)-(b.pos??9999));
+  return { removed, backoff };
+}
+
+async function copyTokenReportToClipboard() {
+  const { removed, backoff } = tokenReport();
+  const header = `Token Report — ${new Date().toLocaleString()}`;
+  const rmLines = removed.map(r => `#${r.pos ?? "-"}  ${r.status}  ${r.token}`);
+  const boLines = backoff.map(r => `#${r.pos ?? "-"}  BACKOFF  until:${r.until ? new Date(r.until).toLocaleTimeString() : "-"}  ${r.token}`);
+  const text = [
+    header, "",
+    `REMOVED / INVALID / LOCKED (${removed.length})`,
+    ...rmLines, "",
+    `BACKOFF (${backoff.length})`,
+    ...boLines, ""
+  ].join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    addLog("success", "📋 Token report copied to clipboard.");
+  } catch {
+    addWarning("warn", "⚠️ Could not copy. Select from Warning box instead.");
+    addWarning("warn", text);
+  }
+}
+
+// ---- Token status (chips) ----
+const tokenMap = new Map();
+function resetTokens(){ tokenMap.clear(); renderTokens(); }
+function renderTokens(){
+  const box = document.getElementById("tokenList"); if(!box) return;
+  box.innerHTML = "";
+  const arr = [...tokenMap.entries()].sort((a,b)=>(a[1].pos ?? 9999)-(b[1].pos ?? 9999));
+  for (const [tok, info] of arr){
+    const chip = document.createElement("div");
+    chip.className = "token-chip " + (
+      info.status === "OK" ? "token-ok" :
+      info.status === "BACKOFF" ? "token-backoff" :
+      (info.status === "REMOVED" || info.status === "ID_LOCKED" || info.status === "INVALID_TOKEN") ? "token-removed" :
+      info.status === "NO_PERMISSION" ? "token-noperm" : ""
+    );
+    chip.title = `${tok}${info.until ? ` • until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
+    chip.textContent = `#${info.pos ?? "-"} ${info.status}`;
+    box.appendChild(chip);
+  }
 }
 
 // ---- Live counters ----
@@ -137,16 +202,16 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 // Start
 // -------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
-  // startBtn click handler-এর একদম শুরুতে
-resetStats();
-  
+  // reset stats for new run
+  resetStats();
+resetTokens();   // ✅ token chips reset
+
   const delayEl   = document.querySelector('[name="delay"]');
   const limitEl   = document.querySelector('[name="limit"]');
   const shuffleEl = document.querySelector('[name="useShuffle"]');
   const packEl    = document.querySelector('[name="commentSet"]');
-  // inside startBtn click handler
-const modeEl = document.querySelector('input[name="delayMode"]:checked');
-const delayMode = modeEl ? modeEl.value : "fast";
+  const modeEl    = document.querySelector('input[name="delayMode"]:checked');
+  const delayMode = modeEl ? modeEl.value : "fast";
 
   const delay   = parseInt(delayEl?.value || "20", 10);
   const limit   = parseInt(limitEl?.value || "0", 10);
@@ -171,21 +236,22 @@ const delayMode = modeEl ? modeEl.value : "fast";
   }
 
   addLog("info", "🚀 Sending start request…");
-addLog("info", `⚡ Selected Speed Mode: ${delayMode}`);
+  addLog("info", `⚡ Selected Speed Mode: ${delayMode}`);
+
   try {
     const res = await fetch("/start", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  credentials: "include",
-  body: JSON.stringify({
-    delay,
-    limit,
-    shuffle,
-    delayMode,  // ✅ নতুন field
-    sessionId: window.sessionId || "",
-    posts,
-  }),
-});
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        delay,
+        limit,
+        shuffle,
+        delayMode,  // ✅ নতুন field
+        sessionId: window.sessionId || "",
+        posts,
+      }),
+    });
     const data = await res.json();
 
     if (data.ok) {
@@ -236,6 +302,11 @@ function startSSE() {
   const url = window.sessionId ? `/events?sessionId=${encodeURIComponent(window.sessionId)}` : `/events`;
   eventSource = new EventSource(url);
 
+  // optional: bind autosroll checkbox if present
+  document.getElementById("autoScroll")?.addEventListener("change", (e)=>{
+    window.__autoScroll = !!e.target.checked;
+  });
+
   eventSource.addEventListener("session", (e) => {
     const sid = e.data;
     if (sid) {
@@ -255,79 +326,106 @@ function startSSE() {
     }
   });
 
-  eventSource.onmessage = (e) => {
+eventSource.addEventListener("token", (e) => {
   try {
-    const d = JSON.parse(e.data);
-    const typ = d.type || "log";
-    const msg = (d.text || "").toString();
+    const d = JSON.parse(e.data || "{}");
+    tokenMap.set(d.token, { pos: d.position ?? d.idx ?? null, status: d.status || "?", until: d.until || null });
+    renderTokens();
+  } catch {}
+});
+  
+  eventSource.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      const typ = d.type || "log";
+      const rawMsg = (d.text || "").toString();
+      const msg = previewQuotedComment(rawMsg);
 
-    // 🔎 যেগুলো সবসময় Warning Box-এ যাবে
-    const PROBLEM_TYPES = new Set(["warn", "error"]);
+      // 🔎 যেগুলো সবসময় Warning Box-এ যাবে
+      const PROBLEM_TYPES = new Set(["warn", "error"]);
 
-    // 🔎 'info'/'log' হয়েও সমস্যা বোঝায়—এসব keyword ধরলেই Warning Box-এ
-    const PROBLEM_KEYWORDS = [
-      /skip/i,
-      /skipped/i,
-      /could not resolve/i,
-      /resolve failed/i,
-      /no token/i,
-      /no comment/i,
-      /no post/i,
-      /access denied/i,
-      /not allowed/i,
-      /expired/i,
-      /blocked/i,
-      /rate limit/i,
-      /locked/i,
-      /checkpoint/i,
-      /permission/i,
-      /unknown/i,
-      /failed/i,
-      /limit reached/i,
-      /nothing to attempt/i,
-      /sse connection lost/i,
-    ];
+      // 🔎 'info'/'log' হয়েও সমস্যা বোঝায়—এসব keyword ধরলেই Warning Box-এ
+      const PROBLEM_KEYWORDS = [
+        /skip/i, /skipped/i, /could not resolve/i, /resolve failed/i,
+        /no token/i, /no comment/i, /no post/i, /access denied/i, /not allowed/i,
+        /expired/i, /blocked/i, /rate limit/i, /locked/i, /checkpoint/i,
+        /permission/i, /unknown/i, /failed/i, /limit reached/i, /nothing to attempt/i,
+        /sse connection lost/i,
+      ];
 
-    const looksProblem =
-      PROBLEM_TYPES.has(typ) ||
-      PROBLEM_KEYWORDS.some((rx) => rx.test(msg)) ||
-      !!(d.errKind || d.errMsg); // server extra payload থাকলে
+      const looksProblem =
+        PROBLEM_TYPES.has(typ) ||
+        PROBLEM_KEYWORDS.some((rx) => rx.test(rawMsg)) ||
+        !!(d.errKind || d.errMsg); // server extra payload থাকলে
 
-    if (typ === "ready") {
-      addLog("info", "🔗 Live log connected.");
-      return;
-    }
-
-    if (typ === "summary") {
-      addLog(
-        "success",
-        `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`
-      );
-      if ((d.failed || 0) > 0) {
-        addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
+      if (typ === "ready") {
+        addLog("info", "🔗 Live log connected.");
+        return;
       }
-      isRunning = false;
-      return;
-    }
 
-    // ✅ সমস্যা হলে Warning Box-এ, নাহলে Log Box-এ
-    if (looksProblem) {
-      const extra = d.errKind ? ` [${d.errKind}]` : "";
-      addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
-    } else if (typ === "success") {
-  addLog("success", previewQuotedComment(msg));
-} else {
-  addLog("info", previewQuotedComment(msg || JSON.stringify(d)));
-}
-  } catch (err) {
-    addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
-  }
-};
+      if (typ === "summary") {
+        addLog(
+          "success",
+          `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`
+        );
+        // overwrite counters from summary if provided
+        if (typeof d.sent === "number")   stats.total = d.sent;
+        if (typeof d.ok === "number")     stats.ok    = d.ok;
+        if (typeof d.failed === "number") stats.fail  = d.failed;
+        renderStats();
+
+        if ((d.failed || 0) > 0) {
+          addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
+        }
+        isRunning = false;
+        return;
+      }
+
+      // ✅ সমস্যা হলে Warning Box-এ, নাহলে Log Box-এ
+      if (looksProblem) {
+        const extra = d.errKind ? ` [${d.errKind}]` : "";
+        addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
+
+        // error হলে counters bump
+        if (typ === "error") {
+          stats.fail++; 
+          stats.total++;
+          bumpPerPost(d.postId, "fail");
+          renderStats(); 
+          renderPerPost();
+        }
+      } else {
+        // success-like 'log' (server type 'log' with check mark)
+        if (typ === "log" && /✔ /.test(rawMsg)) {
+          addLog("success", msg);
+          stats.ok++; 
+          stats.total++;
+          bumpPerPost(d.postId, "ok");
+          renderStats(); 
+          renderPerPost();
+        } else if (typ === "success") {
+          // in case server ever sends explicit success
+          addLog("success", msg);
+          stats.ok++; 
+          stats.total++;
+          bumpPerPost(d.postId, "ok");
+          renderStats(); 
+          renderPerPost();
+        } else {
+          addLog("info", msg || JSON.stringify(d));
+        }
+      }
+    } catch (err) {
+      addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
+    }
+  };
+
   eventSource.onerror = () => {
     addWarning("error", "⚠ SSE connection lost.");
     stopSSE();
   };
 }
+
 function stopSSE() {
   if (eventSource) {
     eventSource.close();
@@ -336,9 +434,18 @@ function stopSSE() {
   }
 }
 
+document.getElementById("btnCopyReport")?.addEventListener("click", () => {
+  copyTokenReportToClipboard();
+});
+
 // ---------------------------
 // Page init
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   await loadSession();
+
+  // bind autosroll checkbox if present in DOM
+  document.getElementById("autoScroll")?.addEventListener("change", (e)=>{
+    window.__autoScroll = !!e.target.checked;
+  });
 });
