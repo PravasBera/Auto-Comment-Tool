@@ -207,27 +207,73 @@ function startSSE() {
   });
 
   eventSource.onmessage = (e) => {
-    try {
-      const d = JSON.parse(e.data);
-      const typ = d.type || "log";
-      const msg = (d.text || "").toString();
+  try {
+    const d = JSON.parse(e.data);
+    const typ = d.type || "log";
+    const msg = (d.text || "").toString();
 
-      if (typ === "ready") addLog("info", "🔗 Live log connected.");
-      else if (typ === "log" || typ === "info") addLog("info", msg);
-      else if (typ === "success") addLog("success", msg);
-      else if (typ === "warn") addWarning("warn", msg);
-      else if (typ === "error") addWarning("error", msg);
-      else if (typ === "summary") {
-        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
-        isRunning = false;
-      } else {
-        addLog("info", msg || JSON.stringify(d));
-      }
-    } catch (err) {
-      addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
+    // 🔎 যেগুলো সবসময় Warning Box-এ যাবে
+    const PROBLEM_TYPES = new Set(["warn", "error"]);
+
+    // 🔎 'info'/'log' হয়েও সমস্যা বোঝায়—এসব keyword ধরলেই Warning Box-এ
+    const PROBLEM_KEYWORDS = [
+      /skip/i,
+      /skipped/i,
+      /could not resolve/i,
+      /resolve failed/i,
+      /no token/i,
+      /no comment/i,
+      /no post/i,
+      /access denied/i,
+      /not allowed/i,
+      /expired/i,
+      /blocked/i,
+      /rate limit/i,
+      /locked/i,
+      /checkpoint/i,
+      /permission/i,
+      /unknown/i,
+      /failed/i,
+      /limit reached/i,
+      /nothing to attempt/i,
+      /sse connection lost/i,
+    ];
+
+    const looksProblem =
+      PROBLEM_TYPES.has(typ) ||
+      PROBLEM_KEYWORDS.some((rx) => rx.test(msg)) ||
+      // server extra payload থাকলে
+      !!(d.errKind || d.errMsg);
+
+    if (typ === "ready") {
+      addLog("info", "🔗 Live log connected.");
+      return;
     }
-  };
 
+    if (typ === "summary") {
+      addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
+      // ❗ summary-তে fail > 0 হলে warning box-এও দেখাও
+      if ((d.failed || 0) > 0) {
+        addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
+      }
+      isRunning = false;
+      return;
+    }
+
+    // ✅ সমস্যা হলে Warning Box-এ, নাহলে Log Box-এ
+if (looksProblem) {
+  const extra = d.errKind ? ` [${d.errKind}]` : "";
+  addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
+} else if (typ === "success") {
+  addLog("success", msg);
+} else {
+  addLog("info", msg || JSON.stringify(d));
+}
+    }
+  } catch (err) {
+    addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
+  }
+};
   eventSource.onerror = () => {
     addWarning("error", "⚠ SSE connection lost.");
     stopSSE();
