@@ -205,7 +205,9 @@ function welcomeThenApproval() {
       }
     }
 
-    addLog("info", `👤 Raw user payload: ${JSON.stringify(u)}`);
+    if (u) {
+  addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
+}
     showApproval(u);
   }, 5000);
 }
