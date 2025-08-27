@@ -305,13 +305,38 @@ button:active{ transform:translateY(0); }
 button.danger{ background:var(--btn-danger); }
 button.danger:hover{ background:var(--btn-danger-hover); }
 
-/* Big Start/Stop buttons */
-#startBtn,#stopBtn{
-  font-size:20px;
-  padding:20px;
-  border-radius:14px;
-  font-weight:700;
-  width:100%;
+/* Start Button */
+#startBtn {
+  background: linear-gradient(135deg, #2563eb, #00c3ff) !important;
+  color: #fff !important;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 16px;
+  border-radius: 10px;
+  border: none;
+  width: 100%;
+  transition: all 0.25s ease;
+}
+#startBtn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #0099cc) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Stop Button */
+#stopBtn {
+  background: linear-gradient(135deg, #ef4444, #f97316) !important;
+  color: #fff !important;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 16px;
+  border-radius: 10px;
+  border: none;
+  width: 100%;
+  transition: all 0.25s ease;
+}
+#stopBtn:hover {
+  background: linear-gradient(135deg, #dc2626, #ea580c) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 /* 12) FOOTER + extras */
