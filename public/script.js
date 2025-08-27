@@ -169,61 +169,76 @@ async function loadSession() {
 }
 
 // ---------------------------
-// Welcome → Approval flow
+// Welcome → Approval flow (FINAL)
 // ---------------------------
 
 let __statusTimer = null;
 
-function welcomeThenApproval(){
+function welcomeThenApproval() {
   const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
-
-  // প্রথমে Welcome মেসেজ দেখাবে
   addLog("success", `👋 Welcome ${uid}`);
 
-  // ৫ সেকেন্ড পর Approval মেসেজ দেখানোর জন্য টাইমার সেট করো
   clearTimeout(__statusTimer);
-  __statusTimer = setTimeout(async ()=>{
-    try{
-      const res = await fetch(`/user?ts=${Date.now()}`, {
-  credentials: "include",
-  cache: "no-store"
-});
-const u = res.ok ? await res.json() : null;
-addLog("info", `👤 Raw user payload: ${JSON.stringify(u)}`);
-showApproval(u);
-    }catch(e){
-      showApproval(null); // fallback
-    }
-  }, 5000);
-} // 👈👈👈 এখানেই welcomeThenApproval() ক্লোজ করো
+  __statusTimer = setTimeout(async () => {
+    const sid = window.sessionId || uid || "";
 
-// ---- helpers: approval formatting & message ----
-function formatDT(ts){
-  try{
-    const d = new Date(+ts);
-    const pad = (n)=> String(n).padStart(2,"0");
-    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  }catch{return "-";}
+    // একাধিক fallback endpoint – কুকি না থাকলেও query param এ sessionId
+    const endpoints = [
+      `/user?ts=${Date.now()}`,
+      `/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`,
+      `/api/user?ts=${Date.now()}`,
+      `/api/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`,
+    ];
+
+    let u = null;
+    for (const url of endpoints) {
+      try {
+        addLog("info", `🔎 checking ${url}`);
+        const res = await fetch(url, { credentials: "include", cache: "no-store" });
+        const text = await res.text();
+        addLog("info", `🌐 ${url} → status:${res.status}, body:${text || "(empty)"}`);
+        if (!res.ok) continue;
+        try { u = text ? JSON.parse(text) : null; } catch { u = null; }
+        if (u && typeof u === "object") break; // usable object পেলে বের হয়ে যাও
+      } catch (e) {
+        addWarning("warn", `⚠ fetch failed: ${e.message}`);
+      }
+    }
+
+    addLog("info", `👤 Raw user payload: ${JSON.stringify(u)}`);
+    showApproval(u);
+  }, 5000);
 }
 
-function showApproval(u){
-  // আগের warning গুলো ক্লিয়ার করে নতুনটা দেখাই
+// ---- helpers: approval formatting & message ----
+function formatDT(ts) {
+  try {
+    const d = new Date(+ts);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  } catch { return "-"; }
+}
+
+function showApproval(u) {
+  // আগের warning গুলো ক্লিয়ার (ইচ্ছেমতো রাখো)
   const wb = document.getElementById("warnBox");
   if (wb) wb.innerHTML = "";
 
   if (!u || typeof u !== "object") {
-    addWarning("warn","ℹ️ Waiting for approval status…");
+    addWarning("warn", "ℹ️ Waiting for approval status…");
     return;
   }
 
+  // truthy/falsy helpers
   const truthy = (v) => v === true || v === 1 || v === "1" || v === "true" || v === "yes" || v === "approved";
   const falsy  = (v) => v === false || v === 0 || v === "0" || v === "false" || v === "no";
 
-  const blocked  = truthy(u.blocked) || (typeof u.status === "string" && /blocked/i.test(u.status));
-  const approved = truthy(u.approved) || (typeof u.status === "string" && /approved/i.test(u.status));
+  const statusStr = String(u.status || "");
+  const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
+  const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
   if (blocked) {
-    addWarning("error","⛔ Your access is blocked.");
+    addWarning("error", "⛔ Your access is blocked.");
     return;
   }
 
@@ -237,11 +252,11 @@ function showApproval(u){
     return;
   }
 
-  // approved=false / pending
-  if (falsy(u.approved) || /pending|review/i.test(String(u.status || ""))) {
-    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+  // approved=false / pending / review
+  if (falsy(u.approved) || /pending|review/i.test(statusStr)) {
+    addWarning("warn", "📝 New user detected. Send your UserID to admin for approval.");
   } else {
-    addWarning("warn","ℹ️ Waiting for approval status…");
+    addWarning("warn", "ℹ️ Waiting for approval status…");
   }
 }
 
