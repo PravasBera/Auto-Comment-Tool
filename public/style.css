@@ -119,7 +119,29 @@ body{
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.theme-toggle.center{ margin-top:8px; }
+/* keep the toggle under the team name, centered */
+.app-header .theme-toggle{            /* top-right absolute বন্ধ */
+  position: static !important;
+}
+
+.theme-toggle.center{
+  margin: 12px auto 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* pill track visible on gradient header */
+.theme-toggle.center .switch .track{
+  background: #1f2937 !important;                       /* dark */
+  border: 1px solid rgba(255,255,255,.45) !important;
+  border-radius: 999px;
+}
+body.light .theme-toggle.center .switch .track{
+  background: #e8eef7 !important;                       /* light */
+  border-color: #cbd5e1 !important;
+}
 
 /* Toggle switch */
 .switch{ --h:36px; --w:88px; position:relative; display:inline-block; width:var(--w); height:var(--h); }
