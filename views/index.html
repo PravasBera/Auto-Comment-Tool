@@ -271,7 +271,7 @@
         <input type="file" name="postlinks" accept=".txt" />
 
  <label>Names for Upload Batch (names.txt)</label>
-<textarea name="uploadNames" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+<textarea name="names" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
 
         <button type="submit">Upload</button>
       </form>
@@ -398,7 +398,6 @@
     <button id="stopBtn" class="btn btn-danger">■ Stop</button>
   </div>
 </div>
-    </section>
 
     <section class="card">
   <h2 style="display:flex;justify-content:space-between;align-items:center">
@@ -457,7 +456,8 @@
   <h2 style="display:flex;justify-content:space-between;align-items:center">
     <span>Live Log</span>
     <label class="chk" style="gap:6px">
-      <input type="checkbox" id="autoScroll" checked />
+      <!-- Live Log header -->
+<input type="checkbox" id="autoScrollLogs" checked />
       Auto-scroll
     </label>
   </h2>
