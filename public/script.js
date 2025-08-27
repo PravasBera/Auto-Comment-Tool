@@ -46,6 +46,42 @@ function clearLogs() {
   if (warnBox) warnBox.innerHTML = "";
 }
 
+// ---- Live counters ----
+const stats = { total:0, ok:0, fail:0 };
+const perPost = new Map(); // postId -> {sent, ok, fail}
+
+function resetStats(){
+  stats.total=0; stats.ok=0; stats.fail=0;
+  perPost.clear();
+  renderStats(); renderPerPost();
+}
+function renderStats(){
+  const t=document.getElementById("stTotal"), o=document.getElementById("stOk"), f=document.getElementById("stFail");
+  if(t) t.textContent = `Sent: ${stats.total}`;
+  if(o) o.textContent = `OK: ${stats.ok}`;
+  if(f) f.textContent = `Failed: ${stats.fail}`;
+}
+function bumpPerPost(postId, kind){
+  if(!postId) return;
+  if(!perPost.has(postId)) perPost.set(postId, {sent:0, ok:0, fail:0});
+  const row = perPost.get(postId);
+  row.sent++;
+  if(kind==="ok") row.ok++; else if(kind==="fail") row.fail++;
+}
+function renderPerPost(){
+  const tb = document.getElementById("perPostBody"); if(!tb) return;
+  tb.innerHTML = "";
+  for (const [pid, r] of perPost.entries()){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="padding:6px;border-bottom:1px solid #333">${pid}</td>
+      <td style="padding:6px;text-align:right;border-bottom:1px solid #333">${r.sent}</td>
+      <td style="padding:6px;text-align:right;border-bottom:1px solid #333">${r.ok}</td>
+      <td style="padding:6px;text-align:right;border-bottom:1px solid #333">${r.fail}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
 // ---------------------------
 // Session bootstrap
 // ---------------------------
@@ -101,6 +137,9 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 // Start
 // -------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
+  // startBtn click handler-এর একদম শুরুতে
+resetStats();
+  
   const delayEl   = document.querySelector('[name="delay"]');
   const limitEl   = document.querySelector('[name="limit"]');
   const shuffleEl = document.querySelector('[name="useShuffle"]');
