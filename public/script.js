@@ -325,14 +325,6 @@ function startSSE() {
       addWarning("warn", "⚠ User event parse error");
     }
   });
-
-eventSource.addEventListener("token", (e) => {
-  try {
-    const d = JSON.parse(e.data || "{}");
-    tokenMap.set(d.token, { pos: d.position ?? d.idx ?? null, status: d.status || "?", until: d.until || null });
-    renderTokens();
-  } catch {}
-});
   
   eventSource.onmessage = (e) => {
     try {
@@ -358,6 +350,17 @@ eventSource.addEventListener("token", (e) => {
         PROBLEM_KEYWORDS.some((rx) => rx.test(rawMsg)) ||
         !!(d.errKind || d.errMsg); // server extra payload থাকলে
 
+// token status comes as default 'message' with type:"token"
+if (typ === "token") {
+  tokenMap.set(d.token, {
+    pos: d.position ?? d.idx ?? null,
+    status: d.status || "?",
+    until: d.until || null
+  });
+  renderTokens();
+  return;
+}
+      
       if (typ === "ready") {
         addLog("info", "🔗 Live log connected.");
         return;
