@@ -159,12 +159,65 @@ async function loadSession() {
       const box = document.getElementById("userIdBox");
       if (box) box.textContent = data.id;
       addLog("success", "✅ Session ID loaded.");
+      welcomeThenApproval();
     } else throw new Error("No session id in response");
   } catch (err) {
     const box = document.getElementById("userIdBox");
     if (box) box.textContent = "Session load failed";
     addWarning("error", "❌ Failed to load session: " + err.message);
   }
+}
+
+// ---------------------------
+// Welcome → Approval flow
+// ---------------------------
+
+let __statusTimer = null;
+
+function welcomeThenApproval(){
+  const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
+  
+  // প্রথমে Welcome মেসেজ দেখাবে
+  addLog("success", `👋 Welcome ${uid}`);
+  
+  // ৫ সেকেন্ড পর Approval মেসেজ দেখানোর জন্য টাইমার সেট করো
+  clearTimeout(__statusTimer);
+  __statusTimer = setTimeout(async ()=>{
+  try{
+    const res = await fetch("/user", { credentials: "include" });
+    const u = res.ok ? await res.json() : null;
+    showApproval(u);
+  }catch(e){
+    showApproval(null); // fallback
+  }
+}, 5000);
+
+  function formatDT(ts){
+  try{
+    const d = new Date(+ts);
+    const pad = (n)=> String(n).padStart(2,"0");
+    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }catch{return "-";}
+}
+
+function showApproval(u){
+  if (u?.blocked) { addWarning("error","⛔ Your access is blocked."); return; }
+
+  if (!u || u.approved === false){
+    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+    return;
+  }
+
+  if (u.approved === true){
+    if (u.expiry){
+      addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(u.expiry)}.`);
+    }else{
+      addLog("success", "🔓 You have lifetime access.");
+    }
+    return;
+  }
+
+  addWarning("warn","ℹ️ Waiting for approval status…");
 }
 
 // ---------------------------
