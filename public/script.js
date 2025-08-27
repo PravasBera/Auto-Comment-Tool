@@ -23,31 +23,70 @@ function previewQuotedComment(line) {
   return line.replace(`"${m[1]}"`, `"${short}"`);
 }
 
-function addLog(type, message) {
-  const logBox = document.getElementById("logBox");
-  if (!logBox) return;
-  const div = document.createElement("div");
-  div.className = type;
-  div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-  logBox.appendChild(div);
-  if (window.__autoScroll) logBox.scrollTop = logBox.scrollHeight;
+// ---------------------------
+// Colored Logs (NEW system)
+// ---------------------------
+const $log  = document.getElementById('logBox');
+const $warn = document.getElementById('warnBox');
+
+function normType(t='info'){
+  t = String(t).toLowerCase();
+  if (t === 'ok' || t === 'success' || /passed?/.test(t)) return 'success';
+  if (t.startsWith('warn')) return 'warning';
+  if (t === 'error' || /fail/.test(t)) return 'error';
+  return 'info';
+}
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function makeLine(type, msg, meta){
+  const t = normType(type);
+  const p = document.createElement('p');
+  p.className = `log-line type-${t}`;
+  const ts = new Date().toLocaleTimeString();
+  const namePart = meta?.name   ? ` <span class="f-name">@${esc(meta.name)}</span>`   : '';
+  const postPart = meta?.postId ? ` <span class="f-post">#${esc(meta.postId)}</span>` : '';
+  const cmtPart  = meta?.comment? ` <span class="f-comment">“${esc(meta.comment)}”</span>` : '';
+  p.innerHTML = `<span class="log-time">[${ts}]</span>${esc(msg)}${namePart}${postPart}${cmtPart}`;
+  return p;
+}
+function pushToBoxes(type, msg, meta){
+  const line = makeLine(type, msg, meta);
+  const clone = line.cloneNode(true);
+  if ($log){  $log.appendChild(line);  if (window.__autoScroll !== false) $log.scrollTop  = $log.scrollHeight; }
+  if ($warn){ $warn.appendChild(clone); if (window.__autoScroll !== false) $warn.scrollTop = $warn.scrollHeight; }
 }
 
-function addWarning(type, message) {
-  const warnBox = document.getElementById("warnBox");
-  if (!warnBox) return;
-  const div = document.createElement("div");
-  div.className = type;
-  div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-  warnBox.appendChild(div);
-  if (window.__autoScroll) warnBox.scrollTop = warnBox.scrollHeight;
-}
+// Public APIs
+window.logEvent = function(type, msg, meta={}){ pushToBoxes(type, msg, meta); };
+window.reportCommentEvent = function(status, name, postId, comment){
+  pushToBoxes(status,
+    status==='success' ? 'Comment sent' :
+    status==='warning' ? 'Warning' :
+    status==='error'   ? 'Error' : 'Info',
+    { name, postId, comment }
+  );
+};
+window.logSmart = function(raw, meta={}){
+  const s = String(raw);
+  let type = 'info';
+  if (/^\s*(ok|success|ok)/i.test(s))       type='success';
+  else if (/^\s*(warn|warning)/i.test(s))       type='warning';
+  else if (/^\s*(error|fail|failed|oauth)/i.test(s)) type='error';
+  pushToBoxes(type, s, meta);
+};
 
+// Bridge old addLog/addWarning → new renderer
+window.addLog = function(type, message) {
+  logEvent(type, message);
+};
+window.addWarning = function(type, message) {
+  logEvent(type || "warning", message);
+};
 function clearLogs() {
-  const logBox = document.getElementById("logBox");
-  const warnBox = document.getElementById("warnBox");
-  if (logBox) logBox.innerHTML = "";
-  if (warnBox) warnBox.innerHTML = "";
+  if ($log) $log.innerHTML = "";
+  if ($warn) $warn.innerHTML = "";
 }
 
 // ---------------------------
@@ -108,15 +147,15 @@ async function copyTokenReportToClipboard() {
   ].join("\n");
   try {
     await navigator.clipboard.writeText(text);
-    addLog("success", "📋 Token report copied to clipboard.");
+    logEvent("success", "📋 Token report copied to clipboard.");
   } catch {
-    addWarning("warn", "⚠️ Could not copy. Select from Warning box instead.");
-    addWarning("warn", text);
+    logEvent("warning", "⚠️ Could not copy. Select from Warning box instead.");
+    logEvent("warning", text);
   }
 }
 
 // ---------------------------
-/** Live counters + per-post table */
+// Live counters + per-post table
 // ---------------------------
 const stats = { total:0, ok:0, fail:0 };
 const perPost = new Map(); // postId -> {sent, ok, fail}
@@ -164,13 +203,13 @@ async function loadSession() {
       window.sessionId = data.id;
       const box = document.getElementById("userIdBox");
       if (box) box.textContent = data.id;
-      addLog("success", "✅ Session ID loaded.");
+      logEvent("success", "✅ Session ID loaded.");
       welcomeThenApproval();
     } else throw new Error("No session id in response");
   } catch (err) {
     const box = document.getElementById("userIdBox");
     if (box) box.textContent = "Session load failed";
-    addWarning("error", "❌ Failed to load session: " + err.message);
+    logEvent("error", "❌ Failed to load session: " + err.message);
   }
 }
 
@@ -181,7 +220,7 @@ let __statusTimer = null;
 
 function welcomeThenApproval() {
   const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
-  addLog("success", `👋 Welcome ${uid}`);
+  logEvent("success", `👋 Welcome ${uid}`);
 
   clearTimeout(__statusTimer);
   __statusTimer = setTimeout(async () => {
@@ -197,26 +236,26 @@ function welcomeThenApproval() {
     let u = null;
     for (const url of endpoints) {
       try {
-        addLog("info", `🔎 checking ${url}`);
+        logEvent("info", `🔎 checking ${url}`);
         const res  = await fetch(url, { credentials: "include", cache: "no-store" });
         const text = await res.text();
 
         if (!res.ok) {
-          addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
+          logEvent("warning", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
           continue;
         } else {
-          addLog("info", `🌐 ${url} → status:${res.status}`);
+          logEvent("info", `🌐 ${url} → status:${res.status}`);
         }
 
         try { u = text ? JSON.parse(text) : null; } catch { u = null; }
         if (u && typeof u === "object") break;
       } catch (e) {
-        addWarning("warn", `⚠ fetch failed: ${e.message}`);
+        logEvent("warning", `⚠ fetch failed: ${e.message}`);
       }
     }
 
     if (u) {
-      addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
+      logEvent("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
     }
     showApproval(u);
   }, 5000);
@@ -235,7 +274,7 @@ function showApproval(u) {
   if (wb) wb.innerHTML = "";
 
   if (!u || typeof u !== "object") {
-    addWarning("warn", "ℹ️ Waiting for approval status…");
+    logEvent("warning", "ℹ️ Waiting for approval status…");
     return;
   }
 
@@ -246,19 +285,19 @@ function showApproval(u) {
   const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
   const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
-  if (blocked) { addWarning("error","⛔ Your access is blocked."); return; }
+  if (blocked) { logEvent("error","⛔ Your access is blocked."); return; }
 
   if (approved) {
     const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
-    if (expiry) addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
-    else addLog("success", "🔓 You have lifetime access.");
+    if (expiry) logEvent("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
+    else logEvent("success", "🔓 You have lifetime access.");
     return;
   }
 
   if (falsy(u.approved) || /pending|review/i.test(statusStr)) {
-    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+    logEvent("warning","📝 New user detected. Send your UserID to admin for approval.");
   } else {
-    addWarning("warn","ℹ️ Waiting for approval status…");
+    logEvent("warning","ℹ️ Waiting for approval status…");
   }
 }
 
@@ -271,7 +310,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   if (window.sessionId) formData.append("sessionId", window.sessionId);
 
   try {
-    addLog("info", "⏳ Uploading files…");
+    logEvent("info", "⏳ Uploading files…");
     const res = await fetch("/upload", {
       method: "POST",
       body: formData,
@@ -279,12 +318,12 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
+      logEvent("success", `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
     } else {
-      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
+      logEvent("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Upload error: " + err.message);
+    logEvent("error", "❌ Upload error: " + err.message);
   }
 });
 
@@ -317,15 +356,15 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
       posts.push({
         target,
         names: names || "",
-        tokens: "",         // manual-per-post tokens kept empty (uses global if not provided)
+        tokens: "",
         comments: "",
         commentPack: commentPack || "Default",
       });
     }
   }
 
-  addLog("info", "🚀 Sending start request…");
-  addLog("info", `⚡ Selected Speed Mode: ${delayMode}`);
+  logEvent("info", "🚀 Sending start request…");
+  logEvent("info", `⚡ Selected Speed Mode: ${delayMode}`);
 
   try {
     const res = await fetch("/start", {
@@ -344,14 +383,14 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
     const data = await res.json();
 
     if (data.ok) {
-      addLog("success", "✅ Commenting started.");
+      logEvent("success", "✅ Commenting started.");
       isRunning = true;
       startSSE();
     } else {
-      addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
+      logEvent("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Start request error: " + err.message);
+    logEvent("error", "❌ Start request error: " + err.message);
   }
 });
 
@@ -359,7 +398,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
 // Stop
 // ---------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
-  if (!isRunning) { addWarning("warn", "⚠️ Nothing is running."); return; }
+  if (!isRunning) { logEvent("warning", "⚠️ Nothing is running."); return; }
   try {
     const res = await fetch("/stop", {
       method: "POST",
@@ -369,224 +408,11 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", "🛑 Stopped successfully.");
+      logEvent("success", "🛑 Stopped successfully.");
       isRunning = false;
       stopSSE();
     } else {
-      addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
+      logEvent("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Stop request error: " + err.message);
-  }
-});
-
-// ---------------------------
-// SSE (Server-Sent Events)
-// ---------------------------
-function startSSE() {
-  if (eventSource) eventSource.close();
-  const url = window.sessionId ? `/events?sessionId=${encodeURIComponent(window.sessionId)}` : `/events`;
-  eventSource = new EventSource(url);
-
-  // autosroll checkboxes (both)
-  const bindScroll = (id) => {
-    document.getElementById(id)?.addEventListener("change",(e)=>{
-      window.__autoScroll = !!e.target.checked;
-    });
-  };
-  bindScroll("autoScroll");
-  bindScroll("autoScrollLogs");
-
-  // Named "user" event
-  eventSource.addEventListener("user", (e) => {
-    try {
-      const u = JSON.parse(e.data || "{}");
-      addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
-    } catch {
-      addWarning("warn", "⚠ User event parse error");
-    }
-  });
-
-  // Named "token" event (token chips updates)
-  eventSource.addEventListener("token", (e) => {
-    try {
-      const d = JSON.parse(e.data || "{}");
-      tokenMap.set(d.token, {
-        pos: d.position ?? d.idx ?? null,
-        status: d.status || "?",
-        until: d.until || null
-      });
-      renderTokens();
-    } catch {
-      addWarning("warn", "⚠ token event parse error");
-    }
-  });
-
-  // Any bare bootstrap "sessionId" packets and normal payloads
-  eventSource.onmessage = (e) => {
-    // 1) Handle initial {sessionId} message without type
-    try {
-      const probe = JSON.parse(e.data || "{}");
-      if (probe && probe.sessionId && !window.sessionId) {
-        window.sessionId = probe.sessionId;
-        const box = document.getElementById("userIdBox");
-        if (box) box.textContent = probe.sessionId;
-        addLog("info", "🔗 SSE session synced.");
-        return;
-      }
-    } catch { /* ignore, continue */ }
-
-    // 2) Normal typed payloads
-    try {
-      const d = JSON.parse(e.data);
-      const typ = d.type || "log";
-      const rawMsg = (d.text || "").toString();
-      const msg = previewQuotedComment(rawMsg);
-
-      const PROBLEM_TYPES = new Set(["warn", "error"]);
-      const PROBLEM_KEYWORDS = [
-        /skip/i, /skipped/i, /could not resolve/i, /resolve failed/i,
-        /no token/i, /no comment/i, /no post/i, /access denied/i, /not allowed/i,
-        /expired/i, /blocked/i, /rate limit/i, /locked/i, /checkpoint/i,
-        /permission/i, /unknown/i, /failed/i, /limit reached/i, /nothing to attempt/i,
-        /sse connection lost/i,
-      ];
-      const looksProblem =
-        PROBLEM_TYPES.has(typ) ||
-        PROBLEM_KEYWORDS.some((rx) => rx.test(rawMsg)) ||
-        !!(d.errKind || d.errMsg);
-
-      if (typ === "ready") { addLog("info", "🔗 Live log connected."); return; }
-
-      if (typ === "summary") {
-        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
-        if (typeof d.sent === "number")   stats.total = d.sent;
-        if (typeof d.ok === "number")     stats.ok    = d.ok;
-        if (typeof d.failed === "number") stats.fail  = d.failed;
-        renderStats();
-        if ((d.failed || 0) > 0) addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
-        isRunning = false;
-        return;
-      }
-
-      if (looksProblem) {
-        const extra = d.errKind ? ` [${d.errKind}]` : "";
-        addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
-        if (typ === "error") {
-          stats.fail++; 
-          stats.total++;
-          bumpPerPost(d.postId, "fail");
-          renderStats();
-          renderPerPost();
-        }
-      } else {
-        if (typ === "log" && /✔ /.test(rawMsg)) {
-          addLog("success", msg);
-          stats.ok++; 
-          stats.total++;
-          bumpPerPost(d.postId, "ok");
-          renderStats(); 
-          renderPerPost();
-        } else if (typ === "success") {
-          addLog("success", msg);
-          stats.ok++; 
-          stats.total++;
-          bumpPerPost(d.postId, "ok");
-          renderStats(); 
-          renderPerPost();
-        } else {
-          addLog("info", msg || JSON.stringify(d));
-        }
-      }
-    } catch (err) {
-      addWarning("error", "⚠ SSE parse error: " + (err?.message || err));
-    }
-  };
-
-  eventSource.onerror = () => {
-    addWarning("error", "⚠ SSE connection lost.");
-    stopSSE();
-  };
-}
-
-function stopSSE() {
-  if (eventSource) {
-    eventSource.close();
-    eventSource = null;
-    addLog("info", "🔌 Live log disconnected.");
-  }
-}
-
-// ===== Colored log to BOTH boxes =====
-const $log  = document.getElementById('logBox');
-const $warn = document.getElementById('warnBox');
-
-function normType(t='info'){
-  t = String(t).toLowerCase();
-  if (t === 'ok' || t === 'success' || /passed?/.test(t)) return 'success';
-  if (t.startsWith('warn')) return 'warning';
-  if (t === 'error' || /fail/.test(t)) return 'error';
-  return 'info';
-}
-function esc(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-function makeLine(type, msg, meta){
-  const t = normType(type);
-  const p = document.createElement('p');
-  p.className = `log-line type-${t}`;
-  const ts = new Date().toLocaleTimeString();
-  const namePart = meta?.name   ? ` <span class="f-name">@${esc(meta.name)}</span>`   : '';
-  const postPart = meta?.postId ? ` <span class="f-post">#${esc(meta.postId)}</span>` : '';
-  const cmtPart  = meta?.comment? ` <span class="f-comment">“${esc(meta.comment)}”</span>` : '';
-  p.innerHTML = `<span class="log-time">[${ts}]</span>${esc(msg)}${namePart}${postPart}${cmtPart}`;
-  return p;
-}
-function pushToBoxes(type, msg, meta){
-  const line = makeLine(type, msg, meta);
-  const clone = line.cloneNode(true);
-  if ($log){  $log.appendChild(line);  if (window.__autoScroll !== false) $log.scrollTop  = $log.scrollHeight; }
-  if ($warn){ $warn.appendChild(clone); if (window.__autoScroll !== false) $warn.scrollTop = $warn.scrollHeight; }
-}
-
-// Public APIs – যেকোনো জায়গা থেকে কল করুন
-window.logEvent = function(type, msg, meta={}){ pushToBoxes(type, msg, meta); };
-window.reportCommentEvent = function(status, name, postId, comment){
-  pushToBoxes(status,
-    status==='success' ? 'Comment sent' :
-    status==='warning' ? 'Warning' :
-    status==='error'   ? 'Error' : 'Info',
-    { name, postId, comment }
-  );
-};
-// Optional: auto-detect type from text
-window.logSmart = function(raw, meta={}){
-  const s = String(raw);
-  let type = 'info';
-  if (/^\s*(ok|success|\[ok\])/i.test(s))       type='success';
-  else if (/^\s*(warn|warning)/i.test(s))       type='warning';
-  else if (/^\s*(error|fail|failed|oauth)/i.test(s)) type='error';
-  pushToBoxes(type, s, meta);
-};
-
-// ---------------------------
-// Page init
-// ---------------------------
-window.addEventListener("DOMContentLoaded", async () => {
-  await loadSession();
-
-  // Bind auto-scroll checkboxes (in case user toggles before SSE starts)
-  const bindScroll = (id) => {
-    document.getElementById(id)?.addEventListener("change",(e)=>{
-      window.__autoScroll = !!e.target.checked;
-    });
-  };
-  bindScroll("autoScroll");
-  bindScroll("autoScrollLogs");
-
-  // Copy token report
-  document.getElementById("btnCopyReport")?.addEventListener("click", () => {
-    copyTokenReportToClipboard();
-  });
-});
+    logEvent("error", "❌ Stop request error
