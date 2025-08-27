@@ -176,23 +176,25 @@ let __statusTimer = null;
 
 function welcomeThenApproval(){
   const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
-  
+
   // প্রথমে Welcome মেসেজ দেখাবে
   addLog("success", `👋 Welcome ${uid}`);
-  
+
   // ৫ সেকেন্ড পর Approval মেসেজ দেখানোর জন্য টাইমার সেট করো
   clearTimeout(__statusTimer);
   __statusTimer = setTimeout(async ()=>{
-  try{
-    const res = await fetch("/user", { credentials: "include" });
-    const u = res.ok ? await res.json() : null;
-    showApproval(u);
-  }catch(e){
-    showApproval(null); // fallback
-  }
-}, 5000);
+    try{
+      const res = await fetch("/user", { credentials: "include" });
+      const u = res.ok ? await res.json() : null;
+      showApproval(u);
+    }catch(e){
+      showApproval(null); // fallback
+    }
+  }, 5000);
+} // 👈👈👈 এখানেই welcomeThenApproval() ক্লোজ করো
 
-  function formatDT(ts){
+// ---- helpers: approval formatting & message ----
+function formatDT(ts){
   try{
     const d = new Date(+ts);
     const pad = (n)=> String(n).padStart(2,"0");
@@ -202,12 +204,10 @@ function welcomeThenApproval(){
 
 function showApproval(u){
   if (u?.blocked) { addWarning("error","⛔ Your access is blocked."); return; }
-
   if (!u || u.approved === false){
     addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
     return;
   }
-
   if (u.approved === true){
     if (u.expiry){
       addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(u.expiry)}.`);
@@ -216,7 +216,6 @@ function showApproval(u){
     }
     return;
   }
-
   addWarning("warn","ℹ️ Waiting for approval status…");
 }
 
@@ -493,7 +492,7 @@ function stopSSE() {
 document.getElementById("btnCopyReport")?.addEventListener("click", () => {
   copyTokenReportToClipboard();
 });
-
+  
 // ---------------------------
 // Page init
 // ---------------------------
