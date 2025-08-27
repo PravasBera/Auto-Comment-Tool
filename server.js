@@ -453,11 +453,11 @@ app.get("/api/user", async (req, res) => {
   });
 });
 
-// -------------------- SSE endpoint (Updated) --------------------
+// -------------------- SSE endpoint --------------------
 app.get("/events", async (req, res) => {
-  let sessionId = req.query.sessionId || req.sessionId || generateUserId();
+  const sessionId = req.query.sessionId || req.sessionId || generateUserId();
 
-  // Ensure session cookie
+  // ensure session cookie
   if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
     res.cookie("sid", sessionId, {
       httpOnly: false,
@@ -466,65 +466,51 @@ app.get("/events", async (req, res) => {
     });
   }
 
-  const job = getJob(sessionId);
+  const job  = getJob(sessionId);
   const user = await ensureUser(sessionId);
 
-  // SSE Headers
+  // SSE headers
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
-    Connection: "keep-alive",
+    "Connection": "keep-alive",
   });
   res.flushHeaders();
 
   job.clients.add(res);
 
-  // --- Send welcome message
-  const sid = e.data;
-  if (sid) {
-    window.sessionId = sid;
-    const box = document.getElementById("userIdBox");
-    if (box) box.textContent = sid;
-    addLog("info", "🔗 SSE session synced.");
-  }
-});
+  // send session id (default message)
   res.write(`data: ${JSON.stringify({ sessionId })}\n\n`);
 
-  // --- Send user access status
-  let statusMsg = "";
-  if (user.blocked) {
-    statusMsg = "Your access is blocked.";
-  } else if (!user.status || user.status === "new") {
-    statusMsg = "Send UserID to admin for approval.";
-  } else if (user.expiry) {
-    statusMsg = `Your access will expire on ${new Date(+user.expiry).toLocaleString()}`;
-  } else if (user.status === "approved") {
-    statusMsg = "You have lifetime access.";
-  }
+  // send current user status (named event)
+  res.write(
+    "event: user\n" +
+    `data: ${JSON.stringify({
+      sessionId,
+      status:  user.status,
+      blocked: user.blocked,
+      expiry:  user.expiry,
+      message: user.blocked
+        ? "Your access is blocked."
+        : (user.status === "approved"
+            ? (user.expiry
+                ? `Your access will expire on ${new Date(+user.expiry).toLocaleString()}`
+                : "You have lifetime access.")
+            : "Send UserID to admin for approval.")
+    })}\n\n`
+  );
 
-  res.write(`event: user\n`);
-  res.write(`data: ${JSON.stringify({
-    sessionId,
-    status: user.status,
-    blocked: user.blocked,
-    expiry: user.expiry,
-    message: statusMsg,
-  })}\n\n`);
-
-  // --- Notify ready
+  // notify ready
   sseLine(sessionId, "ready", "SSE connected");
 
-  // --- Heartbeat (keep-alive every 20 sec)
-  const heartbeat = setInterval(() => {
-    res.write(`: ping\n\n`);
-  }, 20000);
+  // heartbeat (keep-alive)
+  const heartbeat = setInterval(() => res.write(": ping\n\n"), 20000);
 
   req.on("close", () => {
     clearInterval(heartbeat);
     job.clients.delete(res);
   });
 });
-
 // -------------------- Admin auth (JWT) --------------------
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "Bullet";
