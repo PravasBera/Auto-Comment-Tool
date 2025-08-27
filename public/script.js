@@ -517,6 +517,59 @@ function stopSSE() {
   }
 }
 
+// ===== Colored log to BOTH boxes =====
+const $log  = document.getElementById('logBox');
+const $warn = document.getElementById('warnBox');
+
+function normType(t='info'){
+  t = String(t).toLowerCase();
+  if (t === 'ok' || t === 'success' || /passed?/.test(t)) return 'success';
+  if (t.startsWith('warn')) return 'warning';
+  if (t === 'error' || /fail/.test(t)) return 'error';
+  return 'info';
+}
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function makeLine(type, msg, meta){
+  const t = normType(type);
+  const p = document.createElement('p');
+  p.className = `log-line type-${t}`;
+  const ts = new Date().toLocaleTimeString();
+  const namePart = meta?.name   ? ` <span class="f-name">@${esc(meta.name)}</span>`   : '';
+  const postPart = meta?.postId ? ` <span class="f-post">#${esc(meta.postId)}</span>` : '';
+  const cmtPart  = meta?.comment? ` <span class="f-comment">“${esc(meta.comment)}”</span>` : '';
+  p.innerHTML = `<span class="log-time">[${ts}]</span>${esc(msg)}${namePart}${postPart}${cmtPart}`;
+  return p;
+}
+function pushToBoxes(type, msg, meta){
+  const line = makeLine(type, msg, meta);
+  const clone = line.cloneNode(true);
+  if ($log){  $log.appendChild(line);  if (window.__autoScroll !== false) $log.scrollTop  = $log.scrollHeight; }
+  if ($warn){ $warn.appendChild(clone); if (window.__autoScroll !== false) $warn.scrollTop = $warn.scrollHeight; }
+}
+
+// Public APIs – যেকোনো জায়গা থেকে কল করুন
+window.logEvent = function(type, msg, meta={}){ pushToBoxes(type, msg, meta); };
+window.reportCommentEvent = function(status, name, postId, comment){
+  pushToBoxes(status,
+    status==='success' ? 'Comment sent' :
+    status==='warning' ? 'Warning' :
+    status==='error'   ? 'Error' : 'Info',
+    { name, postId, comment }
+  );
+};
+// Optional: auto-detect type from text
+window.logSmart = function(raw, meta={}){
+  const s = String(raw);
+  let type = 'info';
+  if (/^\s*(ok|success|\[ok\])/i.test(s))       type='success';
+  else if (/^\s*(warn|warning)/i.test(s))       type='warning';
+  else if (/^\s*(error|fail|failed|oauth)/i.test(s)) type='error';
+  pushToBoxes(type, s, meta);
+};
+
 // ---------------------------
 // Page init
 // ---------------------------
