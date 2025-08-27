@@ -1,23 +1,22 @@
 // /public/script.js
 // ===============================
 // Facebook Auto Comment Tool Pro
-// Frontend Script (Client-Side) — READY
+// Frontend Script (FINAL)
 // ===============================
 
 let eventSource = null;
 let isRunning = false;
 window.sessionId = null;
-window.__autoScroll = true; // auto-scroll toggle (checkbox থাকলে bind হবে)
+window.__autoScroll = true; // auto-scroll toggle (both checkboxes bind)
 
 // ---------------------------
 // UI Helpers
 // ---------------------------
 
-// Only show first 5 words of the quoted comment in a log line
 function previewQuotedComment(line) {
   if (!line) return "";
-  const m = line.match(/"([^"]+)"/); // find first "comment" part
-  if (!m) return line;               // no quoted comment -> return as is
+  const m = line.match(/"([^"]+)"/); // find first quoted comment
+  if (!m) return line;
   const full = m[1].trim();
   const words = full.split(/\s+/);
   const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "…";
@@ -51,7 +50,33 @@ function clearLogs() {
   if (warnBox) warnBox.innerHTML = "";
 }
 
-// ---- Token report helpers ----
+// ---------------------------
+// Token chips (status badges)
+// ---------------------------
+const tokenMap = new Map();
+
+function resetTokens(){ tokenMap.clear(); renderTokens(); }
+
+function renderTokens(){
+  const box = document.getElementById("tokenList");
+  if(!box) return;
+  box.innerHTML = "";
+  const arr = [...tokenMap.entries()].sort((a,b)=>(a[1].pos ?? 9999)-(b[1].pos ?? 9999));
+  for (const [tok, info] of arr){
+    const chip = document.createElement("div");
+    chip.className = "token-chip " + (
+      info.status === "OK" ? "token-ok" :
+      info.status === "BACKOFF" ? "token-backoff" :
+      (info.status === "REMOVED" || info.status === "ID_LOCKED" || info.status === "INVALID_TOKEN") ? "token-removed" :
+      info.status === "NO_PERMISSION" ? "token-noperm" : ""
+    );
+    chip.title = `${tok}${info.until ? ` • until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
+    chip.textContent = `#${info.pos ?? "-"} ${info.status}`;
+    box.appendChild(chip);
+  }
+}
+
+// Copyable token report
 function tokenReport() {
   const removed = [];
   const backoff = [];
@@ -90,28 +115,9 @@ async function copyTokenReportToClipboard() {
   }
 }
 
-// ---- Token status (chips) ----
-const tokenMap = new Map();
-function resetTokens(){ tokenMap.clear(); renderTokens(); }
-function renderTokens(){
-  const box = document.getElementById("tokenList"); if(!box) return;
-  box.innerHTML = "";
-  const arr = [...tokenMap.entries()].sort((a,b)=>(a[1].pos ?? 9999)-(b[1].pos ?? 9999));
-  for (const [tok, info] of arr){
-    const chip = document.createElement("div");
-    chip.className = "token-chip " + (
-      info.status === "OK" ? "token-ok" :
-      info.status === "BACKOFF" ? "token-backoff" :
-      (info.status === "REMOVED" || info.status === "ID_LOCKED" || info.status === "INVALID_TOKEN") ? "token-removed" :
-      info.status === "NO_PERMISSION" ? "token-noperm" : ""
-    );
-    chip.title = `${tok}${info.until ? ` • until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
-    chip.textContent = `#${info.pos ?? "-"} ${info.status}`;
-    box.appendChild(chip);
-  }
-}
-
-// ---- Live counters ----
+// ---------------------------
+/** Live counters + per-post table */
+// ---------------------------
 const stats = { total:0, ok:0, fail:0 };
 const perPost = new Map(); // postId -> {sent, ok, fail}
 
@@ -169,9 +175,8 @@ async function loadSession() {
 }
 
 // ---------------------------
-// Welcome → Approval flow (FINAL)
+// Welcome → Approval flow
 // ---------------------------
-
 let __statusTimer = null;
 
 function welcomeThenApproval() {
@@ -182,55 +187,50 @@ function welcomeThenApproval() {
   __statusTimer = setTimeout(async () => {
     const sid = window.sessionId || uid || "";
 
-    // একাধিক fallback endpoint – কুকি না থাকলেও query param এ sessionId
     const endpoints = [
       `/user?ts=${Date.now()}`,
       `/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`,
       `/api/user?ts=${Date.now()}`,
-      `/api/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`,
+      `/api/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`
     ];
 
     let u = null;
     for (const url of endpoints) {
-  try {
-    addLog("info", `🔎 checking ${url}`);
-    const res  = await fetch(url, { credentials: "include", cache: "no-store" });
-    const text = await res.text();
+      try {
+        addLog("info", `🔎 checking ${url}`);
+        const res  = await fetch(url, { credentials: "include", cache: "no-store" });
+        const text = await res.text();
 
-    // ✅ body আর প্রিন্ট করা হবে না
-    if (!res.ok) {
-      addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
-      continue;
-    } else {
-      addLog("info", `🌐 ${url} → status:${res.status}`);
+        if (!res.ok) {
+          addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
+          continue;
+        } else {
+          addLog("info", `🌐 ${url} → status:${res.status}`);
+        }
+
+        try { u = text ? JSON.parse(text) : null; } catch { u = null; }
+        if (u && typeof u === "object") break;
+      } catch (e) {
+        addWarning("warn", `⚠ fetch failed: ${e.message}`);
+      }
     }
 
-    try { u = text ? JSON.parse(text) : null; } catch { u = null; }
-    if (u && typeof u === "object") break;
-  } catch (e) {
-    addWarning("warn", `⚠ fetch failed: ${e.message}`);
-  }
-}
-
-// ✅ clean summary
-if (u) {
-  addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
-}
-showApproval(u);
+    if (u) {
+      addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
+    }
+    showApproval(u);
   }, 5000);
 }
 
-// ---- helpers: approval formatting & message ----
 function formatDT(ts) {
   try {
     const d = new Date(+ts);
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const pad = (n) => String(n).padStart(2,"0");
+    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   } catch { return "-"; }
 }
 
 function showApproval(u) {
-  // আগের warning গুলো ক্লিয়ার (ইচ্ছেমতো রাখো)
   const wb = document.getElementById("warnBox");
   if (wb) wb.innerHTML = "";
 
@@ -239,7 +239,6 @@ function showApproval(u) {
     return;
   }
 
-  // truthy/falsy helpers
   const truthy = (v) => v === true || v === 1 || v === "1" || v === "true" || v === "yes" || v === "approved";
   const falsy  = (v) => v === false || v === 0 || v === "0" || v === "false" || v === "no";
 
@@ -247,36 +246,28 @@ function showApproval(u) {
   const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
   const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
-  if (blocked) {
-    addWarning("error", "⛔ Your access is blocked.");
-    return;
-  }
+  if (blocked) { addWarning("error","⛔ Your access is blocked."); return; }
 
   if (approved) {
     const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
-    if (expiry) {
-      addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
-    } else {
-      addLog("success", "🔓 You have lifetime access.");
-    }
+    if (expiry) addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
+    else addLog("success", "🔓 You have lifetime access.");
     return;
   }
 
-  // approved=false / pending / review
   if (falsy(u.approved) || /pending|review/i.test(statusStr)) {
-    addWarning("warn", "📝 New user detected. Send your UserID to admin for approval.");
+    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
   } else {
-    addWarning("warn", "ℹ️ Waiting for approval status…");
+    addWarning("warn","ℹ️ Waiting for approval status…");
   }
 }
 
 // ---------------------------
-// File Upload  (matches your form field names)
+// File Upload (global)
 // ---------------------------
 document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
-
   if (window.sessionId) formData.append("sessionId", window.sessionId);
 
   try {
@@ -287,12 +278,8 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
       credentials: "include",
     });
     const data = await res.json();
-
     if (data.ok) {
-      addLog(
-        "success",
-        `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`
-      );
+      addLog("success", `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
     } else {
       addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
@@ -301,13 +288,12 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   }
 });
 
-// -------------------------
+// ---------------------------
 // Start
-// -------------------------
+// ---------------------------
 document.getElementById("startBtn")?.addEventListener("click", async () => {
-  // reset stats for new run
   resetStats();
-resetTokens();   // ✅ token chips reset
+  resetTokens();
 
   const delayEl   = document.querySelector('[name="delay"]');
   const limitEl   = document.querySelector('[name="limit"]');
@@ -331,7 +317,7 @@ resetTokens();   // ✅ token chips reset
       posts.push({
         target,
         names: names || "",
-        tokens: "",
+        tokens: "",         // manual-per-post tokens kept empty (uses global if not provided)
         comments: "",
         commentPack: commentPack || "Default",
       });
@@ -350,7 +336,7 @@ resetTokens();   // ✅ token chips reset
         delay,
         limit,
         shuffle,
-        delayMode,  // ✅ নতুন field
+        delayMode,
         sessionId: window.sessionId || "",
         posts,
       }),
@@ -369,14 +355,11 @@ resetTokens();   // ✅ token chips reset
   }
 });
 
-// -------------------------
+// ---------------------------
 // Stop
-// -------------------------
+// ---------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
-  if (!isRunning) {
-    addWarning("warn", "⚠️ Nothing is running.");
-    return;
-  }
+  if (!isRunning) { addWarning("warn", "⚠️ Nothing is running."); return; }
   try {
     const res = await fetch("/stop", {
       method: "POST",
@@ -405,21 +388,16 @@ function startSSE() {
   const url = window.sessionId ? `/events?sessionId=${encodeURIComponent(window.sessionId)}` : `/events`;
   eventSource = new EventSource(url);
 
-  // optional: bind autosroll checkbox if present
-  document.getElementById("autoScroll")?.addEventListener("change", (e)=>{
-    window.__autoScroll = !!e.target.checked;
-  });
+  // autosroll checkboxes (both)
+  const bindScroll = (id) => {
+    document.getElementById(id)?.addEventListener("change",(e)=>{
+      window.__autoScroll = !!e.target.checked;
+    });
+  };
+  bindScroll("autoScroll");
+  bindScroll("autoScrollLogs");
 
-  eventSource.addEventListener("session", (e) => {
-    const sid = e.data;
-    if (sid) {
-      window.sessionId = sid;
-      const box = document.getElementById("userIdBox");
-      if (box) box.textContent = sid;
-      addLog("info", "🔗 SSE session synced.");
-    }
-  });
-
+  // Named "user" event
   eventSource.addEventListener("user", (e) => {
     try {
       const u = JSON.parse(e.data || "{}");
@@ -428,18 +406,44 @@ function startSSE() {
       addWarning("warn", "⚠ User event parse error");
     }
   });
-  
+
+  // Named "token" event (token chips updates)
+  eventSource.addEventListener("token", (e) => {
+    try {
+      const d = JSON.parse(e.data || "{}");
+      tokenMap.set(d.token, {
+        pos: d.position ?? d.idx ?? null,
+        status: d.status || "?",
+        until: d.until || null
+      });
+      renderTokens();
+    } catch {
+      addWarning("warn", "⚠ token event parse error");
+    }
+  });
+
+  // Any bare bootstrap "sessionId" packets and normal payloads
   eventSource.onmessage = (e) => {
+    // 1) Handle initial {sessionId} message without type
+    try {
+      const probe = JSON.parse(e.data || "{}");
+      if (probe && probe.sessionId && !window.sessionId) {
+        window.sessionId = probe.sessionId;
+        const box = document.getElementById("userIdBox");
+        if (box) box.textContent = probe.sessionId;
+        addLog("info", "🔗 SSE session synced.");
+        return;
+      }
+    } catch { /* ignore, continue */ }
+
+    // 2) Normal typed payloads
     try {
       const d = JSON.parse(e.data);
       const typ = d.type || "log";
       const rawMsg = (d.text || "").toString();
       const msg = previewQuotedComment(rawMsg);
 
-      // 🔎 যেগুলো সবসময় Warning Box-এ যাবে
       const PROBLEM_TYPES = new Set(["warn", "error"]);
-
-      // 🔎 'info'/'log' হয়েও সমস্যা বোঝায়—এসব keyword ধরলেই Warning Box-এ
       const PROBLEM_KEYWORDS = [
         /skip/i, /skipped/i, /could not resolve/i, /resolve failed/i,
         /no token/i, /no comment/i, /no post/i, /access denied/i, /not allowed/i,
@@ -447,61 +451,35 @@ function startSSE() {
         /permission/i, /unknown/i, /failed/i, /limit reached/i, /nothing to attempt/i,
         /sse connection lost/i,
       ];
-
       const looksProblem =
         PROBLEM_TYPES.has(typ) ||
         PROBLEM_KEYWORDS.some((rx) => rx.test(rawMsg)) ||
-        !!(d.errKind || d.errMsg); // server extra payload থাকলে
+        !!(d.errKind || d.errMsg);
 
-// token status comes as default 'message' with type:"token"
-if (typ === "token") {
-  tokenMap.set(d.token, {
-    pos: d.position ?? d.idx ?? null,
-    status: d.status || "?",
-    until: d.until || null
-  });
-  renderTokens();
-  return;
-}
-      
-      if (typ === "ready") {
-        addLog("info", "🔗 Live log connected.");
-        return;
-      }
+      if (typ === "ready") { addLog("info", "🔗 Live log connected."); return; }
 
       if (typ === "summary") {
-        addLog(
-          "success",
-          `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`
-        );
-        // overwrite counters from summary if provided
+        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
         if (typeof d.sent === "number")   stats.total = d.sent;
         if (typeof d.ok === "number")     stats.ok    = d.ok;
         if (typeof d.failed === "number") stats.fail  = d.failed;
         renderStats();
-
-        if ((d.failed || 0) > 0) {
-          addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
-        }
+        if ((d.failed || 0) > 0) addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
         isRunning = false;
         return;
       }
 
-      // ✅ সমস্যা হলে Warning Box-এ, নাহলে Log Box-এ
       if (looksProblem) {
         const extra = d.errKind ? ` [${d.errKind}]` : "";
         addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
-
-        // error হলে counters bump
         if (typ === "error") {
           stats.fail++; 
           stats.total++;
           bumpPerPost(d.postId, "fail");
-          renderStats(); 
+          renderStats();
           renderPerPost();
         }
       } else {
-        // success-like 'log' (server type 'log' with check mark)
         if (typ === "log" && /✔ /.test(rawMsg)) {
           addLog("success", msg);
           stats.ok++; 
@@ -510,7 +488,6 @@ if (typ === "token") {
           renderStats(); 
           renderPerPost();
         } else if (typ === "success") {
-          // in case server ever sends explicit success
           addLog("success", msg);
           stats.ok++; 
           stats.total++;
@@ -522,7 +499,7 @@ if (typ === "token") {
         }
       }
     } catch (err) {
-      addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
+      addWarning("error", "⚠ SSE parse error: " + (err?.message || err));
     }
   };
 
@@ -540,18 +517,23 @@ function stopSSE() {
   }
 }
 
-document.getElementById("btnCopyReport")?.addEventListener("click", () => {
-  copyTokenReportToClipboard();
-});
-  
 // ---------------------------
 // Page init
 // ---------------------------
 window.addEventListener("DOMContentLoaded", async () => {
   await loadSession();
 
-  // bind autosroll checkbox if present in DOM
-  document.getElementById("autoScroll")?.addEventListener("change", (e)=>{
-    window.__autoScroll = !!e.target.checked;
+  // Bind auto-scroll checkboxes (in case user toggles before SSE starts)
+  const bindScroll = (id) => {
+    document.getElementById(id)?.addEventListener("change",(e)=>{
+      window.__autoScroll = !!e.target.checked;
+    });
+  };
+  bindScroll("autoScroll");
+  bindScroll("autoScrollLogs");
+
+  // Copy token report
+  document.getElementById("btnCopyReport")?.addEventListener("click", () => {
+    copyTokenReportToClipboard();
   });
 });
