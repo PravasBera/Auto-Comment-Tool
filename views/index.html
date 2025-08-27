@@ -370,9 +370,51 @@
       </div>
     </section>
 
+    <section class="card">
+  <h2 style="display:flex;justify-content:space-between;align-items:center">
+    <span>Stats</span>
+    <label class="chk" style="gap:6px">
+      <input type="checkbox" id="autoScroll" checked />
+      Auto-scroll
+    </label>
+  </h2>
+
+  <div id="statsRow" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+    <span id="stTotal" class="badge">Sent: 0</span>
+    <span id="stOk" class="badge" style="background:#16a34a">OK: 0</span>
+    <span id="stFail" class="badge" style="background:#ef4444">Failed: 0</span>
+  </div>
+
+  <div style="overflow:auto">
+    <table id="perPostTable" style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px;border-bottom:1px solid #444">Post ID</th>
+          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Sent</th>
+          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">OK</th>
+          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Fail</th>
+        </tr>
+      </thead>
+      <tbody id="perPostBody"></tbody>
+    </table>
+  </div>
+</section>
+<style>
+  .badge{padding:6px 10px;border-radius:8px;background:#334155;color:#fff;font-weight:600}
+  body.light .badge{background:#e2e8f0;color:#111}
+</style>
+
     <!-- ✅ Logs -->
-    <section class="card"><h2>Live Log</h2><div id="logBox" class="logs"></div></section>
-    <section class="card"><h2>Warnings & Summary</h2><div id="warnBox" class="logs"></div></section>
+    <section class="card">
+  <h2 style="display:flex;justify-content:space-between;align-items:center">
+    <span>Live Log</span>
+    <label class="chk" style="gap:6px">
+      <input type="checkbox" id="autoScroll" checked />
+      Auto-scroll
+    </label>
+  </h2>
+  <div id="logBox" class="logs"></div>
+</section>
   </main>
 
   <footer class="footer">
