@@ -480,7 +480,8 @@ app.get("/events", async (req, res) => {
   job.clients.add(res);
 
   // send session id (default message)
-  res.write(`data: ${JSON.stringify({ sessionId })}\n\n`);
+  // send session id as a named event so frontend doesn't log raw object
+sseNamed(sessionId, "session", { sessionId });
 
   // send current user status (named event)
   res.write(
