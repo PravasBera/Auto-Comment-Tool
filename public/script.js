@@ -184,9 +184,13 @@ function welcomeThenApproval(){
   clearTimeout(__statusTimer);
   __statusTimer = setTimeout(async ()=>{
     try{
-      const res = await fetch("/user", { credentials: "include" });
-      const u = res.ok ? await res.json() : null;
-      showApproval(u);
+      const res = await fetch(`/user?ts=${Date.now()}`, {
+  credentials: "include",
+  cache: "no-store"
+});
+const u = res.ok ? await res.json() : null;
+addLog("info", `👤 Raw user payload: ${JSON.stringify(u)}`);
+showApproval(u);
     }catch(e){
       showApproval(null); // fallback
     }
@@ -203,20 +207,42 @@ function formatDT(ts){
 }
 
 function showApproval(u){
-  if (u?.blocked) { addWarning("error","⛔ Your access is blocked."); return; }
-  if (!u || u.approved === false){
-    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+  // আগের warning গুলো ক্লিয়ার করে নতুনটা দেখাই
+  const wb = document.getElementById("warnBox");
+  if (wb) wb.innerHTML = "";
+
+  if (!u || typeof u !== "object") {
+    addWarning("warn","ℹ️ Waiting for approval status…");
     return;
   }
-  if (u.approved === true){
-    if (u.expiry){
-      addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(u.expiry)}.`);
-    }else{
+
+  const truthy = (v) => v === true || v === 1 || v === "1" || v === "true" || v === "yes" || v === "approved";
+  const falsy  = (v) => v === false || v === 0 || v === "0" || v === "false" || v === "no";
+
+  const blocked  = truthy(u.blocked) || (typeof u.status === "string" && /blocked/i.test(u.status));
+  const approved = truthy(u.approved) || (typeof u.status === "string" && /approved/i.test(u.status));
+
+  if (blocked) {
+    addWarning("error","⛔ Your access is blocked.");
+    return;
+  }
+
+  if (approved) {
+    const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
+    if (expiry) {
+      addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
+    } else {
       addLog("success", "🔓 You have lifetime access.");
     }
     return;
   }
-  addWarning("warn","ℹ️ Waiting for approval status…");
+
+  // approved=false / pending
+  if (falsy(u.approved) || /pending|review/i.test(String(u.status || ""))) {
+    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+  } else {
+    addWarning("warn","ℹ️ Waiting for approval status…");
+  }
 }
 
 // ---------------------------
