@@ -147,16 +147,18 @@ body{
   border-bottom:5px solid var(--accent);
   box-shadow:0 10px 28px rgba(0,0,0,.25);
 }
-.app-header h1{
+.app-header h1 {
   margin:0 0 6px 0;
   font-size:28px;
   font-weight:800;
-  white-space:nowrap; /* keep one line */
+  white-space:nowrap;
   letter-spacing:.3px;
   text-shadow:0 2px 0 rgba(0,0,0,.18);
+
+  background: linear-gradient(90deg,#ff512f,#dd2476);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
-.app-header p{margin:0;color:var(--header-text);opacity:.95;font-size:14px}
-.app-header .team{margin-top:6px;font-weight:800;color:#ffd166}
 
 /* Toggle holder (absolute top-right) */
 .theme-toggle{
@@ -358,6 +360,54 @@ select{
   line-height:1.55;
   box-shadow:inset 0 0 0 1px var(--inner-stroke);
 }
+
+:root{
+  --panel-bg:#0f1526; --panel-bd:#1f2740; --txt:#dbe3ff;
+  --muted:#9aa3bf; --ok:#4ade80; --warn:#fbbf24; --danger:#fb7185;
+  --radius:16px;
+}
+.panel{background:var(--panel-bg); border:1px solid var(--panel-bd);
+  border-radius:var(--radius); padding:18px; box-shadow:0 6px 24px #0005;}
+.panel-title{color:#b99cff; margin:0 0 12px; font-size:18px; font-weight:700;}
+
+.settings-grid{
+  display:grid; gap:14px;
+  grid-template-columns: 1fr;                   /* mobile */
+}
+@media (min-width: 820px){
+  .settings-grid{ grid-template-columns: 1fr 1fr; } /* desktop 2-col */
+}
+.col-span-2{ grid-column: span 2; }
+
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field label{ color:var(--txt); font-weight:600; }
+.field .hint{ color:var(--muted); font-size:12px; margin:0; }
+
+.field input[type="number"], .field select{
+  background:#0b1120; color:var(--txt); border:1px solid #253056;
+  border-radius:10px; padding:10px 12px; outline:none;
+}
+.field input:focus, .field select:focus{ border-color:#6b7cff; }
+
+.checkbox{ display:flex; align-items:center; gap:10px; user-select:none; }
+.checkbox input{ width:18px; height:18px; }
+
+.radio-row{ display:grid; gap:10px; grid-template-columns: 1fr; }
+@media (min-width: 700px){ .radio-row{ grid-template-columns: repeat(3, 1fr);} }
+
+.radio-card{
+  display:flex; gap:10px; padding:12px; border:1px solid #253056; border-radius:12px;
+  background:#0b1120; cursor:pointer; align-items:center;
+}
+.radio-card input{ width:18px; height:18px; accent-color:#7c8cff; }
+.radio-card .title{ font-weight:700; color:var(--txt); }
+.radio-card .sub{ font-size:12px; color:var(--muted); }
+
+.actions{ display:flex; gap:12px; margin-top:16px; }
+.btn{ padding:12px 18px; border:none; border-radius:14px; font-weight:700; cursor:pointer; }
+.btn-primary{ background:linear-gradient(135deg,#3867ff,#7a5cff); color:#fff; }
+.btn-danger{ background:linear-gradient(135deg,#ff7a7a,#ff4b5c); color:#fff; }
+.btn:active{ transform:translateY(1px); }
 
 /* --------------------------------------------------------------------------
    11) BUTTONS
