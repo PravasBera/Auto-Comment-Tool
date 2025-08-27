@@ -438,7 +438,15 @@ app.get("/events", async (req, res) => {
   job.clients.add(res);
 
   // --- Send welcome message
-  res.write(`event: welcome\n`);
+eventSource.addEventListener("welcome", (e) => {
+  const sid = e.data;
+  if (sid) {
+    window.sessionId = sid;
+    const box = document.getElementById("userIdBox");
+    if (box) box.textContent = sid;
+    addLog("info", "🔗 SSE session synced.");
+  }
+});
   res.write(`data: ${JSON.stringify({ sessionId })}\n\n`);
 
   // --- Send user access status
@@ -650,23 +658,27 @@ app.post(
       }
 
       const postLinksPath = path.join(sessionDir, "postlinks.txt");
-let rawLinks = fs.readFileSync(postLinksPath, "utf8");
-console.log("📂 postlinks.txt content:\n", rawLinks);
-
-let links = rawLinks
-  .split(/\r?\n/)
-  .map(l => l.trim())
-  .filter(l => l.length > 0)
-  .map(cleanPostLink)
-  .filter(l => l !== null);
-
-console.log("✅ Parsed links:", links);
+let links = [];
+if (fs.existsSync(postLinksPath)) {
+  const rawLinks = fs.readFileSync(postLinksPath, "utf8");
+  console.log("📂 postlinks.txt content:\n", rawLinks);
+  links = rawLinks
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .map(cleanPostLink)
+    .filter(l => l !== null);
+  console.log("✅ Parsed links:", links);
+} else {
+  console.log("ℹ️ postlinks.txt not found (skip parsing).");
+}
 
       // ✅ names textarea (optional)
-      const uploadNames = req.body.uploadNames || "";
-      if (uploadNames.trim()) {
-        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
-      }
+      // ছিল: const uploadNames = req.body.uploadNames || "";
+const uploadNames = req.body.names || req.body.uploadNames || "";
+if (uploadNames && uploadNames.trim()) {
+  fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
+}
 
       // ✅ simple counter (per-session ফাইল থেকেই)
       const countLines = (p) =>
@@ -703,16 +715,16 @@ console.log("✅ Parsed links:", links);
 // ---------------- Stop job ----------------
 app.post("/stop", (req, res) => {
   const sessionId = req.body?.sessionId || req.query?.sessionId || null;
-  if (!sessionId) return res.status(400).json({ success: false, message: "sessionId required" });
+  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
   const job = getJob(sessionId);
   if (job && job.running) {
     job.abort = true;
     job.running = false;
     sseLine(sessionId, "warn", "Stop requested by user");
-    return res.json({ success: true, message: "Job stopping..." });
+    return res.json({ ok: true, message: "Job stopping..." });
   }
-  return res.json({ success: false, message: "No active job" });
+  return res.json({ ok: false, message: "No active job" });
 });
 
 // --------- Comment pack loader ----------
@@ -769,21 +781,15 @@ async function runJob(
       }
     }
   }
-  function emitToken(sessionId, payload) {
-    const jobX = getJob(sessionId);
-    const line = `event: token\n` + `data: ${JSON.stringify(payload)}\n\n`;
-    for (const res of jobX.clients) {
-      try { res.write(line); } catch {}
-    }
-  }
   function pushTokenStatus(tok, status, extra = {}) {
-    emitToken(sessionId, {
-      token: tok,
-      position: tokenOrder.get(tok) || null,
-      status,
-      ...extra,
-    });
-  }
+  sseBroadcast(sessionId, {
+    type: "token",
+    token: tok,
+    position: tokenOrder.get(tok) || null,
+    status,
+    ...extra
+  });
+}
 
   // —— local SSE batching (optional) ——
   let batch = [];
@@ -916,73 +922,81 @@ async function runJob(
           if (!tokenQuotaOk(tState)) continue;
 
           // names slice (k per comment)
-          let ns = [];
-          if (tgt.namesList.length && namesPerComment > 0) {
-            for (let k = 0; k < namesPerComment; k++) {
-              const n = tgt.namesList[(st.nameIndex + k) % tgt.namesList.length];
-              ns.push(n);
-            }
-          }
-          const message = buildCommentWithNames(commentBase, ns);
-          // pre-advance local counters for this attempt
-          usedTimes++;
+let ns = [];
+if (tgt.namesList.length && namesPerComment > 0) {
+  for (let k = 0; k < namesPerComment; k++) {
+    const n = tgt.namesList[(st.nameIndex + k) % tgt.namesList.length];
+    ns.push(n);
+  }
+}
 
-          const doSend = async () => {
-            const outc = await attemptWithTimeout(() =>
-              postComment({ token, postId: tgt.id, message })
-            );
-            okCount++;
-            out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
-              account: tokenName[token] || "Account",
-              comment: message,
-              postId: tgt.id,
-              resultId: outc?.id || null,
-            });
-            // token OK
-             pushTokenStatus(token, "OK", { next: tState.nextAvailableAt || null });
+const message = buildCommentWithNames(commentBase, ns);
+// pre-advance local counters for this attempt
+usedTimes++;
 
-            // bookkeeping
-            tState.hourlyCount++;
-            tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
-            tState.backoffMs = 0;
-            st.sent++;
-          };
+const doSend = async () => {
+  const outc = await attemptWithTimeout(() =>
+    postComment({ token, postId: tgt.id, message })
+  );
 
-          promises.push((async () => {
-            try {
-              await doSend();
-            } catch (err) {
-              failCount++;
-              const cls = classifyError(err);
-              counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+  okCount++;
+  out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
+    account: tokenName[token] || "Account",
+    comment: message,
+    postId: tgt.id,
+    resultId: outc?.id || null,
+  });
 
-              if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
-                if (removeBadTokens) tState.removed = true;
-              } else if (cls.kind === "COMMENT_BLOCKED") {
-                tState.backoffMs = Math.min(
-                  Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
-                  30 * 60 * 1000
-                );
-                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
-              } else if (cls.kind === "NO_PERMISSION") {
-                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
-              }
+  // bookkeeping (first update state, then publish OK status)
+  tState.hourlyCount++;
+  tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
+  tState.backoffMs = 0;
+  st.sent++;
 
-              out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
-                account: tokenName[token] || "Account",
-                postId: tgt.id,
-                errKind: cls.kind,
-                errMsg: err?.message || String(err),
-              });
-            }
-          })());
-        }
+  // push updated OK state
+  pushTokenStatus(token, "OK", { next: tState.nextAvailableAt || null });
+};
 
-        if (usedTimes > 0) {
-          advanced.push({ postIdx: pIdx, times: usedTimes });
-        }
-      }
+promises.push((async () => {
+  try {
+    await doSend();
+  } catch (err) {
+    failCount++;
+    const cls = classifyError(err);
+    counters[cls.kind] = (counters[cls.kind] || 0) + 1;
 
+    // mutate token state + publish status
+    if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
+      if (removeBadTokens) tState.removed = true;
+      pushTokenStatus(token, "REMOVED");
+    } else if (cls.kind === "COMMENT_BLOCKED") {
+      tState.backoffMs = Math.min(
+        Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
+        30 * 60 * 1000
+      );
+      tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
+      pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
+    } else if (cls.kind === "NO_PERMISSION") {
+      tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
+      pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
+    } else {
+      pushTokenStatus(token, "UNKNOWN");
+    }
+
+    out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
+      account: tokenName[token] || "Account",
+      postId: tgt.id,
+      errKind: cls.kind,
+      errMsg: err?.message || String(err),
+    });
+  }
+})());
+
+// ——— after inner burst loop for this post ———
+if (usedTimes > 0) {
+  advanced.push({ postIdx: pIdx, times: usedTimes });
+}
+}
       if (!promises.length) {
         out("warn", "Nothing to attempt this round (guards/limits/inputs).");
         break;
