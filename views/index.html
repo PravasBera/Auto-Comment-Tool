@@ -233,20 +233,20 @@
 </head>
 <body class="dark">
   <header class="app-header">
-    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-    <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
-    <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+  <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+  <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
+  <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
 
-    <!-- ✅ Theme Toggle -->
-    <div class="theme-toggle">
-      <span>🌙</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="themeToggle" />
-        <span class="slider"></span>
-      </label>
-      <span>☀️</span>
-    </div>
-  </header>
+  <!-- ✅ Theme Toggle (Team-এর নিচে রাখা হলো) -->
+  <div class="theme-toggle" style="margin-top:12px; position:static; justify-content:center;">
+    <span>🌙</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="themeToggle" />
+      <span class="slider"></span>
+    </label>
+    <span>☀️</span>
+  </div>
+</header>
 
   <main class="container">
 
@@ -270,8 +270,8 @@
         <label>Upload Post Links (postlinks.txt)</label>
         <input type="file" name="postlinks" accept=".txt" />
 
-        <label>Names for Upload Batch (names.txt)</label>
-        <textarea name="names" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+ <label>Names for Upload Batch (names.txt)</label>
+<textarea name="uploadNames" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
 
         <button type="submit">Upload</button>
       </form>
@@ -282,7 +282,7 @@
 
       <section class="card"><h2>Manual Post 1</h2>
         <label>Post Link / ID</label>
-        <input name="postlinks1" type="text" placeholder="Paste link or ID" />
+        <input name="postLinks1" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
         <input type="file" name="tokens1" accept=".txt" />
@@ -293,7 +293,7 @@
 
       <section class="card"><h2>Manual Post 2</h2>
         <label>Post Link / ID</label>
-        <input name="postlinks2" type="text" placeholder="Paste link or ID" />
+        <input name="postLinks2" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
         <input type="file" name="tokens2" accept=".txt" />
@@ -304,7 +304,7 @@
 
       <section class="card"><h2>Manual Post 3</h2>
         <label>Post Link / ID</label>
-        <input name="postlinks3" type="text" placeholder="Paste link or ID" />
+        <input name="postLinks3" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
         <input type="file" name="tokens3" accept=".txt" />
@@ -315,7 +315,7 @@
 
       <section class="card"><h2>Manual Post 4</h2>
         <label>Post Link / ID</label>
-        <input name="postlinks4" type="text" placeholder="Paste link or ID" />
+        <input name="postLinks4" type="text" placeholder="Paste link or ID" />
 
         <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
         <input type="file" name="tokens4" accept=".txt" />
@@ -334,12 +334,12 @@
       <h2>Comment Settings</h2>
       <label>Choose Comment Set</label>
       <select name="commentSet">
-        <option value="">-- Default (Upload comments.txt) --</option>
-        <option value="comment1">Bengali</option>
-        <option value="comment2">Benglish</option>
-        <option value="comment3">Hinglish</option>
-        <option value="comment4">Mix</option>
-      </select>
+  <option value="">-- Default (Upload comments.txt) --</option>
+  <option value="bengali">Bengali</option>
+  <option value="benglish">Benglish</option>
+  <option value="hinglish">Hinglish</option>
+  <option value="mix">Mix</option>
+</select>
 
       <div class="grid-3">
         <div>
@@ -423,7 +423,7 @@
 </style>
     
     <!-- ✅ Logs -->
-    <section class="card">
+<section class="card">
   <h2 style="display:flex;justify-content:space-between;align-items:center">
     <span>Live Log</span>
     <label class="chk" style="gap:6px">
@@ -432,6 +432,12 @@
     </label>
   </h2>
   <div id="logBox" class="logs"></div>
+</section>
+
+<!-- ✅ Warning Box -->
+<section class="card">
+  <h2>Warnings & Summary</h2>
+  <div id="warnBox" class="logs"></div>
 </section>
   </main>
 
