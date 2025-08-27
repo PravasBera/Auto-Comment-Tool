@@ -420,6 +420,39 @@ app.get("/whoami", async (req, res) => {
   res.json({ ok: true, user: u || null });
 });
 
+// -------------------- User status endpoints --------------------
+app.get("/user", async (req, res) => {
+  const sid = req.query.sessionId || req.sessionId;
+  if (!sid) return res.status(400).json({ error: "no-session" });
+
+  const u = await ensureUser(sid);
+
+  res.set("Cache-Control", "no-store");
+  res.json({
+    sessionId: sid,
+    status: u.status,
+    approved: u.status === "approved",
+    blocked: u.blocked,
+    expiry: u.expiry,
+  });
+});
+
+app.get("/api/user", async (req, res) => {
+  const sid = req.query.sessionId || req.sessionId;
+  if (!sid) return res.status(400).json({ error: "no-session" });
+
+  const u = await ensureUser(sid);
+
+  res.set("Cache-Control", "no-store");
+  res.json({
+    sessionId: sid,
+    status: u.status,
+    approved: u.status === "approved",
+    blocked: u.blocked,
+    expiry: u.expiry,
+  });
+});
+
 // -------------------- SSE endpoint (Updated) --------------------
 app.get("/events", async (req, res) => {
   let sessionId = req.query.sessionId || req.sessionId || generateUserId();
@@ -447,7 +480,6 @@ app.get("/events", async (req, res) => {
   job.clients.add(res);
 
   // --- Send welcome message
-eventSource.addEventListener("welcome", (e) => {
   const sid = e.data;
   if (sid) {
     window.sessionId = sid;
