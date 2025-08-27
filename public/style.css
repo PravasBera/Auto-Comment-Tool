@@ -361,6 +361,30 @@ select{
   box-shadow:inset 0 0 0 1px var(--inner-stroke);
 }
 
+/* ==== Line-wise colored logs (paste after .logs block) ==== */
+.log-line{ margin:0; padding:2px 0; line-height:1.35; white-space:pre-wrap; word-break:break-word; }
+.log-time{ opacity:.6; font-family:ui-monospace, Menlo, monospace; margin-right:6px; }
+
+/* status colors */
+body.dark .type-success{ color:#16a34a; }   /* green  */
+body.dark .type-warning{ color:#eab308; }   /* yellow */
+body.dark .type-error  { color:#ef4444; }   /* red    */
+body.dark .type-info   { color:#22d3ee; }   /* cyan   */
+
+body.light .type-success{ color:#15803d; }
+body.light .type-warning{ color:#a16207; }
+body.light .type-error  { color:#b91c1c; }
+body.light .type-info   { color:#0e7490; }
+
+/* field colors inside a line */
+.f-name    { color:#60a5fa; }                /* Blue   */
+.f-post    { color:#ec4899; }                /* Pink   */
+body.dark .f-comment { color:rgba(255,255,255,.88); } /* Light white (dark bg) */
+body.light .f-comment{ color:#374151; }
+
+/* Warning box: dark bg but color comes from line classes */
+#warnBox.logs{ background:#111; color:inherit; }
+
 :root{
   --panel-bg:#0f1526; --panel-bd:#1f2740; --txt:#dbe3ff;
   --muted:#9aa3bf; --ok:#4ade80; --warn:#fbbf24; --danger:#fb7185;
