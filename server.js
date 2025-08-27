@@ -362,6 +362,7 @@ function buildCommentWithNames(baseComment, namesList) {
 
 // -------------------- SSE state per session --------------------
 const jobs = new Map();
+
 function getJob(sessionId) {
   if (!sessionId) throw new Error("sessionId required");
   if (!jobs.has(sessionId)) {
@@ -369,15 +370,26 @@ function getJob(sessionId) {
   }
   return jobs.get(sessionId);
 }
+
 function sseBroadcast(sessionId, payloadObj) {
   const job = getJob(sessionId);
   const payload = `data: ${JSON.stringify(payloadObj)}\n\n`;
   for (const res of job.clients) {
-    try { res.write(payload); } catch {}
+    try {
+      res.write(payload);
+    } catch {
+      job.clients.delete(res); // dead client remove
+    }
   }
 }
-function sseLine(sessionId, type, text, extra = {}) {
-  sseBroadcast(sessionId, { t: Date.now(), type, text, ...extra });
+
+function sseLine(sessionId, type = "log", text = "", meta = {}) {
+  sseBroadcast(sessionId, {
+    ts: Date.now(),   // timestamp
+    type,             // "log" | "success" | "warn" | "error" | "ready"
+    text,             // main message string
+    meta              // optional extra info { name, post, comment }
+  });
 }
 
 // -------------------- Health & session helpers --------------------
@@ -399,9 +411,11 @@ app.get("/whoami", async (req, res) => {
   res.json({ ok: true, user: u || null });
 });
 
-// -------------------- SSE endpoint --------------------
+// -------------------- SSE endpoint (Updated) --------------------
 app.get("/events", async (req, res) => {
   let sessionId = req.query.sessionId || req.sessionId || generateUserId();
+
+  // Ensure session cookie
   if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
     res.cookie("sid", sessionId, {
       httpOnly: false,
@@ -409,9 +423,11 @@ app.get("/events", async (req, res) => {
       sameSite: "lax",
     });
   }
+
   const job = getJob(sessionId);
   const user = await ensureUser(sessionId);
 
+  // SSE Headers
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -421,22 +437,41 @@ app.get("/events", async (req, res) => {
 
   job.clients.add(res);
 
-  res.write(`event: session\n`);
-  res.write(`data: ${sessionId}\n\n`);
+  // --- Send welcome message
+  res.write(`event: welcome\n`);
+  res.write(`data: ${JSON.stringify({ sessionId })}\n\n`);
+
+  // --- Send user access status
+  let statusMsg = "";
+  if (user.blocked) {
+    statusMsg = "Your access is blocked.";
+  } else if (!user.status || user.status === "new") {
+    statusMsg = "Send UserID to admin for approval.";
+  } else if (user.expiry) {
+    statusMsg = `Your access will expire on ${new Date(+user.expiry).toLocaleString()}`;
+  } else if (user.status === "approved") {
+    statusMsg = "You have lifetime access.";
+  }
 
   res.write(`event: user\n`);
-  res.write(
-    `data: ${JSON.stringify({
-      sessionId,
-      status: user.status,
-      blocked: user.blocked,
-      expiry: user.expiry,
-    })}\n\n`
-  );
+  res.write(`data: ${JSON.stringify({
+    sessionId,
+    status: user.status,
+    blocked: user.blocked,
+    expiry: user.expiry,
+    message: statusMsg,
+  })}\n\n`);
 
+  // --- Notify ready
   sseLine(sessionId, "ready", "SSE connected");
 
+  // --- Heartbeat (keep-alive every 20 sec)
+  const heartbeat = setInterval(() => {
+    res.write(`: ping\n\n`);
+  }, 20000);
+
   req.on("close", () => {
+    clearInterval(heartbeat);
     job.clients.delete(res);
   });
 });
@@ -696,82 +731,260 @@ function loadPackComments(name) {
   return cleanLines(fs.readFileSync(full, "utf-8"));
 }
 
-// --------------------- Core Run Job (round-robin mix) ---------------------
-async function runJob(job, { sessionId, resolvedTargets, tokenName, delayMs, maxCount }) {
+// --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
+async function runJob(
+  job,
+  {
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    delayMs,
+    maxCount,
+    // knobs
+    burstPerPost = 1,
+    limitPerPost = 0,
+    namesPerComment = 1,
+    tokenGlobalRing = false,
+    tokenCooldownMs = 0,
+    quotaPerTokenPerHour = 0,
+    removeBadTokens = true,
+    blockedBackoffMs = 10 * 60 * 1000,
+    requestTimeoutMs = 12000,
+    retryCount = 1,
+    roundJitterMaxMs = 80,
+    sseBatchMs = 0
+  }
+) {
   let okCount = 0;
   let failCount = 0;
   const counters = {};
+
+  // —— local SSE batching (optional) ——
+  let batch = [];
+  let batchTimer = null;
+  function flushBatch() {
+    if (!batch.length) return;
+    for (const e of batch) sseBroadcast(sessionId, e);
+    batch = [];
+  }
+  function out(type, text, extra = {}) {
+    const payloadObj = { t: Date.now(), type, text, ...extra };
+    if (sseBatchMs > 0) {
+      batch.push(payloadObj);
+      if (!batchTimer) {
+        batchTimer = setTimeout(() => { flushBatch(); batchTimer = null; }, sseBatchMs);
+      }
+    } else {
+      sseBroadcast(sessionId, payloadObj);
+    }
+  }
+
   try {
     const postCount = resolvedTargets.length;
+    if (!postCount) { out("error", "No targets to run."); return; }
+
+    // per-post pointers
     const state = resolvedTargets.map(() => ({
       tokenIndex: 0,
       commentIndex: 0,
       nameIndex: 0,
+      sent: 0 // per-post sent (for limitPerPost)
     }));
 
-    let sent = 0;
-    let postIndex = 0;
-
-    while (!job.abort && (!maxCount || sent < maxCount)) {
-      const idx = postIndex % postCount;
-      const tgt = resolvedTargets[idx];
-      const st = state[idx];
-
-      if (!tgt.tokens.length) {
-        sseLine(sessionId, "warn", `Skipped: no tokens for post ${tgt.id}`);
-        postIndex++;
-        continue;
-      }
-      if (!tgt.comments.length) {
-        sseLine(sessionId, "warn", `Skipped: no comments for post ${tgt.id}`);
-        postIndex++;
-        continue;
-      }
-
-      const token = tgt.tokens[st.tokenIndex % tgt.tokens.length];
-      const commentBase = tgt.comments[st.commentIndex % tgt.comments.length];
-
-      let namesSlice = [];
-      if (tgt.namesList.length) {
-        namesSlice = [tgt.namesList[st.nameIndex % tgt.namesList.length]];
-      }
-
-      const message = buildCommentWithNames(commentBase, namesSlice);
-
-      try {
-        const out = await postComment({ token, postId: tgt.id, message });
-        okCount++;
-        sent++;
-        sseLine(sessionId, "log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
-          account: tokenName[token] || "Account",
-          comment: message,
-          postId: tgt.id,
-          resultId: out.id || null,
-        });
-      } catch (err) {
-        failCount++;
-        sent++;
-        const cls = classifyError(err);
-        counters[cls.kind] = (counters[cls.kind] || 0) + 1;
-        sseLine(sessionId, "error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
-          account: tokenName[token] || "Account",
-          postId: tgt.id,
-          errKind: cls.kind,
-          errMsg: err?.message || String(err),
-        });
-      }
-
-      // advance per-post indices (true round-robin)
-      st.tokenIndex++;
-      st.commentIndex++;
-      st.nameIndex++;
-      postIndex++;
-
-      if (delayMs > 0 && !job.abort) await sleep(delayMs);
+    // token rotation scope
+    let globalTokens = [];
+    let globalTokIdx = 0;
+    if (tokenGlobalRing) {
+      const set = new Set();
+      for (const t of resolvedTargets) for (const tok of t.tokens) set.add(tok);
+      globalTokens = Array.from(set);
     }
 
-    if (job.abort) sseLine(sessionId, "warn", "Job aborted by user.");
-    sseLine(sessionId, "summary", "Run finished", {
+    // per-token state
+    const tokenState = new Map(); // token -> { nextAvailableAt, hourlyCount, windowStart, removed, backoffMs }
+    function ensureTokenState(tok) {
+      if (!tokenState.has(tok)) {
+        tokenState.set(tok, {
+          nextAvailableAt: 0,
+          hourlyCount: 0,
+          windowStart: Date.now(),
+          removed: false,
+          backoffMs: 0
+        });
+      }
+      return tokenState.get(tok);
+    }
+    function tokenQuotaOk(st) {
+      if (!quotaPerTokenPerHour) return true;
+      const now = Date.now();
+      if (now - st.windowStart >= 3600_000) { st.windowStart = now; st.hourlyCount = 0; }
+      return st.hourlyCount < quotaPerTokenPerHour;
+    }
+
+    // timeout+retry wrapper
+    async function attemptWithTimeout(fn) {
+      let lastErr;
+      for (let i = 0; i <= retryCount; i++) {
+        lastErr = undefined;
+        try {
+          const race = Promise.race([
+            fn(),
+            new Promise((_, rej) => setTimeout(() => rej({ message: "Request timeout" }), requestTimeoutMs))
+          ]);
+          return await race;
+        } catch (e) {
+          lastErr = e;
+          const msg = (e?.message || "").toLowerCase();
+          const retryable =
+            !e?.code && !e?.error_subcode &&
+            (msg.includes("timeout") || msg.includes("network") || msg.includes("fetch") || msg.includes("socket"));
+          if (!retryable || i === retryCount) throw e;
+          await sleep(150 + Math.floor(Math.random() * 200));
+        }
+      }
+      throw lastErr;
+    }
+
+    let sent = 0;
+
+    while (!job.abort && (!maxCount || sent < maxCount)) {
+      if (job.abort) break;
+
+      const promises = [];
+      const advanced = []; // {postIdx, times}
+
+      for (let pIdx = 0; pIdx < postCount; pIdx++) {
+        const tgt = resolvedTargets[pIdx];
+        const st = state[pIdx];
+
+        // per-post limit
+        if (limitPerPost && st.sent >= limitPerPost) continue;
+
+        // কতবার attempt করবো এই রাউন্ডে এই পোস্টে
+        const burst = Math.max(1, burstPerPost);
+        let actualBurst = burst;
+        if (limitPerPost) actualBurst = Math.min(actualBurst, Math.max(0, limitPerPost - st.sent));
+        if (!tgt.tokens.length || !tgt.comments.length) {
+          out("warn", `Skipped: missing tokens/comments for ${tgt.id}`);
+          continue;
+        }
+
+        let usedTimes = 0;
+
+        for (let b = 0; b < actualBurst; b++) {
+          // pick token/comment indices (global or per-post)
+          let token;
+          if (tokenGlobalRing) {
+            if (!globalTokens.length) break;
+            token = globalTokens[globalTokIdx % globalTokens.length];
+            globalTokIdx++;
+          } else {
+            token = tgt.tokens[st.tokenIndex % tgt.tokens.length];
+          }
+          const commentBase = tgt.comments[st.commentIndex % tgt.comments.length];
+
+          // token guards
+          const tState = ensureTokenState(token);
+          if (tState.removed) continue;
+          if (Date.now() < tState.nextAvailableAt) continue;
+          if (!tokenQuotaOk(tState)) continue;
+
+          // names slice (k per comment)
+          let ns = [];
+          if (tgt.namesList.length && namesPerComment > 0) {
+            for (let k = 0; k < namesPerComment; k++) {
+              const n = tgt.namesList[(st.nameIndex + k) % tgt.namesList.length];
+              ns.push(n);
+            }
+          }
+          const message = buildCommentWithNames(commentBase, ns);
+          // pre-advance local counters for this attempt
+          usedTimes++;
+
+          const doSend = async () => {
+            const outc = await attemptWithTimeout(() =>
+              postComment({ token, postId: tgt.id, message })
+            );
+            okCount++;
+            out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
+              account: tokenName[token] || "Account",
+              comment: message,
+              postId: tgt.id,
+              resultId: outc?.id || null,
+            });
+            // bookkeeping
+            tState.hourlyCount++;
+            tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
+            tState.backoffMs = 0;
+            st.sent++;
+          };
+
+          promises.push((async () => {
+            try {
+              await doSend();
+            } catch (err) {
+              failCount++;
+              const cls = classifyError(err);
+              counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+
+              if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
+                if (removeBadTokens) tState.removed = true;
+              } else if (cls.kind === "COMMENT_BLOCKED") {
+                tState.backoffMs = Math.min(
+                  Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
+                  30 * 60 * 1000
+                );
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
+              } else if (cls.kind === "NO_PERMISSION") {
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
+              }
+
+              out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
+                account: tokenName[token] || "Account",
+                postId: tgt.id,
+                errKind: cls.kind,
+                errMsg: err?.message || String(err),
+              });
+            }
+          })());
+        }
+
+        if (usedTimes > 0) {
+          advanced.push({ postIdx: pIdx, times: usedTimes });
+        }
+      }
+
+      if (!promises.length) {
+        out("warn", "Nothing to attempt this round (guards/limits/inputs).");
+        break;
+      }
+
+      await Promise.allSettled(promises);
+      sent += promises.length;
+      if (maxCount && sent >= maxCount) {
+        out("info", `Limit reached: ${sent}/${maxCount}`);
+        break;
+      }
+
+      // advance round-robin pointers per post by how many attempts actually used
+      for (const a of advanced) {
+        const st = state[a.postIdx];
+        st.tokenIndex += a.times;
+        st.commentIndex += a.times;
+        st.nameIndex += a.times * Math.max(1, namesPerComment);
+      }
+
+      if (job.abort) break;
+
+      // per-round delay + small jitter
+      const jitter = roundJitterMaxMs ? Math.floor(Math.random() * roundJitterMaxMs) : 0;
+      const waitMs = Math.max(0, delayMs + jitter);
+      if (waitMs > 0) await sleep(waitMs);
+    }
+
+    if (job.abort) out("warn", "Job aborted by user.");
+
+    out("summary", "Run finished", {
       sent: okCount + failCount,
       ok: okCount,
       failed: failCount,
@@ -779,11 +992,12 @@ async function runJob(job, { sessionId, resolvedTargets, tokenName, delayMs, max
       message: "token expiry / id locked / wrong link / action blocked — classified above.",
     });
   } catch (e) {
-    sseLine(sessionId, "error", `Fatal: ${e.message || e}`);
+    out("error", `Fatal: ${e.message || e}`);
   } finally {
     const j = getJob(sessionId);
     j.running = false;
     j.abort = false;
+    flushBatch();
     sseLine(sessionId, "info", "Job closed");
   }
 }
@@ -805,38 +1019,71 @@ app.post("/start", async (req, res) => {
     return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
   }
 
-  // ---- parse options
-  const body = req.body || {};
+// ---- parse options
+const body = req.body || {};
 
-  // ✅ delay: সবসময় seconds → ms
-  let delaySec = parseInt(body.delay, 10);
-  if (isNaN(delaySec) || delaySec < 0) delaySec = 20; // default 20 sec
-  const delayMs = delaySec * 1000;
+// UI speed mode: fast | superfast | extreme
+const speedMode = String(body.delayMode || "fast").toLowerCase();
 
-  // ✅ limit
-  let limit = parseInt(body.limit, 10);
-  if (isNaN(limit) || limit < 0) limit = 0;
+// base delay: seconds -> ms
+let delaySec = parseInt(body.delay, 10);
+if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
 
-  // ✅ shuffle
-  const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
+// speed mode অনুযায়ী override
+if (speedMode === "fast") {
+  // as-is (safe)
+} else if (speedMode === "superfast") {
+  delaySec = Math.max(1, Math.floor(delaySec / 2));  // অর্ধেক
+} else if (speedMode === "extreme") {
+  delaySec = 0; // no delay
+}
+const delayMs = delaySec * 1000;
+
+// limit (global)
+let limit = parseInt(body.limit, 10);
+if (isNaN(limit) || limit < 0) limit = 0;
+
+// shuffle
+const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
+
+// ---------- NEW: loop/guard knobs (defaults safe) ----------
+const burstPerPost        = Math.max(1, parseInt(body.burstPerPost ?? 1, 10) || 1);   // per-round প্রতি পোস্টে কয়টা try
+const limitPerPost        = Math.max(0, parseInt(body.limitPerPost ?? 0, 10) || 0);   // 0 = unlimited
+const namesPerComment     = Math.max(1, parseInt(body.namesPerComment ?? 1, 10) || 1);
+
+const tokenGlobalRing     = String(body.tokenGlobalRing ?? "false").toLowerCase() === "true"; // token rotation scope
+const tokenCooldownMs     = Math.max(0, parseInt(body.tokenCooldownMs ?? 0, 10) || 0);
+const quotaPerTokenPerHour= Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 0, 10) || 0);
+
+const removeBadTokens     = String(body.removeBadTokens ?? "true").toLowerCase() !== "false";
+const blockedBackoffMs    = Math.max(0, parseInt(body.blockedBackoffMs ?? 10*60*1000, 10) || (10*60*1000));
+
+const requestTimeoutMs    = Math.max(3000, parseInt(body.requestTimeoutMs ?? 12000, 10) || 12000);
+const retryCount          = Math.max(0, parseInt(body.retry ?? 1, 10) || 1);
+
+const roundJitterMaxMs    = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80, 10) || 0); // small human-like jitter
+const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0);        // 0 = no batching
 
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
 
   const pTokens = path.join(sessionDir, "tokens.txt");
-const pCmts  = path.join(sessionDir, "comments.txt");
-const pLinks = path.join(sessionDir, "postlinks.txt");   // plural
-const pNames = path.join(sessionDir, "uploadNames.txt");
+  const pCmts  = path.join(sessionDir, "comments.txt");
+
+  // allow postlinks.txt OR id.txt
+  const pLinksTxt = path.join(sessionDir, "postlinks.txt");
+  const pLinksId  = path.join(sessionDir, "id.txt");
+  const pLinks = fs.existsSync(pLinksTxt) ? pLinksTxt : (fs.existsSync(pLinksId) ? pLinksId : null);
+
+  const pNames = path.join(sessionDir, "uploadNames.txt");
 
   const readLines = (p) =>
     fs.existsSync(p) ? cleanLines(fs.readFileSync(p, "utf-8")) : [];
 
   const fileTokens   = readLines(pTokens);
-const fileComments = readLines(pCmts);
-const fileLinks    = readLines(pLinks)
-  .map(cleanPostLink)
-  .filter(l => l !== null);
-const fileNames    = readLines(pNames);
+  const fileComments = readLines(pCmts);
+  const fileLinks    = pLinks ? readLines(pLinks).map(cleanPostLink).filter(l => l !== null) : [];
+  const fileNames    = readLines(pNames);
 
   if (!fileTokens.length) {
     sseLine(sessionId, "warn", "No tokens uploaded for this session.");
@@ -849,16 +1096,18 @@ const fileNames    = readLines(pNames);
   }
 
   // ---- manual posts
-let manualTargets = [];
-if (Array.isArray(body.posts) && body.posts.length) {
-  manualTargets = body.posts.slice(0, 4).map(p => ({
-    target: p.target || p,                 // যদি object হয় তাহলে p.target, নইলে string
-    namesTxt: p.names || "",
-    perPostTokensText: p.tokens || "",
-    commentPack: p.commentPack || "Default",
-    commentsTxt: p.comments || ""
-  }));
-}
+  let manualTargets = [];
+  if (Array.isArray(body.posts) && body.posts.length) {
+    manualTargets = body.posts.slice(0, 4).map(p => ({
+      target: p.target || p,                 
+      namesTxt: p.names || "",                // ✅ fixed (was namesText mismatch)
+      perPostTokensText: p.tokens || "",
+      commentPack: p.commentPack || "Default",
+      commentsTxt: p.comments || ""
+    }));
+  }
+
+  // fallback → if no manualTargets, use global postlinks
   if (!manualTargets.length && fileLinks.length) {
     manualTargets = fileLinks.map(lnk => ({
       target: lnk,
@@ -868,24 +1117,29 @@ if (Array.isArray(body.posts) && body.posts.length) {
     }));
   }
 
-console.log("📂 File Links from postlinks.txt:", fileLinks);
-console.log("📝 Manual Posts from body:", body.posts);
-console.log("🎯 Final Manual Targets:", manualTargets);
-  
+  console.log("📂 File Links from postlinks:", fileLinks);
+  console.log("📝 Manual Posts from body:", body.posts);
+  console.log("🎯 Final Manual Targets:", manualTargets);
+
   if (!manualTargets.length) {
-    sseLine(sessionId, "error", "No posts provided (manual or postlink.txt).");
+    sseLine(sessionId, "error", "No posts provided (manual or postlinks/id.txt).");
     return res.status(400).json({ ok: false, message: "No posts" });
   }
 
   // ---- build targets
   let targets = manualTargets.map((p) => {
     const perPostTokens = p.perPostTokensText ? cleanLines(p.perPostTokensText) : [];
-    const chosenPack = (p.commentPack && p.commentPack !== "Default") ? (loadPackComments(p.commentPack) || []) : [];
+    const chosenPack = (p.commentPack && p.commentPack !== "Default") 
+      ? (loadPackComments(p.commentPack) || []) 
+      : [];
+
     let tokens = perPostTokens.length ? perPostTokens : fileTokens;
     let comments = chosenPack.length
-  ? chosenPack
-  : (p.commentsTxt ? cleanLines(p.commentsTxt) : fileComments);
-    let names = p.namesText ? cleanLines(p.namesText) : fileNames;
+      ? chosenPack
+      : (p.commentsTxt ? cleanLines(p.commentsTxt) : fileComments);
+
+    // ✅ fixed namesTxt usage
+    let names = p.namesTxt && p.namesTxt.trim() ? cleanLines(p.namesTxt) : fileNames;
 
     if (shuffle) {
       if (tokens.length) tokens = shuffleArr(tokens);
@@ -952,7 +1206,7 @@ console.log("🎯 Final Manual Targets:", manualTargets);
     sessionId,
     resolvedTargets,
     tokenName,
-    delayMs,   // 👈 এখন সবসময় ms এ যাবে
+    delayMs,
     maxCount: limit
   });
 });
