@@ -759,6 +759,32 @@ async function runJob(
   let failCount = 0;
   const counters = {};
 
+  // --- Token position map (1-based) + named SSE emitter
+  const tokenOrder = new Map();
+  {
+    let order = 1;
+    for (const t of resolvedTargets) {
+      for (const tok of t.tokens) {
+        if (!tokenOrder.has(tok)) tokenOrder.set(tok, order++);
+      }
+    }
+  }
+  function emitToken(sessionId, payload) {
+    const jobX = getJob(sessionId);
+    const line = `event: token\n` + `data: ${JSON.stringify(payload)}\n\n`;
+    for (const res of jobX.clients) {
+      try { res.write(line); } catch {}
+    }
+  }
+  function pushTokenStatus(tok, status, extra = {}) {
+    emitToken(sessionId, {
+      token: tok,
+      position: tokenOrder.get(tok) || null,
+      status,
+      ...extra,
+    });
+  }
+
   // —— local SSE batching (optional) ——
   let batch = [];
   let batchTimer = null;
@@ -912,6 +938,9 @@ async function runJob(
               postId: tgt.id,
               resultId: outc?.id || null,
             });
+            // token OK
+             pushTokenStatus(token, "OK", { next: tState.nextAvailableAt || null });
+
             // bookkeeping
             tState.hourlyCount++;
             tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
