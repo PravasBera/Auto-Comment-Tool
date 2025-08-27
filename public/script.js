@@ -11,6 +11,16 @@ window.sessionId = null;
 // ---------------------------
 // UI Helpers
 // ---------------------------
+// Only show first 5 words of the quoted comment in a log line
+function previewQuotedComment(line) {
+  if (!line) return "";
+  const m = line.match(/"([^"]+)"/); // find first "comment" part
+  if (!m) return line;               // no quoted comment -> return as is
+  const full = m[1].trim();
+  const words = full.split(/\s+/);
+  const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "…";
+  return line.replace(`"${m[1]}"`, `"${short}"`);
+}
 function addLog(type, message) {
   const logBox = document.getElementById("logBox");
   if (!logBox) return;
@@ -122,7 +132,7 @@ const delayMode = modeEl ? modeEl.value : "fast";
   }
 
   addLog("info", "🚀 Sending start request…");
-
+addLog("info", `⚡ Selected Speed Mode: ${delayMode}`);
   try {
     const res = await fetch("/start", {
   method: "POST",
@@ -242,8 +252,7 @@ function startSSE() {
     const looksProblem =
       PROBLEM_TYPES.has(typ) ||
       PROBLEM_KEYWORDS.some((rx) => rx.test(msg)) ||
-      // server extra payload থাকলে
-      !!(d.errKind || d.errMsg);
+      !!(d.errKind || d.errMsg); // server extra payload থাকলে
 
     if (typ === "ready") {
       addLog("info", "🔗 Live log connected.");
@@ -251,8 +260,10 @@ function startSSE() {
     }
 
     if (typ === "summary") {
-      addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
-      // ❗ summary-তে fail > 0 হলে warning box-এও দেখাও
+      addLog(
+        "success",
+        `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`
+      );
       if ((d.failed || 0) > 0) {
         addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
       }
@@ -261,15 +272,14 @@ function startSSE() {
     }
 
     // ✅ সমস্যা হলে Warning Box-এ, নাহলে Log Box-এ
-if (looksProblem) {
-  const extra = d.errKind ? ` [${d.errKind}]` : "";
-  addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
-} else if (typ === "success") {
-  addLog("success", msg);
+    if (looksProblem) {
+      const extra = d.errKind ? ` [${d.errKind}]` : "";
+      addWarning(typ === "error" ? "error" : "warn", (msg || JSON.stringify(d)) + extra);
+    } else if (typ === "success") {
+  addLog("success", previewQuotedComment(msg));
 } else {
-  addLog("info", msg || JSON.stringify(d));
+  addLog("info", previewQuotedComment(msg || JSON.stringify(d)));
 }
-    }
   } catch (err) {
     addWarning("error", "⚠ SSE parse error: " + err.message + " (raw: " + e.data + ")");
   }
