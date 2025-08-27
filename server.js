@@ -392,6 +392,15 @@ function sseLine(sessionId, type = "log", text = "", meta = {}) {
   });
 }
 
+// --- named SSE event (e.g. "token")
+function sseNamed(sessionId, eventName, payloadObj = {}) {
+  const job = getJob(sessionId);
+  const payload = `event: ${eventName}\n` + `data: ${JSON.stringify(payloadObj)}\n\n`;
+  for (const res of job.clients) {
+    try { res.write(payload); } catch { job.clients.delete(res); }
+  }
+}
+
 // -------------------- Health & session helpers --------------------
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -771,7 +780,7 @@ async function runJob(
   let failCount = 0;
   const counters = {};
 
-  // --- Token position map (1-based) + named SSE emitter
+  // --- token order map (1-based) ---
   const tokenOrder = new Map();
   {
     let order = 1;
@@ -781,17 +790,17 @@ async function runJob(
       }
     }
   }
+  // named emitter for token status
   function pushTokenStatus(tok, status, extra = {}) {
-  sseBroadcast(sessionId, {
-    type: "token",
-    token: tok,
-    position: tokenOrder.get(tok) || null,
-    status,
-    ...extra
-  });
-}
+    sseNamed(sessionId, "token", {
+      token: tok,
+      position: tokenOrder.get(tok) || null,
+      status,
+      ...extra
+    });
+  }
 
-  // —— local SSE batching (optional) ——
+  // --- optional local batching of normal logs ---
   let batch = [];
   let batchTimer = null;
   function flushBatch() {
@@ -820,10 +829,10 @@ async function runJob(
       tokenIndex: 0,
       commentIndex: 0,
       nameIndex: 0,
-      sent: 0 // per-post sent (for limitPerPost)
+      sent: 0
     }));
 
-    // token rotation scope
+    // optional global token ring
     let globalTokens = [];
     let globalTokIdx = 0;
     if (tokenGlobalRing) {
@@ -885,14 +894,14 @@ async function runJob(
       const promises = [];
       const advanced = []; // {postIdx, times}
 
+      // -------- per round, visit each post once --------
       for (let pIdx = 0; pIdx < postCount; pIdx++) {
         const tgt = resolvedTargets[pIdx];
         const st = state[pIdx];
 
-        // per-post limit
         if (limitPerPost && st.sent >= limitPerPost) continue;
 
-        // কতবার attempt করবো এই রাউন্ডে এই পোস্টে
+        // how many attempts for this post this round
         const burst = Math.max(1, burstPerPost);
         let actualBurst = burst;
         if (limitPerPost) actualBurst = Math.min(actualBurst, Math.max(0, limitPerPost - st.sent));
@@ -903,8 +912,9 @@ async function runJob(
 
         let usedTimes = 0;
 
+        // ---- inner burst for this post ----
         for (let b = 0; b < actualBurst; b++) {
-          // pick token/comment indices (global or per-post)
+          // pick token/comment
           let token;
           if (tokenGlobalRing) {
             if (!globalTokens.length) break;
@@ -922,81 +932,81 @@ async function runJob(
           if (!tokenQuotaOk(tState)) continue;
 
           // names slice (k per comment)
-let ns = [];
-if (tgt.namesList.length && namesPerComment > 0) {
-  for (let k = 0; k < namesPerComment; k++) {
-    const n = tgt.namesList[(st.nameIndex + k) % tgt.namesList.length];
-    ns.push(n);
-  }
-}
+          let ns = [];
+          if (tgt.namesList.length && namesPerComment > 0) {
+            for (let k = 0; k < namesPerComment; k++) {
+              const n = tgt.namesList[(st.nameIndex + k) % tgt.namesList.length];
+              ns.push(n);
+            }
+          }
 
-const message = buildCommentWithNames(commentBase, ns);
-// pre-advance local counters for this attempt
-usedTimes++;
+          const message = buildCommentWithNames(commentBase, ns);
+          usedTimes++;
 
-const doSend = async () => {
-  const outc = await attemptWithTimeout(() =>
-    postComment({ token, postId: tgt.id, message })
-  );
+          const doSend = async () => {
+            const outc = await attemptWithTimeout(() =>
+              postComment({ token, postId: tgt.id, message })
+            );
 
-  okCount++;
-  out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
-    account: tokenName[token] || "Account",
-    comment: message,
-    postId: tgt.id,
-    resultId: outc?.id || null,
-  });
+            okCount++;
+            out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
+              account: tokenName[token] || "Account",
+              comment: message,
+              postId: tgt.id,
+              resultId: outc?.id || null,
+            });
 
-  // bookkeeping (first update state, then publish OK status)
-  tState.hourlyCount++;
-  tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
-  tState.backoffMs = 0;
-  st.sent++;
+            // update token state then publish OK
+            tState.hourlyCount++;
+            tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tokenCooldownMs);
+            tState.backoffMs = 0;
+            st.sent++;
+            pushTokenStatus(token, "OK", { next: tState.nextAvailableAt || null });
+          };
 
-  // push updated OK state
-  pushTokenStatus(token, "OK", { next: tState.nextAvailableAt || null });
-};
+          // fire the attempt with error classification
+          promises.push((async () => {
+            try {
+              await doSend();
+            } catch (err) {
+              failCount++;
+              const cls = classifyError(err);
+              counters[cls.kind] = (counters[cls.kind] || 0) + 1;
 
-promises.push((async () => {
-  try {
-    await doSend();
-  } catch (err) {
-    failCount++;
-    const cls = classifyError(err);
-    counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+              // mutate token state + publish status
+              if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
+                if (removeBadTokens) tState.removed = true;
+                pushTokenStatus(token, "REMOVED");
+              } else if (cls.kind === "COMMENT_BLOCKED") {
+                tState.backoffMs = Math.min(
+                  Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
+                  30 * 60 * 1000
+                );
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
+                pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
+              } else if (cls.kind === "NO_PERMISSION") {
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
+                pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
+              } else {
+                pushTokenStatus(token, "UNKNOWN");
+              }
 
-    // mutate token state + publish status
-    if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
-      if (removeBadTokens) tState.removed = true;
-      pushTokenStatus(token, "REMOVED");
-    } else if (cls.kind === "COMMENT_BLOCKED") {
-      tState.backoffMs = Math.min(
-        Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
-        30 * 60 * 1000
-      );
-      tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
-      pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
-    } else if (cls.kind === "NO_PERMISSION") {
-      tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
-      pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
-    } else {
-      pushTokenStatus(token, "UNKNOWN");
-    }
+              out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
+                account: tokenName[token] || "Account",
+                postId: tgt.id,
+                errKind: cls.kind,
+                errMsg: err?.message || String(err),
+              });
+            }
+          })());
+        } // end inner burst loop
 
-    out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
-      account: tokenName[token] || "Account",
-      postId: tgt.id,
-      errKind: cls.kind,
-      errMsg: err?.message || String(err),
-    });
-  }
-})());
+        if (usedTimes > 0) {
+          advanced.push({ postIdx: pIdx, times: usedTimes });
+        }
+      } // end per-post loop
 
-// ——— after inner burst loop for this post ———
-if (usedTimes > 0) {
-  advanced.push({ postIdx: pIdx, times: usedTimes });
-}
-}
+      // ——— round settled ———
       if (!promises.length) {
         out("warn", "Nothing to attempt this round (guards/limits/inputs).");
         break;
@@ -1004,6 +1014,7 @@ if (usedTimes > 0) {
 
       await Promise.allSettled(promises);
       sent += promises.length;
+
       if (maxCount && sent >= maxCount) {
         out("info", `Limit reached: ${sent}/${maxCount}`);
         break;
@@ -1012,9 +1023,9 @@ if (usedTimes > 0) {
       // advance round-robin pointers per post by how many attempts actually used
       for (const a of advanced) {
         const st = state[a.postIdx];
-        st.tokenIndex += a.times;
-        st.commentIndex += a.times;
-        st.nameIndex += a.times * Math.max(1, namesPerComment);
+        st.tokenIndex  += a.times;
+        st.commentIndex+= a.times;
+        st.nameIndex   += a.times * Math.max(1, namesPerComment);
       }
 
       if (job.abort) break;
@@ -1023,7 +1034,7 @@ if (usedTimes > 0) {
       const jitter = roundJitterMaxMs ? Math.floor(Math.random() * roundJitterMaxMs) : 0;
       const waitMs = Math.max(0, delayMs + jitter);
       if (waitMs > 0) await sleep(waitMs);
-    }
+    } // end while
 
     if (job.abort) out("warn", "Job aborted by user.");
 
