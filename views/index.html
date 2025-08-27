@@ -4,159 +4,7 @@
   <meta charset="utf-8" />
   <title>Facebook Auto Comment Tool</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/style.css" />
-  <style>
-    /* ---------- THEME ---------- */
-    :root{
-      --primary:#1877f2; --bg:#0b0f13; --card:#11161c; --text:#e8f0fe; --muted:#9fb3c8;
-      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
-      --ring:#6b7cff;
-    }
-    body.light{ --bg:#f6f8fa; --card:#ffffff; --text:#1a1d21; --muted:#666f7a; }
-    body.dark { --bg:#0b0f13; --card:#11161c; --text:#e8f0fe; --muted:#9fb3c8; }
-
-    *{ box-sizing:border-box; }
-    html,body{ margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI",system-ui,ui-sans-serif; overflow-x:hidden; }
-
-    /* ---------- HEADER ---------- */
-    .app-header{
-      width:100vw;
-      margin-left:calc(50% - 50vw);
-      margin-right:calc(50% - 50vw);
-      padding:22px 12px 16px;
-      text-align:center;
-      background:linear-gradient(180deg,#18202b,#0b0f13);
-      position:relative;
-      z-index:5;
-    }
-    body.light .app-header{ background:linear-gradient(180deg,#f1f4f8,#e5e9ef); }
-    .app-header h1{ margin:0; font-size:22px; font-weight:700; letter-spacing:.3px; }
-    .app-header p{ margin:4px 0; font-size:14px; color:var(--muted); }
-    .app-header .team{ color:var(--primary); font-weight:700; margin-top:4px; }
-
-    /* ✅ THEME TOGGLE — team name er niche, center */
-    .theme-toggle {
-      position: static;        /* absolute বাদ */
-      top: auto; right: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center; /* মাঝখানে */
-      gap: 8px;
-      cursor: pointer;
-      margin: 8px auto 0;      /* team name-এর নিচে ফাঁক */
-    }
-    .toggle-switch {
-      position: relative;
-      width: 42px;
-      height: 22px;
-    }
-    .toggle-switch input { display: none; }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #ccc;
-      transition: .3s;
-      border-radius: 22px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 16px;
-      width: 16px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-    }
-    input:checked + .slider { background-color: var(--primary); }
-    input:checked + .slider:before { transform: translateX(20px); }
-
-    /* ---------- LAYOUT ---------- */
-    .container{ max-width:980px; margin:0 auto; padding:16px; }
-    .card{
-      background:var(--card); border-radius:12px; padding:18px; margin:16px 0;
-      box-shadow:0 2px 6px rgba(0,0,0,.25); transition:background .3s;
-    }
-    .card h2{ margin:0 0 12px; font-size:18px; }
-
-    label{ display:block; margin:6px 0 6px; font-size:14px; }
-    input[type="text"], input[type="number"], textarea, select{
-      width:100%; padding:10px 12px; border-radius:8px; border:1px solid #3b445a;
-      background:var(--card); color:var(--text); font-size:14px; outline:none;
-    }
-    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus{ border-color:var(--ring); }
-    textarea{ min-height:72px; resize:vertical; }
-    input[type="file"]{ margin:6px 0 12px; }
-
-    .btn{
-      display:inline-flex; align-items:center; gap:8px;
-      background:var(--primary); border:none; color:#fff; font-weight:700;
-      padding:10px 16px; border-radius:10px; cursor:pointer; transition:filter .15s;
-    }
-    .btn:hover{ filter:brightness(.93); }
-    .btn-danger{ background:var(--red); }
-    .btn-xl{ padding:14px 22px; font-size:16px; border-radius:14px; }
-    .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
-
-    /* ---------- UserID box ---------- */
-    .user-id-box{
-      padding:12px; border:2px dashed var(--primary); text-align:center;
-      font-size:16px; font-weight:700; border-radius:10px; background:rgba(24,119,242,.1);
-    }
-
-    /* ---------- Panel (Comment Settings) ---------- */
-    .panel{ background:var(--card); border:1px solid #253056; border-radius:16px; padding:18px; box-shadow:0 6px 24px #0005; }
-    .panel-title{ margin:0 0 12px; font-size:18px; font-weight:800; color:#b99cff; }
-    .settings-grid{ display:grid; gap:14px; grid-template-columns:1fr; }
-    @media (min-width:820px){ .settings-grid{ grid-template-columns:1fr 1fr; } }
-    .col-span-2{ grid-column:1/-1; }
-
-    .field{ display:flex; flex-direction:column; gap:6px; }
-    .hint{ color:var(--muted); font-size:12px; margin:0; }
-
-    .checkbox{ display:flex; align-items:center; gap:10px; user-select:none; }
-    .checkbox input{ width:18px; height:18px; }
-
-    .radio-row{ display:grid; gap:10px; grid-template-columns:1fr; }
-    @media (min-width:700px){ .radio-row{ grid-template-columns:repeat(3,1fr); } }
-    .radio-card{
-      display:flex; gap:10px; align-items:center; padding:12px;
-      border:1px solid #253056; border-radius:12px; background:#0b1120; cursor:pointer;
-    }
-    .radio-card input{ width:18px; height:18px; accent-color:#7c8cff; }
-    .radio-card .title{ font-weight:800; }
-    .radio-card .sub{ font-size:12px; color:var(--muted); }
-
-    .actions{ display:flex; gap:12px; margin-top:6px; }
-    #startBtn.btn-xl{ background:linear-gradient(135deg,#3867ff,#7a5cff); }
-    #stopBtn.btn-xl{ background:linear-gradient(135deg,#ff7a7a,#ff4b5c); }
-
-    /* ---------- Stats ---------- */
-    .badge{ padding:6px 10px; border-radius:8px; background:#334155; color:#fff; font-weight:700; }
-    body.light .badge{ background:#e2e8f0; color:#111; }
-
-    /* ---------- Token chips ---------- */
-    .token-chips{ display:flex; flex-wrap:wrap; gap:8px; }
-    .token-chip{ padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid #64748b; }
-    .token-ok{ border-color:#16a34a; }
-    .token-backoff{ border-color:#eab308; }
-    .token-removed{ border-color:#ef4444; }
-    .token-noperm{ border-color:#f59e0b; }
-
-    /* ---------- Logs ---------- */
-    .logs{
-      background:#000; color:#0f0; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-      padding:12px; border-radius:8px; min-height:360px; max-height:560px; overflow:auto; font-size:15px;
-    }
-    #warnBox{ color:#ff6b6b; background:#111; }
-    /* Live Log ↔ Warn Box gap কম */
-    .stack-compact > .card{ margin:12px 0; }
-
-    /* ---------- Footer ---------- */
-    .footer{ text-align:center; padding:14px; font-size:13px; background:var(--card); color:var(--muted); margin-top:20px; }
-  </style>
+  <link rel="stylesheet" href="/style.css?v=final" />
 </head>
 <body class="dark">
   <!-- Header -->
@@ -165,13 +13,16 @@
     <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
     <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
 
-    <div class="theme-toggle">
-      <span>🌙</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="themeToggle" />
-        <span class="slider"></span>
+    <!-- Theme toggle: team name-এর নিচে, মাঝখানে -->
+    <div class="theme-toggle center">
+      <label class="switch">
+        <input id="themeToggle" type="checkbox">
+        <span class="track">
+          <span class="icon left">🌙</span>
+          <span class="icon right">☀️</span>
+          <span class="thumb"></span>
+        </span>
       </label>
-      <span>☀️</span>
     </div>
   </header>
 
@@ -205,7 +56,7 @@
       </form>
     </section>
 
-    <!-- Manual posts (NO extra upload button) -->
+    <!-- Manual posts -->
     <section class="card">
       <h2>Manual Post 1</h2>
       <label>Post Link / ID</label>
@@ -315,7 +166,7 @@
     </section>
 
     <!-- Stats -->
-    <section class="card">
+    <section class="card" id="statsCard">
       <h2 style="display:flex;justify-content:space-between;align-items:center">
         <span>Stats</span>
         <label class="checkbox" style="gap:6px">
@@ -356,7 +207,7 @@
 
     <!-- Live Log + Warnings (compact stack) -->
     <div class="stack-compact">
-      <section class="card">
+      <section class="card" id="logCard">
         <h2 style="display:flex;justify-content:space-between;align-items:center">
           <span>Live Log</span>
           <label class="checkbox" style="gap:6px">
@@ -367,7 +218,7 @@
         <div id="logBox" class="logs"></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="warnCard">
         <h2>Warnings & Summary</h2>
         <div id="warnBox" class="logs"></div>
       </section>
@@ -380,27 +231,28 @@
 
   <!-- Theme toggle + load saved theme -->
   <script>
-    const toggle = document.getElementById("themeToggle");
-    const body = document.body;
-    if (localStorage.getItem("theme") === "light") {
-      body.classList.add("light"); body.classList.remove("dark"); toggle.checked = true;
-    }
-    toggle.addEventListener("change", () => {
-      if (toggle.checked) {
-        body.classList.add("light"); body.classList.remove("dark");
-        localStorage.setItem("theme","light");
-      } else {
-        body.classList.add("dark"); body.classList.remove("light");
-        localStorage.setItem("theme","dark");
+    (function(){
+      const toggle = document.getElementById("themeToggle");
+      const body = document.body;
+      if (localStorage.getItem("theme") === "light") {
+        body.classList.add("light"); body.classList.remove("dark"); toggle.checked = true;
       }
-    });
-    // keep Live Log autosroll checkbox in sync with script.js
-    document.getElementById("autoScrollLogs")?.addEventListener("change",(e)=>{
-      window.__autoScroll = !!e.target.checked;
-    });
+      toggle.addEventListener("change", () => {
+        if (toggle.checked) {
+          body.classList.add("light"); body.classList.remove("dark");
+          localStorage.setItem("theme","light");
+        } else {
+          body.classList.add("dark"); body.classList.remove("light");
+          localStorage.setItem("theme","dark");
+        }
+      });
+      // keep Live Log autoscroll checkbox in sync with script.js
+      document.getElementById("autoScrollLogs")?.addEventListener("change",(e)=>{
+        window.__autoScroll = !!e.target.checked;
+      });
+    })();
   </script>
 
-  <!-- Main client logic (your existing file) -->
-  <script src="/script.js"></script>
+  <script src="/script.js?v=final"></script>
 </body>
 </html>
