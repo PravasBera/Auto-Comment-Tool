@@ -6,258 +6,154 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
   <style>
-    /* 🌗 THEME VARIABLES */
-    :root {
-      --primary: #1877f2;
-      --bg: #0b0f13;
-      --card: #11161c;
-      --text: #e8f0fe;
-      --muted: #9fb3c8;
-      --green: #22c55e;
-      --yellow: #eab308;
-      --red: #ef4444;
+    /* ---------- THEME ---------- */
+    :root{
+      --primary:#1877f2; --bg:#0b0f13; --card:#11161c; --text:#e8f0fe; --muted:#9fb3c8;
+      --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+      --ring:#6b7cff;
     }
-    body.light {
-      --bg: #f6f8fa;
-      --card: #ffffff;
-      --text: #1a1d21;
-      --muted: #666f7a;
+    body.light{ --bg:#f6f8fa; --card:#ffffff; --text:#1a1d21; --muted:#666f7a; }
+    body.dark { --bg:#0b0f13; --card:#11161c; --text:#e8f0fe; --muted:#9fb3c8; }
+
+    *{ box-sizing:border-box; }
+    html,body{ margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI",system-ui,ui-sans-serif; overflow-x:hidden; }
+
+    /* ---------- HEADER ---------- */
+    .app-header{
+      width:100vw;
+      margin-left:calc(50% - 50vw);
+      margin-right:calc(50% - 50vw);
+      padding:22px 12px 16px;
+      text-align:center;
+      background:linear-gradient(180deg,#18202b,#0b0f13);
+      position:relative;
+      z-index:5;
     }
-    body.dark {
-      --bg: #0b0f13;
-      --card: #11161c;
-      --text: #e8f0fe;
-      --muted: #9fb3c8;
+    body.light .app-header{ background:linear-gradient(180deg,#f1f4f8,#e5e9ef); }
+    .app-header h1{ margin:0; font-size:22px; font-weight:700; letter-spacing:.3px; }
+    .app-header p{ margin:4px 0; font-size:14px; color:var(--muted); }
+    .app-header .team{ color:var(--primary); font-weight:700; margin-top:4px; }
+
+    /* Theme toggle */
+    .theme-toggle{ margin-top:12px; display:flex; align-items:center; gap:8px; justify-content:center; }
+    .toggle-switch{ position:relative; width:48px; height:26px; }
+    .toggle-switch input{ display:none; }
+    .slider{ position:absolute; inset:0; background:#94a3b8; border-radius:26px; transition:.25s; }
+    .slider:before{ content:""; position:absolute; width:18px; height:18px; left:4px; top:4px; background:#fff; border-radius:50%; transition:.25s; }
+    input:checked + .slider{ background:var(--primary); }
+    input:checked + .slider:before{ transform:translateX(22px); }
+
+    /* ---------- LAYOUT ---------- */
+    .container{ max-width:980px; margin:0 auto; padding:16px; }
+    .card{
+      background:var(--card); border-radius:12px; padding:18px; margin:16px 0;
+      box-shadow:0 2px 6px rgba(0,0,0,.25); transition:background .3s;
+    }
+    .card h2{ margin:0 0 12px; font-size:18px; }
+
+    label{ display:block; margin:6px 0 6px; font-size:14px; }
+    input[type="text"], input[type="number"], textarea, select{
+      width:100%; padding:10px 12px; border-radius:8px; border:1px solid #3b445a;
+      background:var(--card); color:var(--text); font-size:14px; outline:none;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus{ border-color:var(--ring); }
+    textarea{ min-height:72px; resize:vertical; }
+    input[type="file"]{ margin:6px 0 12px; }
+
+    .btn{
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--primary); border:none; color:#fff; font-weight:700;
+      padding:10px 16px; border-radius:10px; cursor:pointer; transition:filter .15s;
+    }
+    .btn:hover{ filter:brightness(.93); }
+    .btn-danger{ background:var(--red); }
+    .btn-xl{ padding:14px 22px; font-size:16px; border-radius:14px; }
+    .btn-row{ display:flex; gap:10px; flex-wrap:wrap; }
+
+    /* ---------- UserID box ---------- */
+    .user-id-box{
+      padding:12px; border:2px dashed var(--primary); text-align:center;
+      font-size:16px; font-weight:700; border-radius:10px; background:rgba(24,119,242,.1);
     }
 
-    body {
-      margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      transition: background .3s, color .3s;
-    }
+    /* ---------- Panel (Comment Settings) ---------- */
+    .panel{ background:var(--card); border:1px solid #253056; border-radius:16px; padding:18px; box-shadow:0 6px 24px #0005; }
+    .panel-title{ margin:0 0 12px; font-size:18px; font-weight:800; color:#b99cff; }
+    .settings-grid{ display:grid; gap:14px; grid-template-columns:1fr; }
+    @media (min-width:820px){ .settings-grid{ grid-template-columns:1fr 1fr; } }
+    .col-span-2{ grid-column:1/-1; }
 
-    /* ✅ HEADER */
-    .app-header {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      position: relative;
-      padding: 22px 12px 16px;
-      background: linear-gradient(180deg, #18202b, #0b0f13);
-    }
-    body.light .app-header {
-      background: linear-gradient(180deg, #f1f4f8, #e5e9ef);
-    }
-    .app-header h1 {
-      margin: 0;
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: .4px;
-    }
-    .app-header p {
-      margin: 4px 0;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .app-header .team {
-      font-weight: bold;
-      color: var(--primary);
-      margin-top: 4px;
-    }
+    .field{ display:flex; flex-direction:column; gap:6px; }
+    .hint{ color:var(--muted); font-size:12px; margin:0; }
 
-    /* ✅ THEME TOGGLE */
-    .theme-toggle {
-      position: absolute;
-      top: 18px;
-      right: 20px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-    }
-    .toggle-switch {
-      position: relative;
-      width: 42px;
-      height: 22px;
-    }
-    .toggle-switch input {
-      display: none;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #ccc;
-      transition: .3s;
-      border-radius: 22px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 16px;
-      width: 16px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-    }
-    input:checked + .slider {
-      background-color: var(--primary);
-    }
-    input:checked + .slider:before {
-      transform: translateX(20px);
-    }
+    .checkbox{ display:flex; align-items:center; gap:10px; user-select:none; }
+    .checkbox input{ width:18px; height:18px; }
 
-    /* ✅ MAIN CONTAINER */
-    .container {
-      max-width: 900px;
-      margin: auto;
-      padding: 16px;
+    .radio-row{ display:grid; gap:10px; grid-template-columns:1fr; }
+    @media (min-width:700px){ .radio-row{ grid-template-columns:repeat(3,1fr); } }
+    .radio-card{
+      display:flex; gap:10px; align-items:center; padding:12px;
+      border:1px solid #253056; border-radius:12px; background:#0b1120; cursor:pointer;
     }
-    .card {
-      background: var(--card);
-      border-radius: 12px;
-      padding: 18px;
-      margin: 16px 0;
-      box-shadow: 0 2px 5px rgba(0,0,0,.2);
-      transition: background .3s;
-    }
-    .card h2 {
-      margin-top: 0;
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
-    label {
-      display: block;
-      margin: 6px 0 3px;
-      font-size: 14px;
-    }
-    input[type="text"], input[type="number"], textarea, select {
-      width: 100%;
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: var(--card);
-      color: var(--text);
-      font-size: 14px;
-      margin-bottom: 10px;
-    }
-    body.light input[type="text"], 
-    body.light input[type="number"], 
-    body.light textarea, 
-    body.light select {
-      background: #fff;
-      border: 1px solid #ccc;
-      color: #1a1d21;
-    }
-    input[type="file"] {
-      margin-bottom: 10px;
-    }
-    textarea {
-      min-height: 70px;
-    }
-    button {
-      background: var(--primary);
-      border: none;
-      color: #fff;
-      font-size: 15px;
-      font-weight: 600;
-      padding: 10px 18px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    button:hover {
-      background: #0f5ad2;
-    }
-    .danger {
-      background: var(--red);
-    }
+    .radio-card input{ width:18px; height:18px; accent-color:#7c8cff; }
+    .radio-card .title{ font-weight:800; }
+    .radio-card .sub{ font-size:12px; color:var(--muted); }
 
-    /* ✅ GRID for comment settings */
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin: 12px 0;
-    }
-    .chk {
-      display: flex;
-      align-items: center;
-      font-size: 14px;
-    }
+    .actions{ display:flex; gap:12px; margin-top:6px; }
+    #startBtn.btn-xl{ background:linear-gradient(135deg,#3867ff,#7a5cff); }
+    #stopBtn.btn-xl{ background:linear-gradient(135deg,#ff7a7a,#ff4b5c); }
 
-    /* ✅ UserID Box */
-    .user-id-box {
-      padding: 12px;
-      border: 2px dashed var(--primary);
-      text-align: center;
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      border-radius: 10px;
-      background: rgba(24,119,242,0.1);
-    }
+    /* ---------- Stats ---------- */
+    .badge{ padding:6px 10px; border-radius:8px; background:#334155; color:#fff; font-weight:700; }
+    body.light .badge{ background:#e2e8f0; color:#111; }
 
-    /* ✅ Logs */
-    .logs {
-      background: #000;
-      color: #0f0;
-      font-family: monospace;
-      padding: 12px;
-      border-radius: 8px;
-      min-height: 420px;
-      max-height: 600px;
-      overflow-y: auto;
-      font-size: 15px;
-    }
-    #warnBox {
-      color: #ff4444;
-      background: #111;
-    }
+    /* ---------- Token chips ---------- */
+    .token-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+    .token-chip{ padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid #64748b; }
+    .token-ok{ border-color:#16a34a; }
+    .token-backoff{ border-color:#eab308; }
+    .token-removed{ border-color:#ef4444; }
+    .token-noperm{ border-color:#f59e0b; }
 
-    /* ✅ FOOTER */
-    .footer {
-      text-align: center;
-      padding: 14px;
-      font-size: 13px;
-      background: var(--card);
-      color: var(--muted);
-      margin-top: 20px;
+    /* ---------- Logs ---------- */
+    .logs{
+      background:#000; color:#0f0; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding:12px; border-radius:8px; min-height:360px; max-height:560px; overflow:auto; font-size:15px;
     }
+    #warnBox{ color:#ff6b6b; background:#111; }
+    /* Live Log ↔ Warn Box gap কম */
+    .stack-compact > .card{ margin:12px 0; }
+
+    /* ---------- Footer ---------- */
+    .footer{ text-align:center; padding:14px; font-size:13px; background:var(--card); color:var(--muted); margin-top:20px; }
   </style>
 </head>
 <body class="dark">
+  <!-- Header -->
   <header class="app-header">
-  <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
-  <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
-  <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
+    <h1>⚡ Facebook Auto Comment Tool ⚡</h1>
+    <p>👤 Author: <b>PRAVAS BERA</b> &nbsp;|&nbsp; 🌍 Version: <b>Pro</b> &nbsp;|&nbsp; 🇮🇳 Country: <b>INDIA</b></p>
+    <p class="team">🔥 INDIAN DANGER OF BULLET TEAM 🔥</p>
 
-  <!-- ✅ Theme Toggle (Team-এর নিচে রাখা হলো) -->
-  <div class="theme-toggle" style="margin-top:12px; position:static; justify-content:center;">
-    <span>🌙</span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="themeToggle" />
-      <span class="slider"></span>
-    </label>
-    <span>☀️</span>
-  </div>
-</header>
+    <div class="theme-toggle">
+      <span>🌙</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="themeToggle" />
+        <span class="slider"></span>
+      </label>
+      <span>☀️</span>
+    </div>
+  </header>
 
   <main class="container">
-
-    <!-- ✅ UserID Section -->
+    <!-- UserID -->
     <section class="card">
       <h2>Your UserID</h2>
       <div id="userIdBox" class="user-id-box">Loading...</div>
       <p>📋 Copy this UserID and send it to Admin for approval.</p>
     </section>
 
-    <!-- ✅ Upload Section -->
+    <!-- Global Upload -->
     <section class="card">
       <h2>Upload Files (Global)</h2>
       <form id="uploadForm" method="post" enctype="multipart/form-data">
@@ -270,235 +166,211 @@
         <label>Upload Post Links (postlinks.txt)</label>
         <input type="file" name="postlinks" accept=".txt" />
 
- <label>Names for Upload Batch (names.txt)</label>
-<textarea name="names" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
+        <label>Names for Upload Batch (names.txt)</label>
+        <textarea name="names" placeholder="e.g. Enemy Name&#10;Write Line By Line"></textarea>
 
-        <button type="submit">Upload</button>
+        <div class="btn-row" style="margin-top:6px">
+          <button type="submit" class="btn">Upload</button>
+        </div>
       </form>
     </section>
 
-    <!-- ✅ Manual Section Form -->
-    <form id="manualForm" method="post" enctype="multipart/form-data">
-
-      <section class="card"><h2>Manual Post 1</h2>
-        <label>Post Link / ID</label>
-        <input name="postLinks1" type="text" placeholder="Paste link or ID" />
-
-        <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="tokens1" accept=".txt" />
-
-        <label>Names <small>(optional)</small></label>
-        <textarea name="names1" placeholder="Leave empty if not needed"></textarea>
-      </section>
-
-      <section class="card"><h2>Manual Post 2</h2>
-        <label>Post Link / ID</label>
-        <input name="postLinks2" type="text" placeholder="Paste link or ID" />
-
-        <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="tokens2" accept=".txt" />
-
-        <label>Names <small>(optional)</small></label>
-        <textarea name="names2" placeholder="Leave empty if not needed"></textarea>
-      </section>
-
-      <section class="card"><h2>Manual Post 3</h2>
-        <label>Post Link / ID</label>
-        <input name="postLinks3" type="text" placeholder="Paste link or ID" />
-
-        <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="tokens3" accept=".txt" />
-
-        <label>Names <small>(optional)</small></label>
-        <textarea name="names3" placeholder="Leave empty if not needed"></textarea>
-      </section>
-
-      <section class="card"><h2>Manual Post 4</h2>
-        <label>Post Link / ID</label>
-        <input name="postLinks4" type="text" placeholder="Paste link or ID" />
-
-        <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
-        <input type="file" name="tokens4" accept=".txt" />
-
-        <label>Names <small>(optional)</small></label>
-        <textarea name="names4" placeholder="Leave empty if not needed"></textarea>
-      </section>
-
-      <div class="btn-row">
-        <button type="submit">Upload Manual</button>
-      </div>
-    </form>
-
-    <!-- ✅ Comment Settings -->
-    <div class="panel">
-  <h3 class="panel-title">Comment Settings</h3>
-
-  <div class="settings-grid">
-    <!-- Comment set -->
-    <div class="field">
-      <label for="commentSet">Choose Comment Set</label>
-      <select id="commentSet" name="commentSet">
-        <option>-- Default (Upload comments.txt) --</option>
-      </select>
-      <p class="hint">Upload থেকে comment pack বাছাই করুন</p>
-    </div>
-
-    <!-- Limit -->
-    <div class="field">
-      <label for="limit">Limit (0 = unlimited)</label>
-      <input id="limit" name="limit" type="number" min="0" placeholder="0">
-      <p class="hint">এক রান-এ সর্বোচ্চ কতটি পাঠাবে</p>
-    </div>
-
-    <!-- Speed mode -->
-    <div class="field col-span-2">
-      <label>Speed Mode</label>
-      <div class="radio-row">
-        <label class="radio-card">
-          <input type="radio" name="delayMode" value="fast" checked>
-          <div>
-            <div class="title">Fast</div>
-            <div class="sub">Safe</div>
-          </div>
-        </label>
-        <label class="radio-card">
-          <input type="radio" name="delayMode" value="super">
-          <div>
-            <div class="title">Super Fast</div>
-            <div class="sub">Medium Risk</div>
-          </div>
-        </label>
-        <label class="radio-card">
-          <input type="radio" name="delayMode" value="extreme">
-          <div>
-            <div class="title">Extreme</div>
-            <div class="sub">High Risk</div>
-          </div>
-        </label>
-      </div>
-    </div>
-
-    <!-- Delay -->
-    <div class="field">
-      <label for="delay">Delay (seconds)</label>
-      <input id="delay" name="delay" type="number" min="0" value="20">
-    </div>
-
-    <!-- Shuffle -->
-    <div class="field">
-      <label class="checkbox">
-        <input type="checkbox" name="useShuffle">
-        <span>Shuffle comments</span>
-      </label>
-    </div>
-  </div>
-
-  <div class="actions">
-    <button id="startBtn" class="btn btn-primary">▶ Start</button>
-    <button id="stopBtn" class="btn btn-danger">■ Stop</button>
-  </div>
-</div>
+    <!-- Manual posts (NO extra upload button) -->
+    <section class="card">
+      <h2>Manual Post 1</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks1" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
+      <input type="file" name="tokens1" accept=".txt" />
+      <label>Names <small>(optional)</small></label>
+      <textarea name="names1" placeholder="Leave empty if not needed"></textarea>
+    </section>
 
     <section class="card">
-  <h2 style="display:flex;justify-content:space-between;align-items:center">
-    <span>Stats</span>
-    <label class="chk" style="gap:6px">
-      <input type="checkbox" id="autoScroll" checked />
-      Auto-scroll
-    </label>
-  </h2>
+      <h2>Manual Post 2</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks2" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
+      <input type="file" name="tokens2" accept=".txt" />
+      <label>Names <small>(optional)</small></label>
+      <textarea name="names2" placeholder="Leave empty if not needed"></textarea>
+    </section>
 
-  <div id="statsRow" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-    <span id="stTotal" class="badge">Sent: 0</span>
-    <span id="stOk" class="badge" style="background:#16a34a">OK: 0</span>
-    <span id="stFail" class="badge" style="background:#ef4444">Failed: 0</span>
-  </div>
+    <section class="card">
+      <h2>Manual Post 3</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks3" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
+      <input type="file" name="tokens3" accept=".txt" />
+      <label>Names <small>(optional)</small></label>
+      <textarea name="names3" placeholder="Leave empty if not needed"></textarea>
+    </section>
 
-  <div style="overflow:auto">
-    <table id="perPostTable" style="width:100%;border-collapse:collapse;font-size:14px">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:6px;border-bottom:1px solid #444">Post ID</th>
-          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Sent</th>
-          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">OK</th>
-          <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Fail</th>
-        </tr>
-      </thead>
-      <tbody id="perPostBody"></tbody>
-    </table>
-  </div>
-</section>
-<style>
-  .badge{padding:6px 10px;border-radius:8px;background:#334155;color:#fff;font-weight:600}
-  body.light .badge{background:#e2e8f0;color:#111}
-</style>
+    <section class="card">
+      <h2>Manual Post 4</h2>
+      <label>Post Link / ID</label>
+      <input name="postLinks4" type="text" placeholder="Paste link or ID" />
+      <label>Upload Tokens <small>(optional, will catch from global if empty)</small></label>
+      <input type="file" name="tokens4" accept=".txt" />
+      <label>Names <small>(optional)</small></label>
+      <textarea name="names4" placeholder="Leave empty if not needed"></textarea>
+    </section>
 
-    <!-- ✅ Token Status -->
-<section class="card">
-  <h2>Token Status</h2>
-  <div class="btn-row" style="margin-top:8px">
-  <button id="btnCopyReport" type="button">Copy Token Report</button>
-  </div>
-  <div id="tokenList" class="token-chips"></div>
-</section>
+    <!-- Comment Settings -->
+    <section class="panel">
+      <h3 class="panel-title">Comment Settings</h3>
+      <div class="settings-grid">
+        <div class="field">
+          <label for="commentSet">Choose Comment Set</label>
+          <select id="commentSet" name="commentSet">
+            <option value="">-- Default (Upload comments.txt) --</option>
+            <option value="bengali">Bengali</option>
+            <option value="benglish">Benglish</option>
+            <option value="hinglish">Hinglish</option>
+            <option value="mix">Mix</option>
+          </select>
+          <p class="hint">Upload থেকে comment pack বাছাই করুন</p>
+        </div>
 
-<style>
-  .token-chips{display:flex;flex-wrap:wrap;gap:8px}
-  .token-chip{padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #64748b}
-  .token-ok{border-color:#16a34a}
-  .token-backoff{border-color:#eab308}
-  .token-removed{border-color:#ef4444}
-  .token-noperm{border-color:#f59e0b}
-</style>
-    
-    <!-- ✅ Logs -->
-<section class="card">
-  <h2 style="display:flex;justify-content:space-between;align-items:center">
-    <span>Live Log</span>
-    <label class="chk" style="gap:6px">
-      <!-- Live Log header -->
-<input type="checkbox" id="autoScrollLogs" checked />
-      Auto-scroll
-    </label>
-  </h2>
-  <div id="logBox" class="logs"></div>
-</section>
+        <div class="field">
+          <label for="limit">Limit (0 = unlimited)</label>
+          <input id="limit" name="limit" type="number" min="0" value="0" />
+          <p class="hint">এক রান-এ সর্বোচ্চ কতটি পাঠাবে</p>
+        </div>
 
-<!-- ✅ Warning Box -->
-<section class="card">
-  <h2>Warnings & Summary</h2>
-  <div id="warnBox" class="logs"></div>
-</section>
+        <div class="field col-span-2">
+          <label>Speed Mode</label>
+          <div class="radio-row">
+            <label class="radio-card">
+              <input type="radio" name="delayMode" value="fast" checked />
+              <div>
+                <div class="title">Fast</div>
+                <div class="sub">Safe</div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="delayMode" value="superfast" />
+              <div>
+                <div class="title">Super Fast</div>
+                <div class="sub">Medium Risk</div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="delayMode" value="extreme" />
+              <div>
+                <div class="title">Extreme</div>
+                <div class="sub">High Risk</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="delay">Delay (seconds)</label>
+          <input id="delay" name="delay" type="number" min="0" value="20" />
+        </div>
+
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" name="useShuffle" />
+            <span>Shuffle comments</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="startBtn" type="button" class="btn btn-xl">▶ Start</button>
+        <button id="stopBtn" type="button" class="btn btn-danger btn-xl">⏹ Stop</button>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center">
+        <span>Stats</span>
+        <label class="checkbox" style="gap:6px">
+          <input type="checkbox" id="autoScroll" checked />
+          <span>Auto-scroll</span>
+        </label>
+      </h2>
+
+      <div id="statsRow" style="display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 10px">
+        <span id="stTotal" class="badge">Sent: 0</span>
+        <span id="stOk" class="badge" style="background:#16a34a">OK: 0</span>
+        <span id="stFail" class="badge" style="background:#ef4444">Failed: 0</span>
+      </div>
+
+      <div style="overflow:auto">
+        <table id="perPostTable" style="width:100%;border-collapse:collapse;font-size:14px">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:6px;border-bottom:1px solid #444">Post ID</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Sent</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid #444">OK</th>
+              <th style="text-align:right;padding:6px;border-bottom:1px solid #444">Fail</th>
+            </tr>
+          </thead>
+          <tbody id="perPostBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Token Status -->
+    <section class="card">
+      <h2>Token Status</h2>
+      <div class="btn-row" style="margin-top:6px">
+        <button id="btnCopyReport" type="button" class="btn">Copy Token Report</button>
+      </div>
+      <div id="tokenList" class="token-chips"></div>
+    </section>
+
+    <!-- Live Log + Warnings (compact stack) -->
+    <div class="stack-compact">
+      <section class="card">
+        <h2 style="display:flex;justify-content:space-between;align-items:center">
+          <span>Live Log</span>
+          <label class="checkbox" style="gap:6px">
+            <input type="checkbox" id="autoScrollLogs" checked />
+            <span>Auto-scroll</span>
+          </label>
+        </h2>
+        <div id="logBox" class="logs"></div>
+      </section>
+
+      <section class="card">
+        <h2>Warnings & Summary</h2>
+        <div id="warnBox" class="logs"></div>
+      </section>
+    </div>
   </main>
 
   <footer class="footer">
-    © 2025 | Facebook Auto Comment Tool | Developed With ❤️ by BULLET TEAM ☠️
+    © 2025 | Facebook Auto Comment Tool | Developed with ❤️ by BULLET TEAM ☠️
   </footer>
 
+  <!-- Theme toggle + load saved theme -->
   <script>
-  // ✅ Theme Toggle Script
-  const toggle = document.getElementById("themeToggle");
-  const body = document.body;
-
-  // Load saved theme
-  if (localStorage.getItem("theme") === "light") {
-    body.classList.add("light");
-    body.classList.remove("dark");
-    toggle.checked = true;
-  }
-
-  toggle.addEventListener("change", () => {
-    if (toggle.checked) {
-      body.classList.add("light");
-      body.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    } else {
-      body.classList.add("dark");
-      body.classList.remove("light");
-      localStorage.setItem("theme", "dark");
+    const toggle = document.getElementById("themeToggle");
+    const body = document.body;
+    if (localStorage.getItem("theme") === "light") {
+      body.classList.add("light"); body.classList.remove("dark"); toggle.checked = true;
     }
-  });
-</script>
-<script src="/script.js"></script>
+    toggle.addEventListener("change", () => {
+      if (toggle.checked) {
+        body.classList.add("light"); body.classList.remove("dark");
+        localStorage.setItem("theme","light");
+      } else {
+        body.classList.add("dark"); body.classList.remove("light");
+        localStorage.setItem("theme","dark");
+      }
+    });
+    // keep Live Log autosroll checkbox in sync with script.js
+    document.getElementById("autoScrollLogs")?.addEventListener("change",(e)=>{
+      window.__autoScroll = !!e.target.checked;
+    });
+  </script>
+
+  <!-- Main client logic (your existing file) -->
+  <script src="/script.js"></script>
 </body>
 </html>
