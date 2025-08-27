@@ -329,45 +329,75 @@
       </div>
     </form>
 
-    <!-- ✅ Comment Set -->
-    <section class="card">
-      <h2>Comment Settings</h2>
-      <label>Choose Comment Set</label>
-      <select name="commentSet">
-  <option value="">-- Default (Upload comments.txt) --</option>
-  <option value="bengali">Bengali</option>
-  <option value="benglish">Benglish</option>
-  <option value="hinglish">Hinglish</option>
-  <option value="mix">Mix</option>
-</select>
+    <!-- ✅ Comment Settings -->
+    <div class="panel">
+  <h3 class="panel-title">Comment Settings</h3>
 
-      <div class="grid-3">
-        <div>
-          <!-- ✅ Delay Mode Options -->
-<div style="margin-top:8px;">
-  <label>Speed Mode</label>
-  <div class="chk" style="gap:16px; flex-wrap: wrap;">
-    <label><input type="radio" name="delayMode" value="fast" checked /> Fast (Safe)</label>
-    <label><input type="radio" name="delayMode" value="superfast" /> Super Fast (Medium Risk)</label>
-    <label><input type="radio" name="delayMode" value="extreme" /> Extreme Fast (High Risk)</label>
+  <div class="settings-grid">
+    <!-- Comment set -->
+    <div class="field">
+      <label for="commentSet">Choose Comment Set</label>
+      <select id="commentSet" name="commentSet">
+        <option>-- Default (Upload comments.txt) --</option>
+      </select>
+      <p class="hint">Upload থেকে comment pack বাছাই করুন</p>
+    </div>
+
+    <!-- Limit -->
+    <div class="field">
+      <label for="limit">Limit (0 = unlimited)</label>
+      <input id="limit" name="limit" type="number" min="0" placeholder="0">
+      <p class="hint">এক রান-এ সর্বোচ্চ কতটি পাঠাবে</p>
+    </div>
+
+    <!-- Speed mode -->
+    <div class="field col-span-2">
+      <label>Speed Mode</label>
+      <div class="radio-row">
+        <label class="radio-card">
+          <input type="radio" name="delayMode" value="fast" checked>
+          <div>
+            <div class="title">Fast</div>
+            <div class="sub">Safe</div>
+          </div>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="delayMode" value="super">
+          <div>
+            <div class="title">Super Fast</div>
+            <div class="sub">Medium Risk</div>
+          </div>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="delayMode" value="extreme">
+          <div>
+            <div class="title">Extreme</div>
+            <div class="sub">High Risk</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Delay -->
+    <div class="field">
+      <label for="delay">Delay (seconds)</label>
+      <input id="delay" name="delay" type="number" min="0" value="20">
+    </div>
+
+    <!-- Shuffle -->
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="useShuffle">
+        <span>Shuffle comments</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="startBtn" class="btn btn-primary">▶ Start</button>
+    <button id="stopBtn" class="btn btn-danger">■ Stop</button>
   </div>
 </div>
-          <label>Delay (seconds)</label>
-          <input name="delay" type="number" min="0" value="20" />
-        </div>
-        <div>
-          <label>Limit (0 = unlimited)</label>
-          <input name="limit" type="number" min="0" value="0" />
-        </div>
-        <div class="chk">
-          <label><input type="checkbox" name="useShuffle" /> Shuffle comments</label>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button id="startBtn" type="button">▶ Start</button>
-        <button id="stopBtn" type="button" class="danger">⏹ Stop</button>
-      </div>
     </section>
 
     <section class="card">
