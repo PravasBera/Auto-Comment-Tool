@@ -192,23 +192,31 @@ function welcomeThenApproval() {
 
     let u = null;
     for (const url of endpoints) {
-      try {
-        addLog("info", `🔎 checking ${url}`);
-        const res = await fetch(url, { credentials: "include", cache: "no-store" });
-        const text = await res.text();
-        addLog("info", `🌐 ${url} → status:${res.status}, body:${text || "(empty)"}`);
-        if (!res.ok) continue;
-        try { u = text ? JSON.parse(text) : null; } catch { u = null; }
-        if (u && typeof u === "object") break; // usable object পেলে বের হয়ে যাও
-      } catch (e) {
-        addWarning("warn", `⚠ fetch failed: ${e.message}`);
-      }
+  try {
+    addLog("info", `🔎 checking ${url}`);
+    const res  = await fetch(url, { credentials: "include", cache: "no-store" });
+    const text = await res.text();
+
+    // ✅ body আর প্রিন্ট করা হবে না
+    if (!res.ok) {
+      addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
+      continue;
+    } else {
+      addLog("info", `🌐 ${url} → status:${res.status}`);
     }
 
-    if (u) {
+    try { u = text ? JSON.parse(text) : null; } catch { u = null; }
+    if (u && typeof u === "object") break;
+  } catch (e) {
+    addWarning("warn", `⚠ fetch failed: ${e.message}`);
+  }
+}
+
+// ✅ clean summary
+if (u) {
   addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
 }
-    showApproval(u);
+showApproval(u);
   }, 5000);
 }
 
