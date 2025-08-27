@@ -404,6 +404,24 @@
   body.light .badge{background:#e2e8f0;color:#111}
 </style>
 
+    <!-- ✅ Token Status -->
+<section class="card">
+  <h2>Token Status</h2>
+  <div class="btn-row" style="margin-top:8px">
+  <button id="btnCopyReport" type="button">Copy Token Report</button>
+  </div>
+  <div id="tokenList" class="token-chips"></div>
+</section>
+
+<style>
+  .token-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .token-chip{padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #64748b}
+  .token-ok{border-color:#16a34a}
+  .token-backoff{border-color:#eab308}
+  .token-removed{border-color:#ef4444}
+  .token-noperm{border-color:#f59e0b}
+</style>
+    
     <!-- ✅ Logs -->
     <section class="card">
   <h2 style="display:flex;justify-content:space-between;align-items:center">
