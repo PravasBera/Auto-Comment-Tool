@@ -804,6 +804,7 @@ function loadPackComments(name) {
 }
 
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
+// ✅ ঠিক করা
 async function runJob(
   job,
   {
@@ -812,7 +813,7 @@ async function runJob(
     tokenName,
     delayMs,
     maxCount,
-    // knobs
+    // knobs (defaults)
     burstPerPost = 1,
     limitPerPost = 0,
     namesPerComment = 1,
@@ -824,12 +825,11 @@ async function runJob(
     requestTimeoutMs = 12000,
     retryCount = 1,
     roundJitterMaxMs = 80,
-    sseBatchMs = 0
+    sseBatchMs = 0,
+    // FAST mode per-round shuffle
+    shuffleEveryRound = false,
   }
 ) {
-  let okCount = 0;
-  let failCount = 0;
-  const counters = {};
 
   // ------------------------------------------------------------
 // SUPER FAST RUNNER
@@ -1103,17 +1103,14 @@ async function runJobExtreme({
     while (!job.abort && (!maxCount || sent < maxCount)) {
   if (job.abort) break;
 
-  // ✅ প্রতি রাউন্ড শুরুর সময় shuffle (যদি shuffle=true হয়)
-  if (shuffle) {
-    for (const t of resolvedTargets) {
-      if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
-      if (t.comments.length)  t.comments  = shuffleArr(t.comments);
-      if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
-    }
-  }
-
   const promises = [];
   const advanced = []; // {postIdx, times}
+
+      sseLine(
+  sessionId,
+  "info",
+  `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, roundShuffle:${shuffleEveryRound}, startShuffle:${shuffleStart}`
+);
 
       // -------- per round, visit each post once --------
       for (let pIdx = 0; pIdx < postCount; pIdx++) {
@@ -1255,6 +1252,20 @@ async function runJobExtreme({
       const jitter = roundJitterMaxMs ? Math.floor(Math.random() * roundJitterMaxMs) : 0;
       const waitMs = Math.max(0, delayMs + jitter);
       if (waitMs > 0) await sleep(waitMs);
+
+if (shuffleEveryRound) {
+  for (const t of resolvedTargets) {
+    if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
+    if (t.comments.length)  t.comments  = shuffleArr(t.comments);
+    if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
+  }
+  if (resolvedTargets.length > 1) {
+    resolvedTargets.sort(() => Math.random() - 0.5);
+  }
+}
+  // পোস্ট অর্ডারও shuffle করি
+  resolvedTargets.sort(() => Math.random() - 0.5);
+}
     } // end while
 
     if (job.abort) out("warn", "Job aborted by user.");
@@ -1298,6 +1309,19 @@ app.post("/start", async (req, res) => {
 const body = req.body || {};
 const speedMode = String(body.delayMode || "fast").toLowerCase(); // fast | superfast | extreme
 
+let delaySec = parseInt(body.delay, 10);
+if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
+const delayMs = delaySec * 1000;
+
+let limit = parseInt(body.limit, 10);
+if (isNaN(limit) || limit < 0) limit = 0;
+
+// ✅ FAST মোডে প্রতি রাউন্ড শেষে শাফল অন, অন্য মোডে অফ
+const shuffleEveryRound = (speedMode === "fast");
+
+// (ঐচ্ছিক) শুরুতেই একবার শাফল করতে চাইলে
+const shuffleStart = true; // না চাইলে false
+
 // delay (sec→ms) — ইউজার যা দিবে, 그대로
 let delaySec = parseInt(body.delay, 10);
 if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
@@ -1306,9 +1330,6 @@ const delayMs = delaySec * 1000;
 // global limit (UI থেকে এলে নেবে, না এলে 0)
 let limit = parseInt(body.limit, 10);
 if (isNaN(limit) || limit < 0) limit = 0;
-
-// shuffleStart: FAST-এ শুধু শুরুতে; SUPER/EXTREME-এ per-round কোডেই আছে
-const shuffleStart = String(body.shuffle ?? "false").toLowerCase() === "true";
 
 // === server-side tuned defaults (no UI needed)
 const requestTimeoutMs     = DEFAULTS.requestTimeoutMs;
@@ -1400,11 +1421,11 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
     // ✅ fixed namesTxt usage
     let names = p.namesTxt && p.namesTxt.trim() ? cleanLines(p.namesTxt) : fileNames;
 
-    if (shuffle) {
-      if (tokens.length) tokens = shuffleArr(tokens);
-      if (comments.length) comments = shuffleArr(comments);
-      if (names.length) names = shuffleArr(names);
-    }
+    if (shuffleStart) {
+  if (tokens.length)   tokens   = shuffleArr(tokens);
+  if (comments.length) comments = shuffleArr(comments);
+  if (names.length)    names    = shuffleArr(names);
+}
 
     return {
       rawTarget: p.target,
@@ -1461,13 +1482,17 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
   res.json({ ok: true, message: "Job started" });
   sseLine(sessionId, "info", `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, shuffle:${shuffle}`);
 
-  runJob(job, {
-    sessionId,
-    resolvedTargets,
-    tokenName,
-    delayMs,
-    maxCount: limit
-  });
+  // FAST = per-round shuffle on, অন্য মোডে off
+const shuffleEveryRound = (speedMode === "fast");
+
+// ...পরের দিকে runJob কল:
+runJob(job, {
+  sessionId,
+  resolvedTargets,
+  tokenName,
+  delayMs,
+  maxCount: limit,
+  shuffleEveryRound,   // <<< NEW
 });
 
 // -------------------- Boot --------------------
