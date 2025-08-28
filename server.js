@@ -1284,6 +1284,7 @@ async function runJob(
       counters,
       message: "token expiry / id locked / wrong link / action blocked — classified above.",
     });
+    }  
 
   } catch (e) { // <-- now this 'catch' directly follows the 'try'
     out("error", `Fatal: ${e.message || e}`);
