@@ -319,10 +319,13 @@ async function postComment({ token, postId, message }) {
 function classifyError(err) {
   const code = err?.code || err?.error_subcode || 0;
   const msg = (err?.message || "").toLowerCase();
+
   if (code === 190 || msg.includes("expired") || msg.includes("session has expired"))
     return { kind: "INVALID_TOKEN", human: "Invalid or expired token" };
+
   if (msg.includes("permission") || msg.includes("insufficient"))
     return { kind: "NO_PERMISSION", human: "Missing permission to comment" };
+
   if (
     msg.includes("not found") ||
     msg.includes("unsupported") ||
@@ -330,15 +333,22 @@ function classifyError(err) {
     msg.includes("unknown object")
   )
     return { kind: "WRONG_POST_ID", human: "Wrong or inaccessible post id/link" };
+
+  // ✅ NEW: handle 368 + abusive/disallowed copy
   if (
+    code === 368 ||
+    msg.includes("deemed abusive") ||
+    msg.includes("otherwise disallowed") ||
     msg.includes("temporarily blocked") ||
     msg.includes("rate limit") ||
     msg.includes("reduced") ||
     msg.includes("block")
   )
     return { kind: "COMMENT_BLOCKED", human: "Comment blocked or rate limited" };
+
   if (msg.includes("checkpoint") || msg.includes("locked") || msg.includes("hold"))
     return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
+
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
@@ -908,10 +918,19 @@ async function runJob(
     let sent = 0;
 
     while (!job.abort && (!maxCount || sent < maxCount)) {
-      if (job.abort) break;
+  if (job.abort) break;
 
-      const promises = [];
-      const advanced = []; // {postIdx, times}
+  // ✅ প্রতি রাউন্ড শুরুর সময় shuffle (যদি shuffle=true হয়)
+  if (shuffle) {
+    for (const t of resolvedTargets) {
+      if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
+      if (t.comments.length)  t.comments  = shuffleArr(t.comments);
+      if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
+    }
+  }
+
+  const promises = [];
+  const advanced = []; // {postIdx, times}
 
       // -------- per round, visit each post once --------
       for (let pIdx = 0; pIdx < postCount; pIdx++) {
