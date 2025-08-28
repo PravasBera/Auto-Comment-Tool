@@ -1106,12 +1106,6 @@ async function runJobExtreme({
   const promises = [];
   const advanced = []; // {postIdx, times}
 
-      sseLine(
-  sessionId,
-  "info",
-  `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, roundShuffle:${shuffleEveryRound}, startShuffle:${shuffleStart}`
-);
-
       // -------- per round, visit each post once --------
       for (let pIdx = 0; pIdx < postCount; pIdx++) {
         const tgt = resolvedTargets[pIdx];
@@ -1316,20 +1310,11 @@ const delayMs = delaySec * 1000;
 let limit = parseInt(body.limit, 10);
 if (isNaN(limit) || limit < 0) limit = 0;
 
-// ✅ FAST মোডে প্রতি রাউন্ড শেষে শাফল অন, অন্য মোডে অফ
+// ✅ FAST = per-round shuffle (true only for fast mode)
 const shuffleEveryRound = (speedMode === "fast");
 
-// (ঐচ্ছিক) শুরুতেই একবার শাফল করতে চাইলে
-const shuffleStart = true; // না চাইলে false
-
-// delay (sec→ms) — ইউজার যা দিবে, 그대로
-let delaySec = parseInt(body.delay, 10);
-if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
-const delayMs = delaySec * 1000;
-
-// global limit (UI থেকে এলে নেবে, না এলে 0)
-let limit = parseInt(body.limit, 10);
-if (isNaN(limit) || limit < 0) limit = 0;
+// ✅ শুরুতেই একবার shuffle করতে চাইলে (optional)
+const shuffleStart = true; // চাইলে false দাও
 
 // === server-side tuned defaults (no UI needed)
 const requestTimeoutMs     = DEFAULTS.requestTimeoutMs;
@@ -1475,25 +1460,35 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
     tokenName[tok] = await getAccountName(tok);
   }
 
-  // ---- start job
-  job.running = true;
-  job.abort = false;
+// ---- start job
+job.running = true;
+job.abort = false;
 
-  res.json({ ok: true, message: "Job started" });
-  sseLine(sessionId, "info", `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, shuffle:${shuffle}`);
+res.json({ ok: true, message: "Job started" });
 
-  // FAST = per-round shuffle on, অন্য মোডে off
-const shuffleEveryRound = (speedMode === "fast");
-
-// ...পরের দিকে runJob কল:
-runJob(job, {
+// ✅ এখানে নতুন sseLine বসাবে
+sseLine(
   sessionId,
-  resolvedTargets,
-  tokenName,
-  delayMs,
-  maxCount: limit,
-  shuffleEveryRound,   // <<< NEW
-});
+  "info",
+  `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, roundShuffle:${shuffleEveryRound}, startShuffle:${shuffleStart}`
+);
+
+// ---- choose runner by speedMode ----
+if (speedMode === "superfast") {
+  runJobSuperFast({ /* ... */ });
+} else if (speedMode === "extreme") {
+  runJobExtreme({ /* ... */ });
+} else {
+  runJob(job, {
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    delayMs,
+    maxCount: limit,
+    shuffleEveryRound,
+    // ...বাকি knobs
+  });
+}
 
 // -------------------- Boot --------------------
 connectMongo()
