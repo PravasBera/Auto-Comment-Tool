@@ -1191,41 +1191,41 @@ async function runJob(
           };
 
           // fire the attempt with error classification
-          promises.push((async () => {
-            try {
-              await doSend();
-            } catch (err) {
-              failCount++;
-              const cls = classifyError(err);
-              counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+          promises.push(
+  (async () => {
+    try {
+      await doSend();
+    } catch (err) {
+      failCount++;
+      const cls = classifyError(err);
+      counters[cls.kind] = (counters[cls.kind] || 0) + 1;
 
-              // mutate token state + publish status
-              if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
-                if (removeBadTokens) tState.removed = true;
-                pushTokenStatus(token, "REMOVED");
-              } else if (cls.kind === "COMMENT_BLOCKED") {
-                tState.backoffMs = Math.min(
-                  Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
-                  30 * 60 * 1000
-                );
-                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
-                pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
-              } else if (cls.kind === "NO_PERMISSION") {
-                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
-                pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
-              } else {
-                pushTokenStatus(token, "UNKNOWN");
-              }
+      if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
+        if (removeBadTokens) tState.removed = true;
+        pushTokenStatus(token, "REMOVED");
+      } else if (cls.kind === "COMMENT_BLOCKED") {
+        tState.backoffMs = Math.min(
+          Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
+          30 * 60 * 1000
+        );
+        tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
+        pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
+      } else if (cls.kind === "NO_PERMISSION") {
+        tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
+        pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
+      } else {
+        pushTokenStatus(token, "UNKNOWN");
+      }
 
-              out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
-                account: tokenName[token] || "Account",
-                postId: tgt.id,
-                errKind: cls.kind,
-                errMsg: err?.message || String(err),
-              });
-            }
-          })());
-        } // end inner burst loop
+      out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
+        account: tokenName[token] || "Account",
+        postId: tgt.id,
+        errKind: cls.kind,
+        errMsg: err?.message || String(err),
+      });
+    }
+  })()
+);
 
         if (usedTimes > 0) {
           advanced.push({ postIdx: pIdx, times: usedTimes });
