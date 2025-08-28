@@ -192,6 +192,28 @@ const shuffleArr = (arr) => {
   return a;
 };
 
+// === Anti-abuse tuned defaults (server-side) ===
+const DEFAULTS = {
+  // human-like pacing / anti-burst
+  roundJitterMaxMs: 80,            // প্রতি রাউন্ডে ছোট জিটার
+  tokenCooldownMs: 0,              // একই টোকেনের মধ্যে বাধ্যতামূলক গ্যাপ (off)
+  quotaPerTokenPerHour: 0,         // প্রতি টোকেনে প্রতি ঘন্টায় কোটাসীমা (off)
+  namesPerComment: 1,              // ১টা নাম/কমেন্ট
+  limitPerPost: 0,                 // প্রতি পোস্টে লিমিট (off)
+
+  // error policy
+  removeBadTokens: true,           // invalid/locked টোকেন বাদ
+  blockedBackoffMs: 10 * 60 * 1000,// 10 মিনিট ব্যাকঅফ (368/blocked হলে)
+  requestTimeoutMs: 12000,         // 12s timeout
+  retryCount: 1,                   // 1 বার retry (network/timeout only)
+
+  // logging
+  sseBatchMs: 0,                   // SSE ব্যাচিং off
+
+  // token rotation scope
+  tokenGlobalRing: false           // per-post ring (safer)
+};
+
 // ------------------ Link Cleaner ------------------
 function cleanPostLink(link) {
   if (!link) return null;
@@ -1111,50 +1133,34 @@ app.post("/start", async (req, res) => {
     return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
   }
 
-// ---- parse options
+// ---- options (UI) ----
 const body = req.body || {};
+const speedMode = String(body.delayMode || "fast").toLowerCase(); // fast | superfast | extreme
 
-// UI speed mode: fast | superfast | extreme
-const speedMode = String(body.delayMode || "fast").toLowerCase();
-
-// base delay: seconds -> ms
+// delay (sec→ms) — ইউজার যা দিবে, 그대로
 let delaySec = parseInt(body.delay, 10);
 if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
-
-// speed mode অনুযায়ী override
-if (speedMode === "fast") {
-  // as-is (safe)
-} else if (speedMode === "superfast") {
-  delaySec = Math.max(1, Math.floor(delaySec / 2));  // অর্ধেক
-} else if (speedMode === "extreme") {
-  delaySec = 0; // no delay
-}
 const delayMs = delaySec * 1000;
 
-// limit (global)
+// global limit (UI থেকে এলে নেবে, না এলে 0)
 let limit = parseInt(body.limit, 10);
 if (isNaN(limit) || limit < 0) limit = 0;
 
-// shuffle
-const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
+// shuffleStart: FAST-এ শুধু শুরুতে; SUPER/EXTREME-এ per-round কোডেই আছে
+const shuffleStart = String(body.shuffle ?? "false").toLowerCase() === "true";
 
-// ---------- NEW: loop/guard knobs (defaults safe) ----------
-const burstPerPost        = Math.max(1, parseInt(body.burstPerPost ?? 1, 10) || 1);   // per-round প্রতি পোস্টে কয়টা try
-const limitPerPost        = Math.max(0, parseInt(body.limitPerPost ?? 0, 10) || 0);   // 0 = unlimited
-const namesPerComment     = Math.max(1, parseInt(body.namesPerComment ?? 1, 10) || 1);
-
-const tokenGlobalRing     = String(body.tokenGlobalRing ?? "false").toLowerCase() === "true"; // token rotation scope
-const tokenCooldownMs     = Math.max(0, parseInt(body.tokenCooldownMs ?? 0, 10) || 0);
-const quotaPerTokenPerHour= Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 0, 10) || 0);
-
-const removeBadTokens     = String(body.removeBadTokens ?? "true").toLowerCase() !== "false";
-const blockedBackoffMs    = Math.max(0, parseInt(body.blockedBackoffMs ?? 10*60*1000, 10) || (10*60*1000));
-
-const requestTimeoutMs    = Math.max(3000, parseInt(body.requestTimeoutMs ?? 12000, 10) || 12000);
-const retryCount          = Math.max(0, parseInt(body.retry ?? 1, 10) || 1);
-
-const roundJitterMaxMs    = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80, 10) || 0); // small human-like jitter
-const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0);        // 0 = no batching
+// === server-side tuned defaults (no UI needed)
+const requestTimeoutMs     = DEFAULTS.requestTimeoutMs;
+const blockedBackoffMs     = DEFAULTS.blockedBackoffMs;
+const tokenCooldownMs      = DEFAULTS.tokenCooldownMs;
+const retryCount           = DEFAULTS.retryCount;
+const roundJitterMaxMs     = DEFAULTS.roundJitterMaxMs;
+const quotaPerTokenPerHour = DEFAULTS.quotaPerTokenPerHour;
+const namesPerComment      = DEFAULTS.namesPerComment;
+const limitPerPost         = DEFAULTS.limitPerPost;
+const sseBatchMs           = DEFAULTS.sseBatchMs;
+const removeBadTokens      = DEFAULTS.removeBadTokens;
+const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
 
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
