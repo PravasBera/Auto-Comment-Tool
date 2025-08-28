@@ -1261,36 +1261,37 @@ async function runJob(
       const waitMs = Math.max(0, delayMs + jitter);
       if (waitMs > 0) await sleep(waitMs);
 
-if (shuffleEveryRound) {
-  for (const t of resolvedTargets) {
-    if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
-    if (t.comments.length)  t.comments  = shuffleArr(t.comments);
-    if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
-  }
-  if (resolvedTargets.length > 1) {
-    resolvedTargets.sort(() => Math.random() - 0.5);
-  }
-}
+      if (shuffleEveryRound) {
+        for (const t of resolvedTargets) {
+          if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
+          if (t.comments.length)  t.comments  = shuffleArr(t.comments);
+          if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
+        }
+        if (resolvedTargets.length > 1) {
+          resolvedTargets.sort(() => Math.random() - 0.5);
+        }
+      }
+    } // <-- CLOSE THE while (...) LOOP HERE
 
     if (job.abort) out("warn", "Job aborted by user.");
 
-      out("summary", "Run finished", {
-        sent: okCount + failCount,
-        ok: okCount,
-        failed: failCount,
-        counters,
-        message: "token expiry / id locked / wrong link / action blocked — classified above.",
-      });
-    } catch (e) {                         // <-- catch must follow the try that
-      out("error", `Fatal: ${e.message || e}`);
-    } finally {
-      const j = getJob(sessionId);
-      j.running = false;
-      j.abort = false;
-      flushBatch();
-      sseLine(sessionId, "info", "Job closed");
-    }
+    out("summary", "Run finished", {
+      sent: okCount + failCount,
+      ok: okCount,
+      failed: failCount,
+      counters,
+      message: "token expiry / id locked / wrong link / action blocked — classified above.",
+    });
+  } catch (e) {
+    out("error", `Fatal: ${e.message || e}`);
+  } finally {
+    const j = getJob(sessionId);
+    j.running = false;
+    j.abort = false;
+    flushBatch();
+    sseLine(sessionId, "info", "Job closed");
   }
+}
 
 // -------------------- Start Job --------------------
 app.post("/start", async (req, res) => {
