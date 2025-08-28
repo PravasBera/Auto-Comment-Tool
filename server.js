@@ -803,37 +803,6 @@ function loadPackComments(name) {
   return cleanLines(fs.readFileSync(full, "utf-8"));
 }
 
-// --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
-// ✅ ঠিক করা
-async function runJob(
-  job,
-  {
-    sessionId,
-    resolvedTargets,
-    tokenName,
-    delayMs,
-    maxCount,
-    // knobs (defaults)
-    burstPerPost = 1,
-    limitPerPost = 0,
-    namesPerComment = 1,
-    tokenGlobalRing = false,
-    tokenCooldownMs = 0,
-    quotaPerTokenPerHour = 0,
-    removeBadTokens = true,
-    blockedBackoffMs = 10 * 60 * 1000,
-    requestTimeoutMs = 12000,
-    retryCount = 1,
-    roundJitterMaxMs = 80,
-    sseBatchMs = 0,
-    shuffleEveryRound = false,
-  }
-) {
-  try {
-    let okCount = 0;
-    let failCount = 0;
-    const counters = {};
-
   // ------------------------------------------------------------
 // SUPER FAST RUNNER
 // fireGap  = uiDelay / totalIds
@@ -994,6 +963,36 @@ async function runJobExtreme({
   const j=getJob(sessionId); j.running=false; j.abort=false;
   sseLine(sessionId,"info","Job closed");
 }
+
+// --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
+// ✅ ঠিক করা
+async function runJob(
+  job,
+  {
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    delayMs,
+    maxCount,
+    // knobs (defaults)
+    burstPerPost = 1,
+    limitPerPost = 0,
+    namesPerComment = 1,
+    tokenGlobalRing = false,
+    tokenCooldownMs = 0,
+    quotaPerTokenPerHour = 0,
+    removeBadTokens = true,
+    blockedBackoffMs = 10 * 60 * 1000,
+    requestTimeoutMs = 12000,
+    retryCount = 1,
+    roundJitterMaxMs = 80,
+    sseBatchMs = 0,
+    shuffleEveryRound = false,
+  }
+) {
+    let okCount = 0;
+    let failCount = 0;
+    const counters = {};
 
   // --- token order map (1-based) ---
   const tokenOrder = new Map();
@@ -1482,7 +1481,7 @@ sseLine(
     shuffleEveryRound,
     // ...বাকি knobs
   });
-}
+});
 
 // -------------------- Boot --------------------
 connectMongo()
