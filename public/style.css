@@ -314,7 +314,8 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   padding: 16px;
   border-radius: 10px;
   border: none;
-  width: 100%;
+  width: 100%;            /* চাইলে narrow করতে পারো */
+  margin-bottom: 10px;    /* নিচে 10px gap থাকবে */
   transition: all 0.25s ease;
 }
 #startBtn:hover {
