@@ -1261,6 +1261,7 @@ async function runJob(
       const waitMs = Math.max(0, delayMs + jitter);
       if (waitMs > 0) await sleep(waitMs);
 
+      // optional shuffle each round
       if (shuffleEveryRound) {
         for (const t of resolvedTargets) {
           if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
@@ -1271,8 +1272,9 @@ async function runJob(
           resolvedTargets.sort(() => Math.random() - 0.5);
         }
       }
-    } // <-- CLOSE THE while (...) LOOP HERE
+    } // <-- CLOSES the while (...) loop
 
+    // still inside try { ... }
     if (job.abort) out("warn", "Job aborted by user.");
 
     out("summary", "Run finished", {
@@ -1282,7 +1284,8 @@ async function runJob(
       counters,
       message: "token expiry / id locked / wrong link / action blocked — classified above.",
     });
-  } catch (e) {
+
+  } catch (e) { // <-- now this 'catch' directly follows the 'try'
     out("error", `Fatal: ${e.message || e}`);
   } finally {
     const j = getJob(sessionId);
@@ -1291,7 +1294,7 @@ async function runJob(
     flushBatch();
     sseLine(sessionId, "info", "Job closed");
   }
-}
+} // <-- end of function runJob
 
 // -------------------- Start Job --------------------
 app.post("/start", async (req, res) => {
