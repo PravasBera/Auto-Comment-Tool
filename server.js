@@ -806,7 +806,6 @@ function loadPackComments(name) {
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
 // ✅ ঠিক করা
 async function runJob(
-async function runJob(
   job,
   {
     sessionId,
