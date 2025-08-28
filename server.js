@@ -31,6 +31,8 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+// server.js – very top
+require('dotenv').config();   // << add this line
 
 // ✅ Multer Storage Setup
 const storage = multer.diskStorage({
