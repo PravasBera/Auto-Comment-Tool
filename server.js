@@ -1474,11 +1474,6 @@ sseLine(
 );
 
 // ---- choose runner by speedMode ----
-if (speedMode === "superfast") {
-  runJobSuperFast({ /* ... */ });
-} else if (speedMode === "extreme") {
-  runJobExtreme({ /* ... */ });
-} else {
   runJob(job, {
     sessionId,
     resolvedTargets,
