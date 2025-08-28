@@ -196,10 +196,10 @@ const shuffleArr = (arr) => {
 const DEFAULTS = {
   // human-like pacing / anti-burst
   roundJitterMaxMs: 80,            // প্রতি রাউন্ডে ছোট জিটার
-  tokenCooldownMs: 0,              // একই টোকেনের মধ্যে বাধ্যতামূলক গ্যাপ (off)
-  quotaPerTokenPerHour: 0,         // প্রতি টোকেনে প্রতি ঘন্টায় কোটাসীমা (off)
+  tokenCooldownMs:10,              // একই টোকেনের মধ্যে বাধ্যতামূলক গ্যাপ (off)
+  quotaPerTokenPerHour:100,         // প্রতি টোকেনে প্রতি ঘন্টায় কোটাসীমা (off)
   namesPerComment: 1,              // ১টা নাম/কমেন্ট
-  limitPerPost: 0,                 // প্রতি পোস্টে লিমিট (off)
+  limitPerPost: 50,                 // প্রতি পোস্টে লিমিট (off)
 
   // error policy
   removeBadTokens: true,           // invalid/locked টোকেন বাদ
@@ -208,7 +208,7 @@ const DEFAULTS = {
   retryCount: 1,                   // 1 বার retry (network/timeout only)
 
   // logging
-  sseBatchMs: 0,                   // SSE ব্যাচিং off
+  sseBatchMs: 600,                   // SSE ব্যাচিং off
 
   // token rotation scope
   tokenGlobalRing: false           // per-post ring (safer)
@@ -806,6 +806,7 @@ function loadPackComments(name) {
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
 // ✅ ঠিক করা
 async function runJob(
+async function runJob(
   job,
   {
     sessionId,
@@ -826,10 +827,13 @@ async function runJob(
     retryCount = 1,
     roundJitterMaxMs = 80,
     sseBatchMs = 0,
-    // FAST mode per-round shuffle
     shuffleEveryRound = false,
   }
 ) {
+  try {
+    let okCount = 0;
+    let failCount = 0;
+    const counters = {};
 
   // ------------------------------------------------------------
 // SUPER FAST RUNNER
@@ -1257,10 +1261,6 @@ if (shuffleEveryRound) {
     resolvedTargets.sort(() => Math.random() - 0.5);
   }
 }
-  // পোস্ট অর্ডারও shuffle করি
-  resolvedTargets.sort(() => Math.random() - 0.5);
-}
-    } // end while
 
     if (job.abort) out("warn", "Job aborted by user.");
 
