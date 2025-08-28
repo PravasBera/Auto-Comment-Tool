@@ -208,7 +208,7 @@ const DEFAULTS = {
   retryCount: 1,                   // 1 বার retry (network/timeout only)
 
   // logging
-  sseBatchMs: 600,                   // SSE ব্যাচিং off
+  sseBatchMs: 600,                   // SSE ব্যাচিং on
 
   // token rotation scope
   tokenGlobalRing: false           // per-post ring (safer)
