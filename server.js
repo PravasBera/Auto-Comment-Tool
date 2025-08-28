@@ -433,6 +433,18 @@ function sseNamed(sessionId, eventName, payloadObj = {}) {
   }
 }
 
+function logBoth(sessionId, type, text, meta = null) {
+  // UI (SSE)
+  sseLine(sessionId, type, text, meta || {});
+  // Server console
+  const tag = type.toUpperCase();
+  if (meta) {
+    console.log(`[${tag}] [${sessionId}] ${text}`, meta);
+  } else {
+    console.log(`[${tag}] [${sessionId}] ${text}`);
+  }
+}
+
 // -------------------- Health & session helpers --------------------
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -832,7 +844,7 @@ async function runJobSuperFast({
   async function sendOne(pIdx){
     const tgt = resolvedTargets[pIdx];
     const st  = state[pIdx];
-    if (!tgt.tokens.length || !tgt.comments.length) { sseLine(sessionId,"warn",`Skipped (missing) on ${tgt.id}`); return false; }
+    if (!tgt.tokens.length || !tgt.comments.length) { logBoth(sessionId,"warn",`Skipped (missing) on ${tgt.id}`); return false; }
 
     const token   = tgt.tokens[st.tok % tgt.tokens.length];
     const comment = tgt.comments[st.cmt % tgt.comments.length];
@@ -850,19 +862,19 @@ async function runJobSuperFast({
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
-      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+      logBoth(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
     } catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
       if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
       else if (cls.kind==="COMMENT_BLOCKED"){ ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000); ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff); }
       else if (cls.kind==="NO_PERMISSION"){ ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000); }
-      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+      logBoth(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
     }
     return (limit && sent>=limit);
   }
 
-  sseLine(sessionId,"info",`SUPER FAST → fireGap:${fireGap}ms, roundGap:${roundGap}ms, posts:${P}, totalIds:${totalIds}`);
+  logBoth(sessionId,"info",`SUPER FAST → fireGap:${fireGap}ms, roundGap:${roundGap}ms, posts:${P}, totalIds:${totalIds}`);
 
   while(!job.abort && (!limit || sent < limit)){
     // round reshuffle (posts + their rings)
@@ -884,9 +896,9 @@ async function runJobSuperFast({
     if (roundGap>0) await sleep(roundGap);
   }
 
-  sseLine(sessionId,"summary","SUPER FAST finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  logBoth(sessionId,"summary","SUPER FAST finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
   const j=getJob(sessionId); j.running=false; j.abort=false;
-  sseLine(sessionId,"info","Job closed");
+  logBoth(sessionId,"info","Job closed");
 }
 
 // ------------------------------------------------------------
@@ -935,18 +947,18 @@ async function runJobExtreme({
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
-      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+      logBoth(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
     }catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
       if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
       else if (cls.kind==="COMMENT_BLOCKED"){ ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000); ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff); }
       else if (cls.kind==="NO_PERMISSION"){ ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000); }
-      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+      logBoth(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
     }
   }
 
-  sseLine(sessionId,"info",`EXTREME → burst+micro-jitter, roundGap:${roundGap}ms, posts:${postsCount}, totalIds:${totalIds}`);
+  logBoth(sessionId,"info",`EXTREME → burst+micro-jitter, roundGap:${roundGap}ms, posts:${postsCount}, totalIds:${totalIds}`);
 
   while(!job.abort && (!limit || sent < limit)){
     const order = [...Array(postsCount).keys()].sort(()=>Math.random()-0.5);
@@ -959,9 +971,9 @@ async function runJobExtreme({
     if (roundGap>0) await sleep(roundGap);
   }
 
-  sseLine(sessionId,"summary","EXTREME finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  logBoth(sessionId,"summary","EXTREME finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
   const j=getJob(sessionId); j.running=false; j.abort=false;
-  sseLine(sessionId,"info","Job closed");
+  logBoth(sessionId,"info","Job closed");
 }
 
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
@@ -1472,6 +1484,40 @@ sseLine(
 );
 
 // ---- choose runner by speedMode ----
+if (speedMode === "superfast") {
+  runJobSuperFast({
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    uiDelayMs: delayMs,
+    totalIds: resolvedTargets.reduce(
+      (n, t) => n + Math.min(t.tokens.length, t.comments.length),
+      0
+    ),
+    limit,
+    requestTimeoutMs: DEFAULTS.requestTimeoutMs,
+    blockedBackoffMs: DEFAULTS.blockedBackoffMs,
+    tokenCooldownMs: DEFAULTS.tokenCooldownMs,
+    retryCount: DEFAULTS.retryCount,
+  });
+} else if (speedMode === "extreme") {
+  runJobExtreme({
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    uiDelayMs: delayMs,
+    totalIds: resolvedTargets.reduce(
+      (n, t) => n + Math.min(t.tokens.length, t.comments.length),
+      0
+    ),
+    postsCount: resolvedTargets.length,
+    limit,
+    requestTimeoutMs: DEFAULTS.requestTimeoutMs,
+    blockedBackoffMs: DEFAULTS.blockedBackoffMs,
+    tokenCooldownMs: DEFAULTS.tokenCooldownMs,
+    retryCount: DEFAULTS.retryCount,
+  });
+} else {
   runJob(job, {
     sessionId,
     resolvedTargets,
@@ -1479,8 +1525,9 @@ sseLine(
     delayMs,
     maxCount: limit,
     shuffleEveryRound,
-    // ...বাকি knobs
+    // ... চাইলে অন্য knobs এখানে দাও
   });
+}
 });
 
 // -------------------- Boot --------------------
