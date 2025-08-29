@@ -446,48 +446,65 @@
     }
   }
 
+  // --- attach listeners on the floating header ---
+header.addEventListener('mousedown', dragStart);
+header.addEventListener('touchstart', dragStart, { passive: false });
+
   // ---------- open/close/min/max ----------
   btnOpen.addEventListener('click', showPanel);
   btnClose.addEventListener('click', hidePanel);
   btnMin.addEventListener('click', toggleMin);
   btnMax.addEventListener('click', toggleMax);
 
-  // ---------- drag (mouse + touch) ----------
-  (function enableDrag() {
-    let dragging = false, offX = 0, offY = 0;
+  // --- DRAG (smooth, RAF + transform) ---
+let posX = 0, posY = 0;
+let startX = 0, startY = 0;
+let raf = null;
 
-    function startDrag(x, y) {
-      dragging = true;
-      const rect = panel.getBoundingClientRect();
-      offX = x - rect.left;
-      offY = y - rect.top;
-      // drag করলে left/top মোডে নিয়ে আসি
-      panel.style.right = 'auto';
-      panel.style.bottom = 'auto';
-      panel.style.left = rect.left + 'px';
-      panel.style.top  = rect.top  + 'px';
-    }
-    function moveDrag(x, y) {
-      if (!dragging) return;
-      panel.style.left = Math.max(0, x - offX) + 'px';
-      panel.style.top  = Math.max(0, y - offY) + 'px';
-    }
-    function stopDrag() { dragging = false; }
+function dragStart(ev) {
+  const p = ev.touches ? ev.touches[0] : ev;
+  startX = p.clientX;
+  startY = p.clientY;
 
-    // mouse
-    header.addEventListener('mousedown', e => { startDrag(e.clientX, e.clientY); e.preventDefault(); });
-    window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
-    window.addEventListener('mouseup', stopDrag);
+  panel.classList.add('dragging');
 
-    // touch
-    header.addEventListener('touchstart', e => {
-      const t = e.touches[0]; startDrag(t.clientX, t.clientY);
-    }, {passive:true});
-    window.addEventListener('touchmove', e => {
-      const t = e.touches[0]; moveDrag(t.clientX, t.clientY);
-    }, {passive:true});
-    window.addEventListener('touchend', stopDrag);
-  })();
+  document.addEventListener('mousemove', dragMove);
+  document.addEventListener('mouseup', dragEnd);
+  document.addEventListener('touchmove', dragMove, { passive: false });
+  document.addEventListener('touchend', dragEnd);
+}
+
+function dragMove(ev) {
+  ev.preventDefault();
+  const p = ev.touches ? ev.touches[0] : ev;
+
+  const dx = p.clientX - startX;
+  const dy = p.clientY - startY;
+  startX = p.clientX;
+  startY = p.clientY;
+
+  posX += dx;
+  posY += dy;
+
+  if (!raf) {
+    raf = requestAnimationFrame(() => {
+      panel.style.transform = `translate(${posX}px, ${posY}px)`;
+      raf = null;
+    });
+  }
+}
+
+function dragEnd() {
+  panel.classList.remove('dragging');
+  document.removeEventListener('mousemove', dragMove);
+  document.removeEventListener('mouseup', dragEnd);
+  document.removeEventListener('touchmove', dragMove);
+  document.removeEventListener('touchend', dragEnd);
+}
+
+// --- attach listeners on the floating header ---
+header.addEventListener('mousedown', dragStart);
+header.addEventListener('touchstart', dragStart, { passive: false });
 
   // ---------- mirror main #logBox into floating ----------
   // আগের সব লাইন দেখাও + ভবিষ্যতের নতুন লাইনগুলা লাইভ কপি করো
