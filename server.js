@@ -1,5 +1,5 @@
 /**
- * Facebook Auto Comment Tool (Pro) — Full Server (Mongo + Multi-Post + Packs)
+ * Facebook Auto Comment Tool (Pro) â€” Full Server (Mongo + Multi-Post + Packs)
  * ---------------------------------------------------------------------------
  * Features:
  * - Static: / -> views/index.html, /admin -> public/admin.html
@@ -11,9 +11,9 @@
  *      target (link or id), namesText (one per line), optional perPostTokensText,
  *      commentPack: Bengali | Benglish | Hinglish | Mix | Default
  * - Comment Packs (server-side files): uploads/packs/{bengali,benglish,hinglish,mix}.txt
- * - Mix loop (token × comment × post round-robin per post)
+ * - Mix loop (token Ã— comment Ã— post round-robin per post)
  * - Delay / Limit / Shuffle comments
- * - FB link→commentable id resolver (+ /resolveLink) + Graph lookup + refine to object_id
+ * - FB linkâ†’commentable id resolver (+ /resolveLink) + Graph lookup + refine to object_id
  * - Error classifier, graceful stop, per-session job state
  *
  * ENV:
@@ -31,16 +31,14 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
-// server.js – very top
-require('dotenv').config();   // << add this line
 
-// ✅ Multer Storage Setup
+// âœ… Multer Storage Setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname); // ✅ user যে নাম দিয়েছে সেটাই থাকবে
+    cb(null, file.originalname); // âœ… user à¦¯à§‡ à¦¨à¦¾à¦® à¦¦à¦¿à§Ÿà§‡à¦›à§‡ à¦¸à§‡à¦Ÿà¦¾à¦‡ à¦¥à¦¾à¦•à¦¬à§‡
   }
 });
 
@@ -91,7 +89,7 @@ async function connectMongo() {
   await mongoose.connect(MONGO_URI, {
     dbName: new URL(MONGO_URI).pathname?.slice(1) || "fbtool",
   });
-  console.log("✅ MongoDB connected");
+  console.log("âœ… MongoDB connected");
 }
 
 // -------------------- Paths --------------------
@@ -194,34 +192,12 @@ const shuffleArr = (arr) => {
   return a;
 };
 
-// === Anti-abuse tuned defaults (server-side) ===
-const DEFAULTS = {
-  // human-like pacing / anti-burst
-  roundJitterMaxMs: 80,            // প্রতি রাউন্ডে ছোট জিটার
-  tokenCooldownMs:10,              // একই টোকেনের মধ্যে বাধ্যতামূলক গ্যাপ (off)
-  quotaPerTokenPerHour:100,         // প্রতি টোকেনে প্রতি ঘন্টায় কোটাসীমা (off)
-  namesPerComment: 1,              // ১টা নাম/কমেন্ট
-  limitPerPost: 50,                 // প্রতি পোস্টে লিমিট (off)
-
-  // error policy
-  removeBadTokens: true,           // invalid/locked টোকেন বাদ
-  blockedBackoffMs: 10 * 60 * 1000,// 10 মিনিট ব্যাকঅফ (368/blocked হলে)
-  requestTimeoutMs: 12000,         // 12s timeout
-  retryCount: 1,                   // 1 বার retry (network/timeout only)
-
-  // logging
-  sseBatchMs: 600,                   // SSE ব্যাচিং on
-
-  // token rotation scope
-  tokenGlobalRing: false           // per-post ring (safer)
-};
-
 // ------------------ Link Cleaner ------------------
 function cleanPostLink(link) {
   if (!link) return null;
   link = String(link).trim();
 
-  // শুধুই সংখ্যায় post id
+  // à¦¶à§à¦§à§à¦‡ à¦¸à¦‚à¦–à§à¦¯à¦¾à§Ÿ post id
   if (/^\d+$/.test(link)) return link;
 
   // story.php?id=UID&story_fbid=PID
@@ -232,15 +208,15 @@ function cleanPostLink(link) {
   const groupMatch = link.match(/\/groups\/(\d+)\/permalink\/(\d+)/);
   if (groupMatch) return `${groupMatch[1]}_${groupMatch[2]}`;
 
-  // /USERID/posts/POSTID (শেষে slash/query থাকতে পারে)
+  // /USERID/posts/POSTID (à¦¶à§‡à¦·à§‡ slash/query à¦¥à¦¾à¦•à¦¤à§‡ à¦ªà¦¾à¦°à§‡)
   const userPostMatch = link.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
   if (userPostMatch) return `${userPostMatch[1]}_${userPostMatch[2]}`;
 
-  // /posts/POSTID (কোন UID নেই)
+  // /posts/POSTID (à¦•à§‹à¦¨ UID à¦¨à§‡à¦‡)
   const simplePost = link.match(/\/posts\/(\d+)/);
   if (simplePost) return simplePost[1];
 
-  // pfbid ধরার জন্য
+  // pfbid à¦§à¦°à¦¾à¦° à¦œà¦¨à§à¦¯
   const pfbidMatch = link.match(/(pfbid\w+)/i);
   if (pfbidMatch) return pfbidMatch[1];
 
@@ -343,13 +319,10 @@ async function postComment({ token, postId, message }) {
 function classifyError(err) {
   const code = err?.code || err?.error_subcode || 0;
   const msg = (err?.message || "").toLowerCase();
-
   if (code === 190 || msg.includes("expired") || msg.includes("session has expired"))
     return { kind: "INVALID_TOKEN", human: "Invalid or expired token" };
-
   if (msg.includes("permission") || msg.includes("insufficient"))
     return { kind: "NO_PERMISSION", human: "Missing permission to comment" };
-
   if (
     msg.includes("not found") ||
     msg.includes("unsupported") ||
@@ -357,22 +330,15 @@ function classifyError(err) {
     msg.includes("unknown object")
   )
     return { kind: "WRONG_POST_ID", human: "Wrong or inaccessible post id/link" };
-
-  // ✅ NEW: handle 368 + abusive/disallowed copy
   if (
-    code === 368 ||
-    msg.includes("deemed abusive") ||
-    msg.includes("otherwise disallowed") ||
     msg.includes("temporarily blocked") ||
     msg.includes("rate limit") ||
     msg.includes("reduced") ||
     msg.includes("block")
   )
     return { kind: "COMMENT_BLOCKED", human: "Comment blocked or rate limited" };
-
   if (msg.includes("checkpoint") || msg.includes("locked") || msg.includes("hold"))
     return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
-
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
 }
 
@@ -432,18 +398,6 @@ function sseNamed(sessionId, eventName, payloadObj = {}) {
   const payload = `event: ${eventName}\n` + `data: ${JSON.stringify(payloadObj)}\n\n`;
   for (const res of job.clients) {
     try { res.write(payload); } catch { job.clients.delete(res); }
-  }
-}
-
-function logBoth(sessionId, type, text, meta = null) {
-  // UI (SSE)
-  sseLine(sessionId, type, text, meta || {});
-  // Server console
-  const tag = type.toUpperCase();
-  if (meta) {
-    console.log(`[${tag}] [${sessionId}] ${text}`, meta);
-  } else {
-    console.log(`[${tag}] [${sessionId}] ${text}`);
   }
 }
 
@@ -688,14 +642,14 @@ app.post(
   upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
-    // accept BOTH spellings so frontend <input name="postlinks"> কাজ করে
+    // accept BOTH spellings so frontend <input name="postlinks"> à¦•à¦¾à¦œ à¦•à¦°à§‡
     { name: "postlinks", maxCount: 1 },
     { name: "postLinks", maxCount: 1 },
     { name: "uploadNames", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
-      // ✅ sessionId fallback: query/body না থাকলে cookie-session ব্যবহার
+      // âœ… sessionId fallback: query/body à¦¨à¦¾ à¦¥à¦¾à¦•à¦²à§‡ cookie-session à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦°
       const sessionId =
         req.query.sessionId ||
         req.body.sessionId ||
@@ -705,7 +659,7 @@ app.post(
         return res.status(400).json({ ok: false, message: "sessionId required" });
       }
 
-      // ✅ access check (approved/blocked/expired)
+      // âœ… access check (approved/blocked/expired)
       const user = await User.findOne({ sessionId }).lean();
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
@@ -713,11 +667,11 @@ app.post(
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
-      // ✅ per-session folder
+      // âœ… per-session folder
       const sessionDir = path.join(UPLOAD_DIR, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-      // ✅ save tokens/comments
+      // âœ… save tokens/comments
       if (req.files?.tokens?.[0]) {
         fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "tokens.txt"));
       }
@@ -725,7 +679,7 @@ app.post(
         fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comments.txt"));
       }
 
-      // ✅ postlinks vs postLinks — যেটা আছে সেটাই নাও
+      // âœ… postlinks vs postLinks â€” à¦¯à§‡à¦Ÿà¦¾ à¦†à¦›à§‡ à¦¸à§‡à¦Ÿà¦¾à¦‡ à¦¨à¦¾à¦“
       const postFile = (req.files?.postlinks?.[0]) || (req.files?.postLinks?.[0]);
       if (postFile) {
         fs.renameSync(postFile.path, path.join(sessionDir, "postlinks.txt"));
@@ -735,26 +689,26 @@ app.post(
 let links = [];
 if (fs.existsSync(postLinksPath)) {
   const rawLinks = fs.readFileSync(postLinksPath, "utf8");
-  console.log("📂 postlinks.txt content:\n", rawLinks);
+  console.log("ðŸ“‚ postlinks.txt content:\n", rawLinks);
   links = rawLinks
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(Boolean)
     .map(cleanPostLink)
     .filter(l => l !== null);
-  console.log("✅ Parsed links:", links);
+  console.log("âœ… Parsed links:", links);
 } else {
-  console.log("ℹ️ postlinks.txt not found (skip parsing).");
+  console.log("â„¹ï¸ postlinks.txt not found (skip parsing).");
 }
 
-      // ✅ names textarea (optional)
-      // ছিল: const uploadNames = req.body.uploadNames || "";
+      // âœ… names textarea (optional)
+      // à¦›à¦¿à¦²: const uploadNames = req.body.uploadNames || "";
 const uploadNames = req.body.names || req.body.uploadNames || "";
 if (uploadNames && uploadNames.trim()) {
   fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
 }
 
-      // ✅ simple counter (per-session ফাইল থেকেই)
+      // âœ… simple counter (per-session à¦«à¦¾à¦‡à¦² à¦¥à§‡à¦•à§‡à¦‡)
       const countLines = (p) =>
         fs.existsSync(p)
           ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
@@ -768,7 +722,7 @@ if (uploadNames && uploadNames.trim()) {
       sseLine(
         sessionId,
         "info",
-        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`
+        `Files uploaded âœ“ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`
       );
 
       return res.json({
@@ -817,169 +771,7 @@ function loadPackComments(name) {
   return cleanLines(fs.readFileSync(full, "utf-8"));
 }
 
-  // ------------------------------------------------------------
-// SUPER FAST RUNNER
-// fireGap  = uiDelay / totalIds
-// roundGap = uiDelay / ceil(totalIds/3)
-// প্রতি রাউন্ড শুরুর আগে posts/tokens/comments/names একটু reshuffle
-// ------------------------------------------------------------
-async function runJobSuperFast({
-  sessionId, resolvedTargets, tokenName,
-  uiDelayMs, totalIds, limit,
-  requestTimeoutMs, blockedBackoffMs, tokenCooldownMs, retryCount
-}) {
-  const job = getJob(sessionId);
-  const P = resolvedTargets.length;
-  const fireGap  = totalIds > 0 ? Math.max(0, Math.floor(uiDelayMs / totalIds)) : 0;
-  const batchCnt = Math.max(1, Math.ceil(totalIds / 3));
-  const roundGap = Math.max(0, Math.floor(uiDelayMs / batchCnt));
-
-  let sent = 0, okCount = 0, failCount = 0;
-
-  const state = resolvedTargets.map(() => ({ tok:0, cmt:0, name:0, sent:0 }));
-  const tState = new Map();
-  const ensureT = (tok) => {
-    if (!tState.has(tok)) tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
-    return tState.get(tok);
-  };
-
-  async function sendOne(pIdx){
-    const tgt = resolvedTargets[pIdx];
-    const st  = state[pIdx];
-    if (!tgt.tokens.length || !tgt.comments.length) { logBoth(sessionId,"warn",`Skipped (missing) on ${tgt.id}`); return false; }
-
-    const token   = tgt.tokens[st.tok % tgt.tokens.length];
-    const comment = tgt.comments[st.cmt % tgt.comments.length];
-    const nameArr = tgt.namesList.length ? [tgt.namesList[st.name % tgt.namesList.length]] : [];
-    const message = buildCommentWithNames(comment, nameArr);
-
-    const ts = ensureT(token);
-    if (ts.removed || Date.now() < ts.nextAt) return false;
-
-    try{
-      await Promise.race([
-        postComment({ token, postId: tgt.id, message }),
-        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-      ]);
-      okCount++; sent++;
-      st.sent++; st.tok++; st.cmt++; st.name++;
-      ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
-      logBoth(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
-    } catch(err){
-      failCount++; sent++;
-      const cls = classifyError(err);
-      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
-      else if (cls.kind==="COMMENT_BLOCKED"){ ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000); ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff); }
-      else if (cls.kind==="NO_PERMISSION"){ ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000); }
-      logBoth(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
-    }
-    return (limit && sent>=limit);
-  }
-
-  logBoth(sessionId,"info",`SUPER FAST → fireGap:${fireGap}ms, roundGap:${roundGap}ms, posts:${P}, totalIds:${totalIds}`);
-
-  while(!job.abort && (!limit || sent < limit)){
-    // round reshuffle (posts + their rings)
-    const order = [...Array(P).keys()].sort(()=>Math.random()-0.5);
-    for (const t of resolvedTargets){
-      if (t.tokens.length   > 1) t.tokens.sort(()=>Math.random()-0.5);
-      if (t.comments.length > 1) t.comments.sort(()=>Math.random()-0.5);
-      if (t.namesList.length> 1) t.namesList.sort(()=>Math.random()-0.5);
-    }
-
-    for (const idx of order){
-      const stop = await sendOne(idx);
-      if (stop) break;
-      if (fireGap>0) await sleep(fireGap);
-      if (job.abort || (limit && sent>=limit)) break;
-    }
-
-    if (job.abort || (limit && sent>=limit)) break;
-    if (roundGap>0) await sleep(roundGap);
-  }
-
-  logBoth(sessionId,"summary","SUPER FAST finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
-  const j=getJob(sessionId); j.running=false; j.abort=false;
-  logBoth(sessionId,"info","Job closed");
-}
-
-// ------------------------------------------------------------
-// EXTREME RUNNER
-// batchCount = ceil(totalIds / postsCount)
-// roundGap   = uiDelay / batchCount
-// প্রতি কমেন্টে micro jitter ~80–120ms (anti-burst)
-// ------------------------------------------------------------
-async function runJobExtreme({
-  sessionId, resolvedTargets, tokenName,
-  uiDelayMs, totalIds, postsCount, limit,
-  requestTimeoutMs, blockedBackoffMs, tokenCooldownMs, retryCount
-}) {
-  const job = getJob(sessionId);
-  const batchCount = Math.max(1, Math.ceil(totalIds / Math.max(1, postsCount)));
-  const roundGap   = Math.max(0, Math.floor(uiDelayMs / batchCount));
-  const micro = () => 80 + Math.floor(Math.random()*41); // 80–120ms
-
-  let sent = 0, okCount=0, failCount=0;
-
-  const state = resolvedTargets.map(() => ({ tok:0, cmt:0, name:0, sent:0 }));
-  const tState = new Map();
-  const ensureT = (tok) => {
-    if (!tState.has(tok)) tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
-    return tState.get(tok);
-  };
-
-  async function fireOne(pIdx){
-    const tgt = resolvedTargets[pIdx];
-    const st  = state[pIdx];
-    if (!tgt.tokens.length || !tgt.comments.length) return;
-
-    const token   = tgt.tokens[st.tok % tgt.tokens.length];
-    const comment = tgt.comments[st.cmt % tgt.comments.length];
-    const nameArr = tgt.namesList.length ? [tgt.namesList[st.name % tgt.namesList.length]] : [];
-    const message = buildCommentWithNames(comment, nameArr);
-
-    const ts = ensureT(token);
-    if (ts.removed || Date.now() < ts.nextAt) return;
-
-    try{
-      await Promise.race([
-        postComment({ token, postId: tgt.id, message }),
-        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-      ]);
-      okCount++; sent++;
-      st.sent++; st.tok++; st.cmt++; st.name++;
-      ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
-      logBoth(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
-    }catch(err){
-      failCount++; sent++;
-      const cls = classifyError(err);
-      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
-      else if (cls.kind==="COMMENT_BLOCKED"){ ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000); ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff); }
-      else if (cls.kind==="NO_PERMISSION"){ ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000); }
-      logBoth(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
-    }
-  }
-
-  logBoth(sessionId,"info",`EXTREME → burst+micro-jitter, roundGap:${roundGap}ms, posts:${postsCount}, totalIds:${totalIds}`);
-
-  while(!job.abort && (!limit || sent < limit)){
-    const order = [...Array(postsCount).keys()].sort(()=>Math.random()-0.5);
-    for (const idx of order){
-      await fireOne(idx);
-      if (limit && sent>=limit) break;
-      await sleep(micro());
-    }
-    if (job.abort || (limit && sent>=limit)) break;
-    if (roundGap>0) await sleep(roundGap);
-  }
-
-  logBoth(sessionId,"summary","EXTREME finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
-  const j=getJob(sessionId); j.running=false; j.abort=false;
-  logBoth(sessionId,"info","Job closed");
-}
-
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
-// ✅ ঠিক করা
 async function runJob(
   job,
   {
@@ -988,7 +780,7 @@ async function runJob(
     tokenName,
     delayMs,
     maxCount,
-    // knobs (defaults)
+    // knobs
     burstPerPost = 1,
     limitPerPost = 0,
     namesPerComment = 1,
@@ -1000,13 +792,12 @@ async function runJob(
     requestTimeoutMs = 12000,
     retryCount = 1,
     roundJitterMaxMs = 80,
-    sseBatchMs = 0,
-    shuffleEveryRound = false,
+    sseBatchMs = 0
   }
 ) {
-    let okCount = 0;
-    let failCount = 0;
-    const counters = {};
+  let okCount = 0;
+  let failCount = 0;
+  const counters = {};
 
   // --- token order map (1-based) ---
   const tokenOrder = new Map();
@@ -1117,10 +908,10 @@ async function runJob(
     let sent = 0;
 
     while (!job.abort && (!maxCount || sent < maxCount)) {
-  if (job.abort) break;
+      if (job.abort) break;
 
-  const promises = [];
-  const advanced = []; // {postIdx, times}
+      const promises = [];
+      const advanced = []; // {postIdx, times}
 
       // -------- per round, visit each post once --------
       for (let pIdx = 0; pIdx < postCount; pIdx++) {
@@ -1177,7 +968,7 @@ async function runJob(
             );
 
             okCount++;
-            out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
+            out("log", `âœ” ${tokenName[token] || "Account"} â†’ "${message}" on ${tgt.id}`, {
               account: tokenName[token] || "Account",
               comment: message,
               postId: tgt.id,
@@ -1193,48 +984,48 @@ async function runJob(
           };
 
           // fire the attempt with error classification
-          promises.push(
-  (async () => {
-    try {
-      await doSend();
-    } catch (err) {
-      failCount++;
-      const cls = classifyError(err);
-      counters[cls.kind] = (counters[cls.kind] || 0) + 1;
+          promises.push((async () => {
+            try {
+              await doSend();
+            } catch (err) {
+              failCount++;
+              const cls = classifyError(err);
+              counters[cls.kind] = (counters[cls.kind] || 0) + 1;
 
-      if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
-        if (removeBadTokens) tState.removed = true;
-        pushTokenStatus(token, "REMOVED");
-      } else if (cls.kind === "COMMENT_BLOCKED") {
-        tState.backoffMs = Math.min(
-          Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
-          30 * 60 * 1000
-        );
-        tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
-        pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
-      } else if (cls.kind === "NO_PERMISSION") {
-        tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
-        pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
-      } else {
-        pushTokenStatus(token, "UNKNOWN");
-      }
+              // mutate token state + publish status
+              if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
+                if (removeBadTokens) tState.removed = true;
+                pushTokenStatus(token, "REMOVED");
+              } else if (cls.kind === "COMMENT_BLOCKED") {
+                tState.backoffMs = Math.min(
+                  Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
+                  30 * 60 * 1000
+                );
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + tState.backoffMs);
+                pushTokenStatus(token, "BACKOFF", { until: tState.nextAvailableAt });
+              } else if (cls.kind === "NO_PERMISSION") {
+                tState.nextAvailableAt = Math.max(tState.nextAvailableAt, Date.now() + 60_000);
+                pushTokenStatus(token, "NO_PERMISSION", { until: tState.nextAvailableAt });
+              } else {
+                pushTokenStatus(token, "UNKNOWN");
+              }
 
-      out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
-        account: tokenName[token] || "Account",
-        postId: tgt.id,
-        errKind: cls.kind,
-        errMsg: err?.message || String(err),
-      });
-    }
-  })()
-);
+              out("error", `âœ– ${tokenName[token] || "Account"} â†’ ${cls.human} (${tgt.id})`, {
+                account: tokenName[token] || "Account",
+                postId: tgt.id,
+                errKind: cls.kind,
+                errMsg: err?.message || String(err),
+              });
+            }
+          })());
+        } // end inner burst loop
 
         if (usedTimes > 0) {
           advanced.push({ postIdx: pIdx, times: usedTimes });
         }
       } // end per-post loop
 
-      // ——— round settled ———
+      // â€”â€”â€” round settled â€”â€”â€”
       if (!promises.length) {
         out("warn", "Nothing to attempt this round (guards/limits/inputs).");
         break;
@@ -1262,21 +1053,8 @@ async function runJob(
       const jitter = roundJitterMaxMs ? Math.floor(Math.random() * roundJitterMaxMs) : 0;
       const waitMs = Math.max(0, delayMs + jitter);
       if (waitMs > 0) await sleep(waitMs);
+    } // end while
 
-      // optional shuffle each round
-      if (shuffleEveryRound) {
-        for (const t of resolvedTargets) {
-          if (t.tokens.length)    t.tokens    = shuffleArr(t.tokens);
-          if (t.comments.length)  t.comments  = shuffleArr(t.comments);
-          if (t.namesList.length) t.namesList = shuffleArr(t.namesList);
-        }
-        if (resolvedTargets.length > 1) {
-          resolvedTargets.sort(() => Math.random() - 0.5);
-        }
-      }
-    } // <-- CLOSES the while (...) loop
-
-    // still inside try { ... }
     if (job.abort) out("warn", "Job aborted by user.");
 
     out("summary", "Run finished", {
@@ -1284,11 +1062,9 @@ async function runJob(
       ok: okCount,
       failed: failCount,
       counters,
-      message: "token expiry / id locked / wrong link / action blocked — classified above.",
+      message: "token expiry / id locked / wrong link / action blocked â€” classified above.",
     });
-    }  
-
-  } catch (e) { // <-- now this 'catch' directly follows the 'try'
+  } catch (e) {
     out("error", `Fatal: ${e.message || e}`);
   } finally {
     const j = getJob(sessionId);
@@ -1297,7 +1073,7 @@ async function runJob(
     flushBatch();
     sseLine(sessionId, "info", "Job closed");
   }
-} // <-- end of function runJob
+}
 
 // -------------------- Start Job --------------------
 app.post("/start", async (req, res) => {
@@ -1316,35 +1092,50 @@ app.post("/start", async (req, res) => {
     return res.status(409).json({ ok: false, message: "Another job is running. Stop it first." });
   }
 
-// ---- options (UI) ----
+// ---- parse options
 const body = req.body || {};
-const speedMode = String(body.delayMode || "fast").toLowerCase(); // fast | superfast | extreme
 
+// UI speed mode: fast | superfast | extreme
+const speedMode = String(body.delayMode || "fast").toLowerCase();
+
+// base delay: seconds -> ms
 let delaySec = parseInt(body.delay, 10);
 if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
+
+// speed mode à¦…à¦¨à§à¦¯à¦¾à§Ÿà§€ override
+if (speedMode === "fast") {
+  // as-is (safe)
+} else if (speedMode === "superfast") {
+  delaySec = Math.max(1, Math.floor(delaySec / 2));  // à¦…à¦°à§à¦§à§‡à¦•
+} else if (speedMode === "extreme") {
+  delaySec = 0; // no delay
+}
 const delayMs = delaySec * 1000;
 
+// limit (global)
 let limit = parseInt(body.limit, 10);
 if (isNaN(limit) || limit < 0) limit = 0;
 
-// ✅ FAST = per-round shuffle (true only for fast mode)
-const shuffleEveryRound = (speedMode === "fast");
+// shuffle
+const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
 
-// ✅ শুরুতেই একবার shuffle করতে চাইলে (optional)
-const shuffleStart = true; // চাইলে false দাও
+// ---------- NEW: loop/guard knobs (defaults safe) ----------
+const burstPerPost        = Math.max(1, parseInt(body.burstPerPost ?? 1, 10) || 1);   // per-round à¦ªà§à¦°à¦¤à¦¿ à¦ªà§‹à¦¸à§à¦Ÿà§‡ à¦•à§Ÿà¦Ÿà¦¾ try
+const limitPerPost        = Math.max(0, parseInt(body.limitPerPost ?? 0, 10) || 0);   // 0 = unlimited
+const namesPerComment     = Math.max(1, parseInt(body.namesPerComment ?? 1, 10) || 1);
 
-// === server-side tuned defaults (no UI needed)
-const requestTimeoutMs     = DEFAULTS.requestTimeoutMs;
-const blockedBackoffMs     = DEFAULTS.blockedBackoffMs;
-const tokenCooldownMs      = DEFAULTS.tokenCooldownMs;
-const retryCount           = DEFAULTS.retryCount;
-const roundJitterMaxMs     = DEFAULTS.roundJitterMaxMs;
-const quotaPerTokenPerHour = DEFAULTS.quotaPerTokenPerHour;
-const namesPerComment      = DEFAULTS.namesPerComment;
-const limitPerPost         = DEFAULTS.limitPerPost;
-const sseBatchMs           = DEFAULTS.sseBatchMs;
-const removeBadTokens      = DEFAULTS.removeBadTokens;
-const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
+const tokenGlobalRing     = String(body.tokenGlobalRing ?? "false").toLowerCase() === "true"; // token rotation scope
+const tokenCooldownMs     = Math.max(0, parseInt(body.tokenCooldownMs ?? 0, 10) || 0);
+const quotaPerTokenPerHour= Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 0, 10) || 0);
+
+const removeBadTokens     = String(body.removeBadTokens ?? "true").toLowerCase() !== "false";
+const blockedBackoffMs    = Math.max(0, parseInt(body.blockedBackoffMs ?? 10*60*1000, 10) || (10*60*1000));
+
+const requestTimeoutMs    = Math.max(3000, parseInt(body.requestTimeoutMs ?? 12000, 10) || 12000);
+const retryCount          = Math.max(0, parseInt(body.retry ?? 1, 10) || 1);
+
+const roundJitterMaxMs    = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80, 10) || 0); // small human-like jitter
+const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0);        // 0 = no batching
 
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
@@ -1382,14 +1173,14 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
   if (Array.isArray(body.posts) && body.posts.length) {
     manualTargets = body.posts.slice(0, 4).map(p => ({
       target: p.target || p,                 
-      namesTxt: p.names || "",                // ✅ fixed (was namesText mismatch)
+      namesTxt: p.names || "",                // âœ… fixed (was namesText mismatch)
       perPostTokensText: p.tokens || "",
       commentPack: p.commentPack || "Default",
       commentsTxt: p.comments || ""
     }));
   }
 
-  // fallback → if no manualTargets, use global postlinks
+  // fallback â†’ if no manualTargets, use global postlinks
   if (!manualTargets.length && fileLinks.length) {
     manualTargets = fileLinks.map(lnk => ({
       target: lnk,
@@ -1399,9 +1190,9 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
     }));
   }
 
-  console.log("📂 File Links from postlinks:", fileLinks);
-  console.log("📝 Manual Posts from body:", body.posts);
-  console.log("🎯 Final Manual Targets:", manualTargets);
+  console.log("ðŸ“‚ File Links from postlinks:", fileLinks);
+  console.log("ðŸ“ Manual Posts from body:", body.posts);
+  console.log("ðŸŽ¯ Final Manual Targets:", manualTargets);
 
   if (!manualTargets.length) {
     sseLine(sessionId, "error", "No posts provided (manual or postlinks/id.txt).");
@@ -1420,14 +1211,14 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
       ? chosenPack
       : (p.commentsTxt ? cleanLines(p.commentsTxt) : fileComments);
 
-    // ✅ fixed namesTxt usage
+    // âœ… fixed namesTxt usage
     let names = p.namesTxt && p.namesTxt.trim() ? cleanLines(p.namesTxt) : fileNames;
 
-    if (shuffleStart) {
-  if (tokens.length)   tokens   = shuffleArr(tokens);
-  if (comments.length) comments = shuffleArr(comments);
-  if (names.length)    names    = shuffleArr(names);
-}
+    if (shuffle) {
+      if (tokens.length) tokens = shuffleArr(tokens);
+      if (comments.length) comments = shuffleArr(comments);
+      if (names.length) names = shuffleArr(names);
+    }
 
     return {
       rawTarget: p.target,
@@ -1477,71 +1268,27 @@ const tokenGlobalRing      = DEFAULTS.tokenGlobalRing;        // 0 = no batching
     tokenName[tok] = await getAccountName(tok);
   }
 
-// ---- start job
-job.running = true;
-job.abort = false;
+  // ---- start job
+  job.running = true;
+  job.abort = false;
 
-res.json({ ok: true, message: "Job started" });
+  res.json({ ok: true, message: "Job started" });
+  sseLine(sessionId, "info", `Startingâ€¦ posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "âˆž"}, shuffle:${shuffle}`);
 
-// ✅ এখানে নতুন sseLine বসাবে
-sseLine(
-  sessionId,
-  "info",
-  `Starting… posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "∞"}, roundShuffle:${shuffleEveryRound}, startShuffle:${shuffleStart}`
-);
-
-// ---- choose runner by speedMode ----
-if (speedMode === "superfast") {
-  runJobSuperFast({
-    sessionId,
-    resolvedTargets,
-    tokenName,
-    uiDelayMs: delayMs,
-    totalIds: resolvedTargets.reduce(
-      (n, t) => n + Math.min(t.tokens.length, t.comments.length),
-      0
-    ),
-    limit,
-    requestTimeoutMs: DEFAULTS.requestTimeoutMs,
-    blockedBackoffMs: DEFAULTS.blockedBackoffMs,
-    tokenCooldownMs: DEFAULTS.tokenCooldownMs,
-    retryCount: DEFAULTS.retryCount,
-  });
-} else if (speedMode === "extreme") {
-  runJobExtreme({
-    sessionId,
-    resolvedTargets,
-    tokenName,
-    uiDelayMs: delayMs,
-    totalIds: resolvedTargets.reduce(
-      (n, t) => n + Math.min(t.tokens.length, t.comments.length),
-      0
-    ),
-    postsCount: resolvedTargets.length,
-    limit,
-    requestTimeoutMs: DEFAULTS.requestTimeoutMs,
-    blockedBackoffMs: DEFAULTS.blockedBackoffMs,
-    tokenCooldownMs: DEFAULTS.tokenCooldownMs,
-    retryCount: DEFAULTS.retryCount,
-  });
-} else {
   runJob(job, {
     sessionId,
     resolvedTargets,
     tokenName,
     delayMs,
-    maxCount: limit,
-    shuffleEveryRound,
-    // ... চাইলে অন্য knobs এখানে দাও
+    maxCount: limit
   });
-}
 });
 
 // -------------------- Boot --------------------
 connectMongo()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
+      console.log(`ðŸš€ Server running at http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
