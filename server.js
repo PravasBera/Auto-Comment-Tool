@@ -1305,6 +1305,20 @@ app.post("/start", async (req, res) => {
 // ---- parse options
 const body = req.body || {};
 
+// advanced tuning knobs (override defaults)
+const roundJitterMaxMs   = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80));
+const tokenCooldownMs    = Math.max(0, parseInt(body.tokenCooldownMs ?? 10));
+const quotaPerTokenHour  = Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 100));
+const namesPerComment    = Math.max(1, parseInt(body.namesPerComment ?? 1));
+const limitPerPost       = Math.max(0, parseInt(body.limitPerPost ?? 50));
+
+const removeBadTokens    = String(body.removeBadTokens ?? "true").toLowerCase() === "true";
+const blockedBackoffMs   = Math.max(0, parseInt(body.blockedBackoffMs ?? 10*60*1000));
+const requestTimeoutMs   = Math.max(3000, parseInt(body.requestTimeoutMs ?? 12000));
+const retryCount         = Math.max(0, parseInt(body.retryCount ?? 1));
+const sseBatchMs         = Math.max(0, parseInt(body.sseBatchMs ?? 600));
+const tokenGlobalRing    = String(body.tokenGlobalRing ?? "false").toLowerCase() === "true";
+
 // UI speed mode: fast | superfast | extreme
 const speedMode = String(body.speedMode || "fast").toLowerCase();
 
@@ -1319,24 +1333,6 @@ if (isNaN(limit) || limit < 0) limit = 0;
 
 // shuffle
 const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
-
-// ---------- NEW: loop/guard knobs (defaults safe) ----------
-const burstPerPost        = Math.max(1, parseInt(body.burstPerPost ?? 1, 10) || 1);   // per-round à¦ªà§à¦°à¦¤à¦¿ à¦ªà§‹à¦¸à§à¦Ÿà§‡ à¦•à§Ÿà¦Ÿà¦¾ try
-const limitPerPost        = Math.max(0, parseInt(body.limitPerPost ?? 0, 10) || 0);   // 0 = unlimited
-const namesPerComment     = Math.max(1, parseInt(body.namesPerComment ?? 1, 10) || 1);
-
-const tokenGlobalRing     = String(body.tokenGlobalRing ?? "false").toLowerCase() === "true"; // token rotation scope
-const tokenCooldownMs     = Math.max(0, parseInt(body.tokenCooldownMs ?? 0, 10) || 0);
-const quotaPerTokenPerHour= Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 0, 10) || 0);
-
-const removeBadTokens     = String(body.removeBadTokens ?? "true").toLowerCase() !== "false";
-const blockedBackoffMs    = Math.max(0, parseInt(body.blockedBackoffMs ?? 10*60*1000, 10) || (10*60*1000));
-
-const requestTimeoutMs    = Math.max(3000, parseInt(body.requestTimeoutMs ?? 12000, 10) || 12000);
-const retryCount          = Math.max(0, parseInt(body.retry ?? 1, 10) || 1);
-
-const roundJitterMaxMs    = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80, 10) || 0); // small human-like jitter
-const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0);        // 0 = no batching
 
   // ---- load per-session files
   const sessionDir = path.join(UPLOAD_DIR, sessionId);
