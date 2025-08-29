@@ -380,25 +380,32 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   z-index: 9998;
 }
 
+/* Panel itself — desktop-এ mouse দিয়ে resize করার জন্য রেখে দাও */
 #floatLog {
-  position: fixed;
-  right: 22px;
-  bottom: 72px;
-  width: 420px;
-  height: 55%;
-  max-height: 80vh;
-  background: var(--card-bg,#0b1220);
-  color: var(--fg,#e5e7eb);
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  box-shadow: 0 14px 30px rgba(0,0,0,.35);
-  display: none;
-  z-index: 9999;
-  overflow: hidden;
-
-  /* 👉 এইটা রাখলেই default resize dot আবার আসবে */
   resize: both;
+  overflow: auto;
 }
+
+/* Bottom-right resize handle (touch-friendly) */
+#floatResize{
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 28px;         /* মোবাইল টাচে ধরতে সহজ */
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.14);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25) inset;
+  cursor: nwse-resize;   /* desktop ইঙ্গিত */
+  touch-action: none;    /* 🔑 টাচ মুভ ধরার জন্য */
+  z-index: 2;
+}
+
+/* হাতে ধরে থাকলে একটু ভিজ্যুয়াল ফিডব্যাক */
+#floatResize:active {
+  background: rgba(255,255,255,0.22);
+}
+
 
 #floatLogHeader {
   display: flex;
