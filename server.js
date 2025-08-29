@@ -62,6 +62,11 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 
+// serve live logs page
+app.get("/live-logs", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "live-logs.html"));
+});
+
 // -------------------- MongoDB (Mongoose) --------------------
 mongoose.set("strictQuery", false);
 
