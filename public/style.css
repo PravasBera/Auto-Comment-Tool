@@ -433,3 +433,16 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   }
 }
 
+/* header ধরে টানার সময় text-select বন্ধ */
+#floatLogHeader{ cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; }
+
+/* টানার সময় shadow/transition হালকা করে দাও */
+#floatLog.dragging{
+  box-shadow: 0 8px 18px rgba(0,0,0,.25);
+  transition:none;
+  cursor:grabbing;
+}
+
+/* হালকা GPU hint */
+#floatLog{ will-change: transform; }
+
