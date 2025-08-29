@@ -395,47 +395,9 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   display: none;
   z-index: 9999;
   overflow: hidden;
+
+  /* 👉 এইটা রাখলেই default resize dot আবার আসবে */
   resize: both;
-}
-
-/* --- Floating log: resize grip (bigger + easier touch) --- */
-#floatResize{
-  position: absolute;
-  right: -2px;             /* একটু বাইরে এনে ধরতে সহজ */
-  bottom: -2px;
-  width: 44px;             /* টাচ এrea বড় */
-  height: 44px;
-  cursor: se-resize;
-  background: transparent; /* শুধু ডটগুলো দেখা যাবে */
-  z-index: 10001;
-  touch-action: none;      /* মোবাইল স্ক্রল ধরে না */
-}
-
-/* ডটগুলো – একি রঙে তিনটা ডট দেখা যাবে */
-#floatResize::before{
-  content: "";
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(200, 205, 215, .9);
-  box-shadow:
-    -10px -10px 0 rgba(200,205,215,.9),
-    -20px -20px 0 rgba(200,205,215,.9);
-  pointer-events: none;     /* ডটের ওপর ট্যাপ = গ্রিপই ধরবে */
-}
-
-/* চাইলে কর্নারে সামান্য হাইলাইট */
-#floatResize::after{
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-bottom-right-radius: 12px;
-  background: radial-gradient(120% 120% at 100% 100%,
-              rgba(255,255,255,.10), transparent 60%);
-  pointer-events: none;
 }
 
 #floatLogHeader {
