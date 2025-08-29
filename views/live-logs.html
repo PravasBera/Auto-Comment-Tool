@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Live Logs — Popup</title>
+<style>
+  :root{
+    --bg:#0b0f13; --card:#11161c; --fg:#e5e7eb; --muted:#9fb3c8;
+    --green:#22c55e; --yellow:#eab308; --red:#ef4444; --primary:#1877f2;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:var(--bg); color:var(--fg)}
+  header{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;background:#0f172a; position:sticky;top:0;z-index:2}
+  .sid{font-weight:700;font-size:14px;background:#0b1220;border:1px solid #334155;padding:6px 10px;border-radius:8px}
+  .conn{font-size:12px;padding:6px 8px;border-radius:999px;border:1px solid #334155}
+  .conn.ok{border-color:var(--green)} .conn.bad{border-color:var(--red)}
+  main{padding:12px;display:grid;gap:12px}
+  .card{background:var(--card);border:1px solid #1f2937;border-radius:12px;overflow:hidden}
+  .card h3{margin:0;padding:10px 12px;border-bottom:1px solid #1f2937;font-size:14px}
+  .pad{padding:10px 12px}
+  .logs{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; line-height:1.45; max-height:42vh; overflow:auto; background:#000}
+  .logs .line{padding:4px 8px; white-space:pre-wrap; word-break:break-word}
+  .logs .info{color:#cbd5e1}
+  .logs .success{color:#22c55e}
+  .logs .warn{color:#f59e0b}
+  .logs .error{color:#ef4444}
+  .muted{color:var(--muted);font-size:12px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input,select,button{border-radius:8px;border:1px solid #334155;background:#0b1220;color:var(--fg);padding:8px 10px;font-size:14px}
+  button{background:var(--primary);border:0;font-weight:700;cursor:pointer}
+  button.secondary{background:#334155}
+  button.danger{background:var(--red)}
+  .hint{font-size:12px;color:var(--muted)}
+  .split{display:grid;grid-template-columns:1fr 1fr; gap:12px}
+  @media(max-width:760px){ .split{grid-template-columns:1fr} .logs{max-height:48vh} }
+</style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <div class="sid" id="sidBox">Session: …</div>
+      <div class="conn bad" id="connBox">SSE: disconnected</div>
+    </div>
+    <div class="row">
+      <button id="btnPop" class="secondary" title="Open small popup window">↗ Pop</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h3>Controls</h3>
+      <div class="pad row">
+        <label class="hint">Delay (sec)</label>
+        <input type="number" id="ctlDelay" value="20" min="0" style="width:90px">
+        <label class="hint">Speed Mode</label>
+        <select id="ctlMode">
+          <option value="fast">Fast (safe)</option>
+          <option value="superfast">Super Fast</option>
+          <option value="extreme">Extreme</option>
+        </select>
+        <label class="hint">Limit</label>
+        <input type="number" id="ctlLimit" value="0" min="0" style="width:110px">
+        <label class="hint">Shuffle</label>
+        <select id="ctlShuffle">
+          <option value="true">On</option>
+          <option value="false" selected>Off</option>
+        </select>
+
+        <button id="btnStart">▶ Start</button>
+        <button id="btnStop" class="danger">■ Stop</button>
+        <button id="btnReconnect" class="secondary">⟳ Reconnect</button>
+      </div>
+      <div class="pad hint">Note: Start দিলে সার্ভারে আপলোড করা postlinks/tokens/comments থেকেই রান নেবে (Manual না থাকলে)। জরুরি বন্ধের জন্য Stop সবসময় কাজ করবে।</div>
+    </section>
+
+    <section class="card split">
+      <div>
+        <h3>Live Log</h3>
+        <div class="logs" id="logBox"></div>
+      </div>
+      <div>
+        <h3>Warnings (short)</h3>
+        <div class="logs" id="warnBox"></div>
+      </div>
+    </section>
+  </main>
+
+<script>
+(() => {
+  let es = null;
+  let sessionId = null;
+  const sidBox   = document.getElementById('sidBox');
+  const connBox  = document.getElementById('connBox');
+  const logBox   = document.getElementById('logBox');
+  const warnBox  = document.getElementById('warnBox');
+
+  // --- helpers ---
+  const esc = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const now = () => new Date().toLocaleTimeString();
+
+  function pushLine(box, type, msg){
+    const d = document.createElement('div');
+    d.className = `line ${type}`;
+    d.innerHTML = `[${esc(now())}] ${msg}`;
+    box.appendChild(d);
+    box.scrollTop = box.scrollHeight;
+    // trim older
+    while (box.childNodes.length > 1500) box.removeChild(box.firstChild);
+  }
+
+  function shortWarn(text){
+    if (!text) return '';
+    let t = String(text);
+    // লম্বা URL/টোকেন কেটে দাও
+    t = t.replace(/https?:\/\/\S+/g, u => (u.length>60 ? u.slice(0,57)+'…' : u));
+    if (t.length > 180) t = t.slice(0,177)+'…';
+    return esc(t);
+  }
+
+  // --- session bootstrap (query ?sid=... অগ্রাধিকার) ---
+  async function initSession(){
+    const urlSid = new URLSearchParams(location.search).get('sid');
+    if (urlSid) {
+      sessionId = urlSid;
+      sidBox.textContent = `Session: ${sessionId}`;
+      return;
+    }
+    try{
+      const r = await fetch('/session', {credentials:'include'});
+      const j = await r.json();
+      sessionId = j?.id || null;
+      sidBox.textContent = `Session: ${sessionId || 'N/A'}`;
+    }catch{
+      sidBox.textContent = 'Session: (failed)';
+    }
+  }
+
+  function setConn(ok){
+    connBox.classList.toggle('ok', !!ok);
+    connBox.classList.toggle('bad', !ok);
+    connBox.textContent = `SSE: ${ok?'connected':'disconnected'}`;
+  }
+
+  function startSSE(){
+    if (!sessionId){ pushLine(warnBox,'error','No session id.'); return; }
+    if (es) es.close();
+    es = new EventSource(`/events?sessionId=${encodeURIComponent(sessionId)}`);
+
+    es.addEventListener('open', () => setConn(true));
+    es.addEventListener('error', () => setConn(false));
+
+    es.addEventListener('session', (e)=>{
+      try{
+        const d = JSON.parse(e.data||'{}');
+        if (d.sessionId && d.sessionId !== sessionId){
+          sessionId = d.sessionId;
+          sidBox.textContent = `Session: ${sessionId}`;
+        }
+      }catch{}
+    });
+
+    es.addEventListener('user', (e)=>{
+      try{
+        const u = JSON.parse(e.data||'{}');
+        pushLine(logBox,'info', esc(`👤 ${u.status}${u.blocked?' (blocked)':''}${u.expiry?`, exp: ${new Date(+u.expiry).toLocaleString()}`:''}`));
+      }catch{
+        pushLine(warnBox,'warn','User event parse error');
+      }
+    });
+
+    es.addEventListener('token', (e)=>{
+      // চাইলে ছোট টোস্ট বানাতে পারো; এখানে কেবল concise warn দেখালাম
+      try{
+        const d = JSON.parse(e.data||'{}');
+        if (d.status && d.status!=="OK"){
+          pushLine(warnBox,'warn', shortWarn(`Token #${d.position||'?'} → ${d.status}${d.until?` (till ${new Date(d.until).toLocaleTimeString()})`:''}`));
+        }
+      }catch{}
+    });
+
+    es.onmessage = (e)=>{
+      try{
+        const d = JSON.parse(e.data||'{}');
+        const t = (d.type||'log').toLowerCase();
+        const txt = String(d.text||'');
+        if (t==='ready'){ pushLine(logBox,'info','🔗 Live connected'); return; }
+        if (t==='summary'){
+          pushLine(logBox,'success', esc(`📊 sent=${d.sent} ok=${d.ok} failed=${d.failed}`));
+          return;
+        }
+        if (t==='error' || /failed|denied|blocked|locked|timeout|unknown|limit/i.test(txt)){
+          pushLine(warnBox, t==='error'?'error':'warn', shortWarn(txt));
+        } else if (t==='success' || /^✔ /.test(txt)){
+          pushLine(logBox,'success', esc(txt));
+        } else {
+          pushLine(logBox,'info', esc(txt));
+        }
+      }catch(err){
+        pushLine(warnBox,'error','SSE parse error');
+      }
+    };
+  }
+
+  async function stopSSE(){
+    if (es){ es.close(); es=null; }
+    setConn(false);
+  }
+
+  // --- controls ---
+  document.getElementById('btnReconnect').addEventListener('click', ()=>{
+    stopSSE(); startSSE();
+  });
+
+  document.getElementById('btnStart').addEventListener('click', async ()=>{
+    if (!sessionId){ pushLine(warnBox,'error','No session to start'); return; }
+    const delay   = parseInt(document.getElementById('ctlDelay').value||'20',10);
+    const limit   = parseInt(document.getElementById('ctlLimit').value||'0',10);
+    const mode    = document.getElementById('ctlMode').value;
+    const shuffle = document.getElementById('ctlShuffle').value === 'true';
+
+    try{
+      const res = await fetch('/start',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({
+          sessionId,
+          delay,
+          limit,
+          shuffle,
+          delayMode: mode,       // সার্ভারে old key 'delayMode' সাপোর্ট আছে
+          // posts খালি রাখছি → সার্ভার uploaded postlinks ব্যবহার করবে
+        })
+      });
+      const j = await res.json();
+      if (j.ok){
+        pushLine(logBox,'success','✅ Started');
+        // যদি SSE বন্ধ থাকে, জুড়ে দাও
+        if (!es) startSSE();
+      } else {
+        pushLine(warnBox,'error', shortWarn('Start failed: ' + (j.message || j.error || 'Unknown')));
+      }
+    }catch(err){
+      pushLine(warnBox,'error', shortWarn('Start error: '+ err.message));
+    }
+  });
+
+  document.getElementById('btnStop').addEventListener('click', async ()=>{
+    if (!sessionId){ pushLine(warnBox,'error','No session to stop'); return; }
+    try{
+      const res = await fetch('/stop',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({ sessionId })
+      });
+      const j = await res.json();
+      if (j.ok){
+        pushLine(logBox,'success','🛑 Stop requested');
+      } else {
+        pushLine(warnBox,'warn', shortWarn('Stop failed: '+(j.message||'Unknown')));
+      }
+    }catch(err){
+      pushLine(warnBox,'error', shortWarn('Stop error: '+err.message));
+    }
+  });
+
+  document.getElementById('btnPop').addEventListener('click', ()=>{
+    const w = window.open(`${location.origin}/live-logs?sid=${encodeURIComponent(sessionId||'')}`,
+      '_blank','width=520,height=640,menubar=0,toolbar=0,location=0,status=0');
+    if (!w) alert('Popup blocked by browser.');
+  });
+
+  // boot
+  (async () => {
+    await initSession();
+    startSSE();
+  })();
+})();
+</script>
+</body>
+</html>
