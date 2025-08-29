@@ -437,6 +437,19 @@
     });
   </script>
   <script src="/script.js"></script>
+
+  <a href="/live-logs" target="_blank"
+   style="
+     position: fixed;
+     left: 50%;
+     transform: translateX(-50%);
+     bottom: 20px;
+     background: #2563eb; color:#fff;
+     padding: 12px 18px; border-radius: 8px;
+     text-decoration:none; font-weight:700;
+     box-shadow: 0 4px 8px rgba(0,0,0,.3);
+     z-index: 9999;
+   ">📖 Logs</a>
   
 <!-- Floating Log UI -->
 <button id="btnOpenFloatLog" aria-label="Open floating logs">📜 Logs</button>
@@ -455,25 +468,6 @@
 
 <script>
 (() => {
-
-
-<!-- Floating Logs Button -->
-<a href="/live-logs" target="_blank" 
-   style="
-     position: fixed;
-     bottom: 20px;
-     right: 20px;
-     background: #2563eb;
-     color: #fff;
-     padding: 12px 18px;
-     border-radius: 8px;
-     text-decoration: none;
-     font-weight: bold;
-     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-     z-index: 9999;
-   ">
-  📖 Logs
-</a>
   
   // ---- elements ----
   const btnOpen  = document.getElementById('btnOpenFloatLog');
