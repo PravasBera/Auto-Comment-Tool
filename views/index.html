@@ -378,5 +378,142 @@
     });
   </script>
   <script src="/script.js"></script>
+
+  <script>
+(() => {
+  const btnOpen   = document.getElementById('btnOpenFloatLog');
+  const panel     = document.getElementById('floatLog');
+  const header    = document.getElementById('floatLogHeader');
+  const bodyEl    = document.getElementById('floatLogContent');
+  const btnMin    = document.getElementById('minLog');
+  const btnMax    = document.getElementById('maxLog');
+  const btnClose  = document.getElementById('closeLog');
+  const mainLog   = document.getElementById('logBox');
+  const autoChk   = document.getElementById('autoScrollLogs');
+
+  if (!btnOpen || !panel || !header || !bodyEl || !mainLog) return;
+
+  // ---------- helpers ----------
+  function showPanel() {
+    // ওপেন করলে মেইন লগের বর্তমান কনটেন্ট দেখাও
+    bodyEl.innerHTML = mainLog.innerHTML;
+    panel.style.display = 'block';
+    // ডিফল্ট সাইজে আনো
+    if (panel.dataset.max === '1') toggleMax();
+    if (panel.dataset.min === '1') toggleMin();
+  }
+  function hidePanel() { panel.style.display = 'none'; }
+
+  function toggleMin() {
+    const isMin = panel.dataset.min === '1';
+    if (isMin) {
+      panel.style.height = panel.dataset.h || '55%';
+      panel.dataset.min = '0';
+    } else {
+      panel.dataset.h = panel.style.height || '';
+      panel.style.height = '180px';
+      panel.dataset.min = '1';
+    }
+  }
+  function toggleMax() {
+    const isMax = panel.dataset.max === '1';
+    if (isMax) {
+      // restore
+      panel.style.left   = panel.dataset.left || '';
+      panel.style.top    = panel.dataset.top || '';
+      panel.style.right  = panel.dataset.right || '22px';
+      panel.style.bottom = panel.dataset.bottom || '72px';
+      panel.style.width  = panel.dataset.width || '420px';
+      panel.style.height = panel.dataset.height || '55%';
+      panel.dataset.max = '0';
+    } else {
+      // save
+      panel.dataset.left   = panel.style.left;
+      panel.dataset.top    = panel.style.top;
+      panel.dataset.right  = panel.style.right;
+      panel.dataset.bottom = panel.style.bottom;
+      panel.dataset.width  = panel.style.width;
+      panel.dataset.height = panel.style.height;
+
+      // fullscreen-ish
+      panel.style.right  = '2vw';
+      panel.style.bottom = '2vh';
+      panel.style.left   = '2vw';
+      panel.style.top    = '2vh';
+      panel.style.width  = '96vw';
+      panel.style.height = '78vh';
+      panel.dataset.max = '1';
+    }
+  }
+
+  // ---------- open/close/min/max ----------
+  btnOpen.addEventListener('click', showPanel);
+  btnClose.addEventListener('click', hidePanel);
+  btnMin.addEventListener('click', toggleMin);
+  btnMax.addEventListener('click', toggleMax);
+
+  // ---------- drag (mouse + touch) ----------
+  (function enableDrag() {
+    let dragging = false, offX = 0, offY = 0;
+
+    function startDrag(x, y) {
+      dragging = true;
+      const rect = panel.getBoundingClientRect();
+      offX = x - rect.left;
+      offY = y - rect.top;
+      // drag করলে left/top মোডে নিয়ে আসি
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      panel.style.left = rect.left + 'px';
+      panel.style.top  = rect.top  + 'px';
+    }
+    function moveDrag(x, y) {
+      if (!dragging) return;
+      panel.style.left = Math.max(0, x - offX) + 'px';
+      panel.style.top  = Math.max(0, y - offY) + 'px';
+    }
+    function stopDrag() { dragging = false; }
+
+    // mouse
+    header.addEventListener('mousedown', e => { startDrag(e.clientX, e.clientY); e.preventDefault(); });
+    window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', stopDrag);
+
+    // touch
+    header.addEventListener('touchstart', e => {
+      const t = e.touches[0]; startDrag(t.clientX, t.clientY);
+    }, {passive:true});
+    window.addEventListener('touchmove', e => {
+      const t = e.touches[0]; moveDrag(t.clientX, t.clientY);
+    }, {passive:true});
+    window.addEventListener('touchend', stopDrag);
+  })();
+
+  // ---------- mirror main #logBox into floating ----------
+  // আগের সব লাইন দেখাও + ভবিষ্যতের নতুন লাইনগুলা লাইভ কপি করো
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType === 1) {
+          bodyEl.appendChild(node.cloneNode(true));
+        } else if (node.nodeType === 3) {
+          bodyEl.appendChild(document.createTextNode(node.textContent));
+        }
+      });
+    }
+    if (autoChk?.checked) bodyEl.scrollTop = bodyEl.scrollHeight + 500;
+    trimIfHuge();
+  });
+  observer.observe(mainLog, { childList: true });
+
+  // অনেক বড় হলে পুরনো লাইন কেটে দাও (লাইট রাখতে)
+  function trimIfHuge() {
+    const maxChildren = 2000; // প্রয়োজন হলে বদলাও
+    while (bodyEl.childNodes.length > maxChildren) {
+      bodyEl.removeChild(bodyEl.firstChild);
+    }
+  }
+})();
+  </script>
 </body>
 </html>
