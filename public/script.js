@@ -252,59 +252,73 @@ function showApproval(u) {
   const wb = document.getElementById("warnBox");
   if (wb) wb.innerHTML = "";
 
+  const box = document.getElementById("userIdBox");
+
+  // ✅ UID resolve: server → sessionId → generated fallback
+  const uid =
+    (u && (u.uid || u.userId)) ||
+    window.sessionId ||
+    (typeof generateUserId === "function"
+      ? generateUserId()
+      : "USER-" + Math.random().toString(36).slice(2, 10).toUpperCase());
+
+  if (box) box.textContent = uid;
+
+  // ❌ যদি u object না হয় → শুধু UID দেখাবে, কিন্তু approval summary দেবে না
   if (!u || typeof u !== "object") {
     addWarning("warn", "ℹ️ Waiting for approval status…");
     return;
   }
 
-  const truthy = (v) => v === true || v === 1 || v === "1" || v === "true" || v === "yes" || v === "approved";
-  const falsy  = (v) => v === false || v === 0 || v === "0" || v === "false" || v === "no";
+  // ✅ Helper functions
+  const truthy = (v) =>
+    v === true ||
+    v === 1 ||
+    v === "1" ||
+    v === "true" ||
+    v === "yes" ||
+    v === "approved";
 
+  const falsy = (v) =>
+    v === false ||
+    v === 0 ||
+    v === "0" ||
+    v === "false" ||
+    v === "no";
+
+  // ✅ Normalize status
   const statusStr = String(u.status || "");
-  const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
+  const blocked = truthy(u.blocked) || /blocked/i.test(statusStr);
   const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
-  if (blocked) { addWarning("error","⛔ Your access is blocked."); return; }
+  // ❌ Blocked হলে
+  if (blocked) {
+    addWarning("error", "⛔ Your access is blocked.");
+    return;
+  }
 
+  // ✅ Approved হলে
   if (approved) {
     const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
-    if (expiry) addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
+    if (expiry)
+      addLog(
+        "success",
+        `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`
+      );
     else addLog("success", "🔓 You have lifetime access.");
     return;
   }
 
+  // ⏳ Pending হলে
   if (falsy(u.approved) || /pending|review/i.test(statusStr)) {
-    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+    addWarning(
+      "warn",
+      "📝 New user detected. Send your UserID to admin for approval."
+    );
   } else {
-    addWarning("warn","ℹ️ Waiting for approval status…");
+    addWarning("warn", "ℹ️ Waiting for approval status…");
   }
 }
-
-// ---------------------------
-// File Upload (global)
-// ---------------------------
-document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  if (window.sessionId) formData.append("sessionId", window.sessionId);
-
-  try {
-    addLog("info", "⏳ Uploading files…");
-    const res = await fetch("/upload", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (data.ok) {
-      addLog("success", `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
-    } else {
-      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
-    }
-  } catch (err) {
-    addWarning("error", "❌ Upload error: " + err.message);
-  }
-});
 
 // ---------------------------
 // Start
