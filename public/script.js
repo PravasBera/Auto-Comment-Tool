@@ -219,7 +219,6 @@ function welcomeThenApproval() {
     let u = null;
     for (const url of endpoints) {
       try {
-        addLog("info", `🔎 checking ${url}`);
         const res  = await fetch(url, { credentials: "include", cache: "no-store" });
         const text = await res.text();
 
@@ -227,9 +226,6 @@ function welcomeThenApproval() {
           addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
           continue;
         } else {
-          addLog("info", `🌐 ${url} → status:${res.status}`);
-        }
-
         try { u = text ? JSON.parse(text) : null; } catch { u = null; }
         if (u && typeof u === "object") break;
       } catch (e) {
