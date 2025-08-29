@@ -1306,7 +1306,7 @@ app.post("/start", async (req, res) => {
 const body = req.body || {};
 
 // UI speed mode: fast | superfast | extreme
-const speedMode = String(body.delayMode || "fast").toLowerCase();
+const speedMode = String(body.speedMode || "fast").toLowerCase();
 
 // base delay from UI (seconds → ms)
 let delaySec = parseInt(body.delay, 10);
