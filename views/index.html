@@ -509,6 +509,51 @@ function dragEnd() {
 header.addEventListener('mousedown', dragStart);
 header.addEventListener('touchstart', dragStart, { passive: false });
 
+<script>
+(function enableTouchResize(){
+  const panel  = document.getElementById('floatLog');
+  const bodyEl = document.getElementById('floatLogContent');
+  const grip   = document.getElementById('floatResize');
+  if (!panel || !grip) return;
+
+  let startX=0, startY=0, startW=0, startH=0;
+
+  function down(ev){
+    ev.preventDefault();
+    ev.stopPropagation();
+    const p = ev.touches ? ev.touches[0] : ev;
+    startX = p.clientX; startY = p.clientY;
+    const r = panel.getBoundingClientRect();
+    startW = r.width; startH = r.height;
+
+    document.addEventListener('mousemove', move, { passive:false });
+    document.addEventListener('mouseup', up, { passive:false });
+    document.addEventListener('touchmove', move, { passive:false });
+    document.addEventListener('touchend', up, { passive:false });
+  }
+
+  function move(ev){
+    ev.preventDefault();
+    const p = ev.touches ? ev.touches[0] : ev;
+    // মিনিমাম সাইজ (মোবাইলে accidental shrink এড়াতে একটু বড়)
+    const w = Math.max(300, startW + (p.clientX - startX));
+    const h = Math.max(220, startH + (p.clientY - startY));
+    panel.style.width  = w + 'px';
+    panel.style.height = h + 'px';
+    if (bodyEl) bodyEl.style.maxHeight = `calc(${h}px - 44px)`; // header ≈ 44px
+  }
+
+  function up(){
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', up);
+  }
+
+  grip.addEventListener('mousedown', down);
+  grip.addEventListener('touchstart', down, { passive:false });
+})();
+  
   // ---------- mirror main #logBox into floating ----------
   // আগের সব লাইন দেখাও + ভবিষ্যতের নতুন লাইনগুলা লাইভ কপি করো
   const observer = new MutationObserver((mutations) => {
