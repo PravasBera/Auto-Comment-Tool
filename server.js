@@ -1517,6 +1517,7 @@ if (speedMode === "superfast") {
     maxCount: limit
   });
 }
+});
 
 // -------------------- Boot --------------------
 connectMongo()
@@ -1529,3 +1530,5 @@ connectMongo()
     console.error("Mongo connection failed:", err);
     process.exit(1);
   });
+
+         
