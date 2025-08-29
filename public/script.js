@@ -320,10 +320,10 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
 
   const delayEl   = document.querySelector('[name="delay"]');
   const limitEl   = document.querySelector('[name="limit"]');
-  const shuffleEl = document.querySelector('[name="useShuffle"]');
+  const shuffleEl = document.querySelector('[name="shuffle"]');
   const packEl    = document.querySelector('[name="commentSet"]');
-  const modeEl    = document.querySelector('input[name="delayMode"]:checked');
-  const delayMode = modeEl ? modeEl.value : "fast";
+  const modeEl    = document.querySelector('input[name="speedMode"]:checked');
+  const speedMode = modeEl ? modeEl.value : "fast";
 
   const delay   = parseInt(delayEl?.value || "20", 10);
   const limit   = parseInt(limitEl?.value || "0", 10);
@@ -348,7 +348,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   }
 
   addLog("info", "🚀 Sending start request…");
-  addLog("info", `⚡ Selected Speed Mode: ${delayMode}`);
+  addLog("info", `⚡ Selected Speed Mode: ${speedMode}`);
 
   try {
     const res = await fetch("/start", {
@@ -359,7 +359,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         delay,
         limit,
         shuffle,
-        delayMode,
+        speedMode,
         sessionId: window.sessionId || "",
         posts,
       }),
