@@ -364,3 +364,72 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 /* 14) Stack tweaks */
 #logCard{ margin-bottom:10px !important; }
 #warnCard{ margin-top:0 !important; }
+
+/* Floating Log Styles */
+#btnOpenFloatLog {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.2);
+  z-index: 9998;
+}
+
+#floatLog {
+  position: fixed;
+  right: 22px;
+  bottom: 72px;
+  width: 420px;
+  height: 55%;
+  max-height: 80vh;
+  background: var(--card-bg,#0b1220);
+  color: var(--fg,#e5e7eb);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+  display: none;
+  z-index: 9999;
+  overflow: hidden;
+  resize: both;
+}
+
+#floatLogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  padding: 10px;
+  background: rgba(255,255,255,.06);
+  cursor: move;
+}
+
+#floatLogHeader .actions button {
+  margin-left: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+#floatLogContent {
+  max-height: calc(100% - 44px);
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: monospace;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  background: transparent;
+}
+
+@media (max-width: 520px) {
+  #floatLog {
+    width: 92vw;
+    right: 4vw;
+  }
+}
+
