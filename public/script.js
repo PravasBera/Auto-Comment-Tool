@@ -219,21 +219,22 @@ function welcomeThenApproval() {
     let u = null;
     for (const url of endpoints) {
       try {
-        addLog("info", `🔎 checking ${url}`);
         const res  = await fetch(url, { credentials: "include", cache: "no-store" });
         const text = await res.text();
 
         if (!res.ok) {
-          addWarning("warn", `🌐 ${url} → HTTP ${res.status} :: ${text.slice(0,120)}`);
-          continue;
-        } else {
-          addLog("info", `🌐 ${url} → status:${res.status}`);
+          continue; // ❌ HTTP error হলে চুপচাপ পরেরটাতে যাবে
         }
 
-        try { u = text ? JSON.parse(text) : null; } catch { u = null; }
+        try { 
+          u = text ? JSON.parse(text) : null; 
+        } catch { 
+          u = null; 
+        }
         if (u && typeof u === "object") break;
       } catch (e) {
-        addWarning("warn", `⚠ fetch failed: ${e.message}`);
+        // ❌ fetch failed হলে শুধু লুপ continue
+        continue;
       }
     }
 
