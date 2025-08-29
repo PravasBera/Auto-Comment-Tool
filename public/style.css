@@ -400,24 +400,22 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 
 /* 👉 Custom resize grip */
 
-#floatResize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 28px;   /* ⬅ হ্যান্ডেল area বড় */
-  height: 28px;  /* ⬅ হ্যান্ডেল area বড় */
-  cursor: se-resize;
-  background: transparent;
+#floatResize{
+  position:absolute;
+  right:0; bottom:0;
+  width:40px;           /* touch area বড়  */
+  height:40px;
+  cursor:se-resize;
+  background:transparent;
+  z-index:10000;        /* উপরে থাকুক */
 }
-
-#floatResize::after {
-  content: "⠿";   /* আইকন দেখানোর জন্য */
-  font-size: 18px;
-  color: #888;
-  position: absolute;
-  right: 4px;
-  bottom: 2px;
-  pointer-events: none;
+#floatResize::after{
+  content:"⋰";          /* ছোট আইকন */
+  position:absolute;
+  right:8px; bottom:6px;
+  font-size:22px;       /* একটু বড় */
+  color:#888;
+  pointer-events:none;
 }
 
 #floatLogHeader {
