@@ -18,7 +18,7 @@ function previewQuotedComment(line) {
   if (!m) return line;
   const full = m[1].trim();
   const words = full.split(/\s+/);
-  const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "…";
+  const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "â€¦";
   return line.replace(`"${m[1]}"`, `"${short}"`);
 }
 
@@ -91,7 +91,7 @@ function renderTokens(){
       (info.status === "REMOVED" || info.status === "ID_LOCKED" || info.status === "INVALID_TOKEN") ? "token-removed" :
       ""
     );
-    chip.title = `${tok}${info.until ? ` • until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
+    chip.title = `${tok}${info.until ? ` â€¢ until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
     chip.textContent = `#${info.pos ?? "-"} ${info.status}`;
     box.appendChild(chip);
   }
@@ -116,7 +116,7 @@ function tokenReport() {
 
 async function copyTokenReportToClipboard() {
   const { removed, backoff } = tokenReport();
-  const header = `Token Report — ${new Date().toLocaleString()}`;
+  const header = `Token Report â€” ${new Date().toLocaleString()}`;
   const rmLines = removed.map(r => `#${r.pos ?? "-"}  ${r.status}  ${r.token}`);
   const boLines = backoff.map(r => `#${r.pos ?? "-"}  BACKOFF  until:${r.until ? new Date(r.until).toLocaleTimeString() : "-"}  ${r.token}`);
   const text = [
@@ -128,9 +128,9 @@ async function copyTokenReportToClipboard() {
   ].join("\n");
   try {
     await navigator.clipboard.writeText(text);
-    addLog("success", "📋 Token report copied to clipboard.");
+    addLog("success", "ðŸ“‹ Token report copied to clipboard.");
   } catch {
-    addWarning("warn", "⚠️ Could not copy. Select from Warning box instead.");
+    addWarning("warn", "âš ï¸ Could not copy. Select from Warning box instead.");
     addWarning("warn", text);
   }
 }
@@ -186,28 +186,30 @@ async function loadSession() {
       window.sessionId = data.id;
       const box = document.getElementById("userIdBox");
       if (box) box.textContent = data.id;
-      addLog("success", "✅ Session ID loaded.");
+      addLog("success", "âœ… Session ID loaded.");
       welcomeThenApproval();
     } else throw new Error("No session id in response");
   } catch (err) {
     const box = document.getElementById("userIdBox");
     if (box) box.textContent = "Session load failed";
-    addWarning("error", "❌ Failed to load session: " + err.message);
+    addWarning("error", "âŒ Failed to load session: " + err.message);
   }
 }
 
 // ---------------------------
-// Welcome → Approval flow
+// Welcome â†’ Approval flow
 // ---------------------------
 let __statusTimer = null;
 
 function welcomeThenApproval() {
   const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
-  addLog("success", `👋 Welcome ${uid}`);
+  addLog("success", `ðŸ‘‹ Welcome ${uid}`);
 
   clearTimeout(__statusTimer);
   __statusTimer = setTimeout(async () => {
     const sid = window.sessionId || uid || "";
+
+    showApproval(null);
 
     const endpoints = [
       `/user?ts=${Date.now()}`,
@@ -223,23 +225,18 @@ function welcomeThenApproval() {
         const text = await res.text();
 
         if (!res.ok) {
-          continue; // ❌ HTTP error হলে চুপচাপ পরেরটাতে যাবে
-        }
-
-        try { 
-          u = text ? JSON.parse(text) : null; 
-        } catch { 
-          u = null; 
-        }
+          addWarning("warn", `ðŸŒ ${url} â†’ HTTP ${res.status} :: ${text.slice(0,120)}`);
+          continue;
+        } else {
+        try { u = text ? JSON.parse(text) : null; } catch { u = null; }
         if (u && typeof u === "object") break;
       } catch (e) {
-        // ❌ fetch failed হলে শুধু লুপ continue
-        continue;
+        addWarning("warn", `âš  fetch failed: ${e.message}`);
       }
     }
 
     if (u) {
-      addLog("info", `👤 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
+      addLog("info", `ðŸ‘¤ Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "âˆž"}`);
     }
     showApproval(u);
   }, 5000);
@@ -257,94 +254,91 @@ function showApproval(u) {
   const wb = document.getElementById("warnBox");
   if (wb) wb.innerHTML = "";
 
+  const box = document.getElementById("userIdBox");
+
+  // âœ… UID resolve: server â†’ sessionId â†’ generated fallback
+  const uid =
+    (u && (u.uid || u.userId)) ||
+    window.sessionId ||
+    (typeof generateUserId === "function"
+      ? generateUserId()
+      : "USER-" + Math.random().toString(36).slice(2, 10).toUpperCase());
+
+  if (box) box.textContent = uid;
+
+  // âŒ à¦¯à¦¦à¦¿ u object à¦¨à¦¾ à¦¹à§Ÿ â†’ à¦¶à§à¦§à§ UID à¦¦à§‡à¦–à¦¾à¦¬à§‡, à¦•à¦¿à¦¨à§à¦¤à§ approval summary à¦¦à§‡à¦¬à§‡ à¦¨à¦¾
   if (!u || typeof u !== "object") {
-    addWarning("warn", "ℹ️ Waiting for approval status…");
+    addWarning("warn", "â„¹ï¸ Waiting for approval statusâ€¦");
     return;
   }
 
-  const truthy = (v) => v === true || v === 1 || v === "1" || v === "true" || v === "yes" || v === "approved";
-  const falsy  = (v) => v === false || v === 0 || v === "0" || v === "false" || v === "no";
+  // âœ… Helper functions
+  const truthy = (v) =>
+    v === true ||
+    v === 1 ||
+    v === "1" ||
+    v === "true" ||
+    v === "yes" ||
+    v === "approved";
 
+  const falsy = (v) =>
+    v === false ||
+    v === 0 ||
+    v === "0" ||
+    v === "false" ||
+    v === "no";
+
+  // âœ… Normalize status
   const statusStr = String(u.status || "");
-  const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
+  const blocked = truthy(u.blocked) || /blocked/i.test(statusStr);
   const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
-  if (blocked) { addWarning("error","⛔ Your access is blocked."); return; }
-
-  if (approved) {
-    const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
-    if (expiry) addLog("success", `🔓 You are approved. Your access will expire on ${formatDT(expiry)}.`);
-    else addLog("success", "🔓 You have lifetime access.");
+  // âŒ Blocked à¦¹à¦²à§‡
+  if (blocked) {
+    addWarning("error", "â›” Your access is blocked.");
     return;
   }
 
+  // âœ… Approved à¦¹à¦²à§‡
+  if (approved) {
+    const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
+    if (expiry)
+      addLog(
+        "success",
+        `ðŸ”“ You are approved. Your access will expire on ${formatDT(expiry)}.`
+      );
+    else addLog("success", "ðŸ”“ You have lifetime access.");
+    return;
+  }
+
+  // â³ Pending à¦¹à¦²à§‡
   if (falsy(u.approved) || /pending|review/i.test(statusStr)) {
-    addWarning("warn","📝 New user detected. Send your UserID to admin for approval.");
+    addWarning(
+      "warn",
+      "ðŸ“ New user detected. Send your UserID to admin for approval."
+    );
   } else {
-    addWarning("warn","ℹ️ Waiting for approval status…");
+    addWarning("warn", "â„¹ï¸ Waiting for approval statusâ€¦");
   }
 }
 
 // ---------------------------
-// File Upload (global)
-// ---------------------------
-document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  if (window.sessionId) formData.append("sessionId", window.sessionId);
-
-  try {
-    addLog("info", "⏳ Uploading files…");
-    const res = await fetch("/upload", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-    const data = await res.json();
-    if (data.ok) {
-      addLog("success", `✅ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
-    } else {
-      addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
-    }
-  } catch (err) {
-    addWarning("error", "❌ Upload error: " + err.message);
-  }
-});
-
-// ---------------------------
 // Start
 // ---------------------------
-// ---- Start
 document.getElementById("startBtn")?.addEventListener("click", async () => {
   resetStats();
   resetTokens();
 
   const delayEl   = document.querySelector('[name="delay"]');
   const limitEl   = document.querySelector('[name="limit"]');
-  const shuffleEl = document.querySelector('[name="shuffle"]');
+  const shuffleEl = document.querySelector('[name="useShuffle"]');
   const packEl    = document.querySelector('[name="commentSet"]');
-  const modeEl    = document.querySelector('input[name="speedMode"]:checked');
-  const speedMode = modeEl ? modeEl.value : "fast";
+  const modeEl    = document.querySelector('input[name="delayMode"]:checked');
+  const delayMode = modeEl ? modeEl.value : "fast";
 
-  // ===== ADVANCED (UI → values) =====
-  const roundJitterMaxMs     = parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "80", 10);
-  const tokenCooldownMs      = parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "10", 10);
-  const quotaPerTokenPerHour = parseInt(document.querySelector('[name="quotaPerTokenPerHour"]')?.value || "100", 10);
-  const namesPerComment      = parseInt(document.querySelector('[name="namesPerComment"]')?.value || "1", 10);
-  const limitPerPost         = parseInt(document.querySelector('[name="limitPerPost"]')?.value || "50", 10);
-
-  const blockedBackoffMs     = parseInt(document.querySelector('[name="blockedBackoffMs"]')?.value || "600000", 10);
-  const requestTimeoutMs     = parseInt(document.querySelector('[name="requestTimeoutMs"]')?.value || "12000", 10);
-  const retryCount           = parseInt(document.querySelector('[name="retry"]')?.value || "1", 10);
-  const sseBatchMs           = parseInt(document.querySelector('[name="sseBatchMs"]')?.value || "600", 10);
-
-  const removeBadTokens      = !!document.querySelector('[name="removeBadTokens"]')?.checked;
-  const tokenGlobalRing      = !!document.querySelector('[name="tokenGlobalRing"]')?.checked;
-  // ===== /ADVANCED =====
-
-  const delay       = parseInt(delayEl?.value || "20", 10);
-  const limit       = parseInt(limitEl?.value || "0", 10);
-  const shuffle     = !!(shuffleEl?.checked);
+  const delay   = parseInt(delayEl?.value || "20", 10);
+  const limit   = parseInt(limitEl?.value || "0", 10);
+  const shuffle = !!(shuffleEl?.checked);
   const commentPack = (packEl?.value || "").trim();
 
   const posts = [];
@@ -364,8 +358,8 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
     }
   }
 
-  addLog("info", "🚀 Sending start request…");
-  addLog("info", `⚡ Selected Speed Mode: ${speedMode}`);
+  addLog("info", "ðŸš€ Sending start requestâ€¦");
+  addLog("info", `âš¡ Selected Speed Mode: ${delayMode}`);
 
   try {
     const res = await fetch("/start", {
@@ -373,39 +367,25 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        // base
         delay,
         limit,
         shuffle,
-        speedMode,
+        delayMode,
         sessionId: window.sessionId || "",
         posts,
-
-        // advanced → backend
-        roundJitterMaxMs,
-        tokenCooldownMs,
-        quotaPerTokenPerHour,
-        namesPerComment,
-        limitPerPost,
-        removeBadTokens,
-        blockedBackoffMs,
-        requestTimeoutMs,
-        retry: retryCount,      // backend key যদি 'retry' হয়
-        sseBatchMs,
-        tokenGlobalRing,
       }),
     });
-
     const data = await res.json();
+
     if (data.ok) {
-      addLog("success", "✅ Commenting started.");
+      addLog("success", "âœ… Commenting started.");
       isRunning = true;
       startSSE();
     } else {
-      addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
+      addWarning("error", "âŒ Start failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Start request error: " + err.message);
+    addWarning("error", "âŒ Start request error: " + err.message);
   }
 });
 
@@ -413,7 +393,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
 // Stop
 // ---------------------------
 document.getElementById("stopBtn")?.addEventListener("click", async () => {
-  if (!isRunning) { addWarning("warn", "⚠️ Nothing is running."); return; }
+  if (!isRunning) { addWarning("warn", "âš ï¸ Nothing is running."); return; }
   try {
     const res = await fetch("/stop", {
       method: "POST",
@@ -423,14 +403,14 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", "🛑 Stopped successfully.");
+      addLog("success", "ðŸ›‘ Stopped successfully.");
       isRunning = false;
       stopSSE();
     } else {
-      addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
+      addWarning("error", "âŒ Stop failed: " + (data.message || data.error || "Unknown"));
     }
   } catch (err) {
-    addWarning("error", "❌ Stop request error: " + err.message);
+    addWarning("error", "âŒ Stop request error: " + err.message);
   }
 });
 
@@ -453,9 +433,9 @@ function startSSE() {
   eventSource.addEventListener("user", (e) => {
     try {
       const u = JSON.parse(e.data || "{}");
-      addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
+      addLog("info", `ðŸ‘¤ User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
     } catch {
-      addWarning("warn", "⚠ User event parse error");
+      addWarning("warn", "âš  User event parse error");
     }
   });
 
@@ -469,7 +449,7 @@ function startSSE() {
       });
       renderTokens();
     } catch {
-      addWarning("warn", "⚠ token event parse error");
+      addWarning("warn", "âš  token event parse error");
     }
   });
 
@@ -480,7 +460,7 @@ function startSSE() {
         window.sessionId = probe.sessionId;
         const box = document.getElementById("userIdBox");
         if (box) box.textContent = probe.sessionId;
-        addLog("info", "🔗 SSE session synced.");
+        addLog("info", "ðŸ”— SSE session synced.");
         return;
       }
     } catch { /* ignore */ }
@@ -504,15 +484,15 @@ function startSSE() {
         PROBLEM_KEYWORDS.some((rx) => rx.test(rawMsg)) ||
         !!(d.errKind || d.errMsg);
 
-      if (typ === "ready") { addLog("info", "🔗 Live log connected."); return; }
+      if (typ === "ready") { addLog("info", "ðŸ”— Live log connected."); return; }
 
       if (typ === "summary") {
-        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
+        addLog("success", `ðŸ“Š Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
         if (typeof d.sent === "number")   stats.total = d.sent;
         if (typeof d.ok === "number")     stats.ok    = d.ok;
         if (typeof d.failed === "number") stats.fail  = d.failed;
         renderStats();
-        if ((d.failed || 0) > 0) addWarning("warn", `❗ Failures: ${d.failed} (details above).`);
+        if ((d.failed || 0) > 0) addWarning("warn", `â— Failures: ${d.failed} (details above).`);
         isRunning = false;
         return;
       }
@@ -528,7 +508,7 @@ function startSSE() {
           renderPerPost();
         }
       } else {
-        if (typ === "log" && /✔ /.test(rawMsg)) {
+        if (typ === "log" && /âœ” /.test(rawMsg)) {
           addLog("success", msg);
           stats.ok++; 
           stats.total++;
@@ -547,12 +527,12 @@ function startSSE() {
         }
       }
     } catch (err) {
-      addWarning("error", "⚠ SSE parse error: " + (err?.message || err));
+      addWarning("error", "âš  SSE parse error: " + (err?.message || err));
     }
   };
 
   eventSource.onerror = () => {
-    addWarning("error", "⚠ SSE connection lost.");
+    addWarning("error", "âš  SSE connection lost.");
     stopSSE();
   };
 }
@@ -561,7 +541,7 @@ function stopSSE() {
   if (eventSource) {
     eventSource.close();
     eventSource = null;
-    addLog("info", "🔌 Live log disconnected.");
+    addLog("info", "ðŸ”Œ Live log disconnected.");
   }
 }
 
