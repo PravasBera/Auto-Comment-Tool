@@ -398,6 +398,25 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   resize: both;
 }
 
+/* 👉 Custom resize grip */
+#floatLog::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;   /* আগে ছোট ছিল, এখন বড় grip */
+  height: 18px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.3),
+    rgba(255,255,255,0.3) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  cursor: se-resize;
+  border-radius: 4px;
+}
+
 #floatLogHeader {
   display: flex;
   align-items: center;
