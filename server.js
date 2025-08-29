@@ -771,6 +771,216 @@ function loadPackComments(name) {
   return cleanLines(fs.readFileSync(full, "utf-8"));
 }
 
+// ------------------------------------------------------------
+// SUPER FAST RUNNER
+// fireGap  = uiDelay / totalIds
+// roundGap = uiDelay / ceil(totalIds/3)
+// প্রতি রাউন্ড শুরুর আগে posts/tokens/comments/names একটু reshuffle
+// ------------------------------------------------------------
+async function runJobSuperFast({
+  sessionId, resolvedTargets, tokenName,
+  uiDelayMs, totalIds, limit
+}) {
+  const job = getJob(sessionId);
+  const P = resolvedTargets.length;
+
+  // delay split (তোমার ফরমুলা)
+  const fireGap  = totalIds > 0 ? Math.max(0, Math.floor(uiDelayMs / totalIds)) : 0;
+  const batchCnt = Math.max(1, Math.ceil(totalIds / 3));
+  const roundGap = Math.max(0, Math.floor(uiDelayMs / batchCnt));
+
+  // সেফ ডিফল্ট (retry/timeout/backoff)
+  const requestTimeoutMs = 12000;
+  const blockedBackoffMs = 10 * 60 * 1000;
+  const tokenCooldownMs  = 0;
+  const retryCount       = 1;
+
+  let sent = 0, okCount = 0, failCount = 0;
+
+  // per-post pointers
+  const state = resolvedTargets.map(() => ({ tok:0, cmt:0, name:0, sent:0 }));
+
+  // per-token state
+  const tState = new Map();
+  const ensureT = (tok) => {
+    if (!tState.has(tok)) tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
+    return tState.get(tok);
+  };
+
+  // একবারে ১টা ফায়ার (তোমার pattern অনুযায়ী)
+  async function sendOne(pIdx){
+    const tgt = resolvedTargets[pIdx];
+    const st  = state[pIdx];
+    if (!tgt.tokens.length || !tgt.comments.length) {
+      sseLine(sessionId,"warn",`Skipped (missing) on ${tgt.id}`);
+      return false;
+    }
+
+    const token   = tgt.tokens[st.tok % tgt.tokens.length];
+    const comment = tgt.comments[st.cmt % tgt.comments.length];
+    const nameArr = tgt.namesList.length ? [tgt.namesList[st.name % tgt.namesList.length]] : [];
+    const message = buildCommentWithNames(comment, nameArr);
+
+    const ts = ensureT(token);
+    if (ts.removed || Date.now() < ts.nextAt) return false;
+
+    try{
+      await Promise.race([
+        postComment({ token, postId: tgt.id, message }),
+        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+      ]);
+      okCount++; sent++;
+      st.sent++; st.tok++; st.cmt++; st.name++;
+      ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
+      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+    } catch(err){
+      failCount++; sent++;
+      const cls = classifyError(err);
+      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
+      else if (cls.kind==="COMMENT_BLOCKED"){
+        ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000);
+        ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff);
+      } else if (cls.kind==="NO_PERMISSION"){
+        ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
+      }
+      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+    }
+    return (limit && sent>=limit);
+  }
+
+  sseLine(sessionId,"info",
+    `SUPER FAST → fireGap:${fireGap}ms, roundGap:${roundGap}ms, posts:${P}, totalIds:${totalIds}`
+  );
+
+  // ====== ROUNDS (∞ যতক্ষণ না limit/abort) ======
+  while(!job.abort && (!limit || sent < limit)){
+    // প্রতি রাউন্ডে order reshuffle (leftover shuffle কভার হবে)
+    const order = [...Array(P).keys()].sort(()=>Math.random()-0.5);
+    for (const t of resolvedTargets){
+      if (t.tokens.length   > 1) t.tokens.sort(()=>Math.random()-0.5);
+      if (t.comments.length > 1) t.comments.sort(()=>Math.random()-0.5);
+      if (t.namesList.length> 1) t.namesList.sort(()=>Math.random()-0.5);
+    }
+
+    // round pattern: post1→post2→... (প্রতি ফায়ারের মাঝে fireGap)
+    for (const idx of order){
+      const stop = await sendOne(idx);
+      if (stop) break;
+      if (fireGap>0) await sleep(fireGap);
+      if (job.abort || (limit && sent>=limit)) break;
+    }
+
+    if (job.abort || (limit && sent>=limit)) break;
+
+    // প্রতি রাউন্ড শেষে user-set delay ভাগ করে নেওয়া roundGap
+    if (roundGap>0) await sleep(roundGap);
+  }
+
+  sseLine(sessionId,"summary","SUPER FAST finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  const j=getJob(sessionId); j.running=false; j.abort=false;
+  sseLine(sessionId,"info","Job closed");
+}
+
+// ------------------------------------------------------------
+// EXTREME RUNNER
+// batchCount = totalIds / postsCount  (min 1, ceil)
+// roundGap   = uiDelay / batchCount
+// প্রতি ব্যাচে: সব পোস্টে এক রাউন্ড করে "burst" ফায়ার (প্রতি কমেন্টে 80–120ms micro gap)
+// ------------------------------------------------------------
+async function runJobExtreme({
+  sessionId, resolvedTargets, tokenName,
+  uiDelayMs, totalIds, postsCount, limit
+}) {
+  const job = getJob(sessionId);
+
+  const batchCount = Math.max(1, Math.ceil(totalIds / Math.max(1, postsCount)));
+  const roundGap   = Math.max(0, Math.floor(uiDelayMs / batchCount));
+  const micro = () => 80 + Math.floor(Math.random()*41); // 80–120ms
+
+  // সেফ ডিফল্ট
+  const requestTimeoutMs = 12000;
+  const blockedBackoffMs = 10 * 60 * 1000;
+  const tokenCooldownMs  = 0;
+  const retryCount       = 1;
+
+  let sent = 0, okCount=0, failCount=0;
+
+  // per-post pointer
+  const state = resolvedTargets.map(() => ({ tok:0, cmt:0, name:0, sent:0 }));
+
+  // per-token state
+  const tState = new Map();
+  const ensureT = (tok) => {
+    if (!tState.has(tok)) tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
+    return tState.get(tok);
+  };
+
+  async function fireOne(pIdx){
+    const tgt = resolvedTargets[pIdx];
+    const st  = state[pIdx];
+    if (!tgt.tokens.length || !tgt.comments.length) {
+      sseLine(sessionId,"warn",`Skipped (missing) on ${tgt.id}`);
+      return;
+    }
+
+    const token   = tgt.tokens[st.tok % tgt.tokens.length];
+    const comment = tgt.comments[st.cmt % tgt.comments.length];
+    const nameArr = tgt.namesList.length ? [tgt.namesList[st.name % tgt.namesList.length]] : [];
+    const message = buildCommentWithNames(comment, nameArr);
+
+    const ts = ensureT(token);
+    if (ts.removed || Date.now() < ts.nextAt) return;
+
+    try{
+      await Promise.race([
+        postComment({ token, postId: tgt.id, message }),
+        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+      ]);
+      okCount++; sent++;
+      st.sent++; st.tok++; st.cmt++; st.name++;
+      ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
+      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+    }catch(err){
+      failCount++; sent++;
+      const cls = classifyError(err);
+      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
+      else if (cls.kind==="COMMENT_BLOCKED"){
+        ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000);
+        ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff);
+      } else if (cls.kind==="NO_PERMISSION"){
+        ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
+      }
+      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+    }
+  }
+
+  sseLine(sessionId,"info",
+    `EXTREME → batch:${batchCount}, roundGap:${roundGap}ms, posts:${postsCount}, totalIds:${totalIds}`
+  );
+
+  // ====== INFINITE BATCHES ======
+  while(!job.abort && (!limit || sent < limit)){
+    // প্রতি ব্যাচে সব পোস্টে ১টা করে burst fire
+    const order = [...Array(postsCount).keys()].sort(()=>Math.random()-0.5);
+
+    for (const idx of order){
+      await fireOne(idx);
+      if (limit && sent>=limit) break;
+      // burst হলেও প্রতি কমেন্টে micro jitter (80–120ms)
+      await sleep(micro());
+    }
+
+    if (job.abort || (limit && sent>=limit)) break;
+
+    // ব্যাচ শেষে roundGap (uiDelay/batchCount)
+    if (roundGap>0) await sleep(roundGap);
+  }
+
+  sseLine(sessionId,"summary","EXTREME finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  const j=getJob(sessionId); j.running=false; j.abort=false;
+  sseLine(sessionId,"info","Job closed");
+}
+
 // --------------------- Core Run Job (round-parallel + burst + guards) ---------------------
 async function runJob(
   job,
@@ -1098,19 +1308,10 @@ const body = req.body || {};
 // UI speed mode: fast | superfast | extreme
 const speedMode = String(body.delayMode || "fast").toLowerCase();
 
-// base delay: seconds -> ms
+// base delay from UI (seconds → ms)
 let delaySec = parseInt(body.delay, 10);
 if (isNaN(delaySec) || delaySec < 0) delaySec = 20;
-
-// speed mode à¦…à¦¨à§à¦¯à¦¾à§Ÿà§€ override
-if (speedMode === "fast") {
-  // as-is (safe)
-} else if (speedMode === "superfast") {
-  delaySec = Math.max(1, Math.floor(delaySec / 2));  // à¦…à¦°à§à¦§à§‡à¦•
-} else if (speedMode === "extreme") {
-  delaySec = 0; // no delay
-}
-const delayMs = delaySec * 1000;
+const delayMs = delaySec * 1000;   // <-- UI থেকে আসা delay, কোনো mode override নেই এখানে
 
 // limit (global)
 let limit = parseInt(body.limit, 10);
@@ -1268,13 +1469,46 @@ const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0)
     tokenName[tok] = await getAccountName(tok);
   }
 
-  // ---- start job
-  job.running = true;
-  job.abort = false;
+// ---- start job (REPLACE your old block with this) ----
+job.running = true;
+job.abort = false;
 
-  res.json({ ok: true, message: "Job started" });
-  sseLine(sessionId, "info", `Startingâ€¦ posts:${resolvedTargets.length}, delay:${delaySec}s, limit:${limit || "âˆž"}, shuffle:${shuffle}`);
+res.json({ ok: true, message: "Job started" });
 
+const totalIds = resolvedTargets.reduce(
+  (n, t) => n + Math.min(t.tokens.length, t.comments.length),
+  0
+);
+
+sseLine(
+  sessionId,
+  "info",
+  `Starting… mode:${speedMode}, posts:${resolvedTargets.length}, ids:${totalIds}, delay:${delaySec}s, limit:${limit || "∞"}, shuffle:${shuffle}`
+);
+
+// ⚡ dispatch by speed mode (fire-and-forget; NO await)
+if (speedMode === "superfast") {
+  // NOTE: runJobSuperFast() অবশ্যই ডিফাইন থাকতে হবে (next স্টেপে দিলে এই মোড ইউজ কোরো না)
+  runJobSuperFast({
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    uiDelayMs: delayMs,
+    totalIds,
+    limit
+  });
+} else if (speedMode === "extreme") {
+  runJobExtreme({
+    sessionId,
+    resolvedTargets,
+    tokenName,
+    uiDelayMs: delayMs,
+    totalIds,
+    postsCount: resolvedTargets.length,
+    limit
+  });
+} else {
+  // default FAST
   runJob(job, {
     sessionId,
     resolvedTargets,
@@ -1282,7 +1516,7 @@ const sseBatchMs          = Math.max(0, parseInt(body.sseBatchMs ?? 0, 10) || 0)
     delayMs,
     maxCount: limit
   });
-});
+}
 
 // -------------------- Boot --------------------
 connectMongo()
