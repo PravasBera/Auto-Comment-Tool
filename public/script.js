@@ -314,6 +314,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
 // ---------------------------
 // Start
 // ---------------------------
+// ---- Start
 document.getElementById("startBtn")?.addEventListener("click", async () => {
   resetStats();
   resetTokens();
@@ -325,9 +326,25 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   const modeEl    = document.querySelector('input[name="speedMode"]:checked');
   const speedMode = modeEl ? modeEl.value : "fast";
 
-  const delay   = parseInt(delayEl?.value || "20", 10);
-  const limit   = parseInt(limitEl?.value || "0", 10);
-  const shuffle = !!(shuffleEl?.checked);
+  // ===== ADVANCED (UI → values) =====
+  const roundJitterMaxMs     = parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "80", 10);
+  const tokenCooldownMs      = parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "10", 10);
+  const quotaPerTokenPerHour = parseInt(document.querySelector('[name="quotaPerTokenPerHour"]')?.value || "100", 10);
+  const namesPerComment      = parseInt(document.querySelector('[name="namesPerComment"]')?.value || "1", 10);
+  const limitPerPost         = parseInt(document.querySelector('[name="limitPerPost"]')?.value || "50", 10);
+
+  const blockedBackoffMs     = parseInt(document.querySelector('[name="blockedBackoffMs"]')?.value || "600000", 10);
+  const requestTimeoutMs     = parseInt(document.querySelector('[name="requestTimeoutMs"]')?.value || "12000", 10);
+  const retryCount           = parseInt(document.querySelector('[name="retry"]')?.value || "1", 10);
+  const sseBatchMs           = parseInt(document.querySelector('[name="sseBatchMs"]')?.value || "600", 10);
+
+  const removeBadTokens      = !!document.querySelector('[name="removeBadTokens"]')?.checked;
+  const tokenGlobalRing      = !!document.querySelector('[name="tokenGlobalRing"]')?.checked;
+  // ===== /ADVANCED =====
+
+  const delay       = parseInt(delayEl?.value || "20", 10);
+  const limit       = parseInt(limitEl?.value || "0", 10);
+  const shuffle     = !!(shuffleEl?.checked);
   const commentPack = (packEl?.value || "").trim();
 
   const posts = [];
@@ -356,16 +373,30 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
+        // base
         delay,
         limit,
         shuffle,
         speedMode,
         sessionId: window.sessionId || "",
         posts,
+
+        // advanced → backend
+        roundJitterMaxMs,
+        tokenCooldownMs,
+        quotaPerTokenPerHour,
+        namesPerComment,
+        limitPerPost,
+        removeBadTokens,
+        blockedBackoffMs,
+        requestTimeoutMs,
+        retry: retryCount,      // backend key যদি 'retry' হয়
+        sseBatchMs,
+        tokenGlobalRing,
       }),
     });
-    const data = await res.json();
 
+    const data = await res.json();
     if (data.ok) {
       addLog("success", "✅ Commenting started.");
       isRunning = true;
