@@ -209,6 +209,8 @@ function welcomeThenApproval() {
   __statusTimer = setTimeout(async () => {
     const sid = window.sessionId || uid || "";
 
+    showApproval(null);
+
     const endpoints = [
       `/user?ts=${Date.now()}`,
       `/user?sessionId=${encodeURIComponent(sid)}&ts=${Date.now()}`,
