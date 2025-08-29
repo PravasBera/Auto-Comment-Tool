@@ -262,6 +262,79 @@
       </div>
     </div>
 
+    <!-- ========== Advanced Settings (collapsible) ========== -->
+<details class="card" style="margin-top:16px">
+  <summary style="cursor:pointer;font-weight:600">⚙️ Advanced Settings</summary>
+
+  <div class="grid" style="margin-top:12px;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+    <!-- pacing -->
+    <label class="field">
+      <div>Round Jitter (ms)</div>
+      <input name="roundJitterMaxMs" type="number" min="0" value="80">
+      <p class="hint">প্রতি রাউন্ডে হালকা human-like delay</p>
+    </label>
+
+    <label class="field">
+      <div>Token Cooldown (ms)</div>
+      <input name="tokenCooldownMs" type="number" min="0" value="10">
+      <p class="hint">প্রতি টোকেন ফায়ারের পর মিনিমাম বিরতি</p>
+    </label>
+
+    <label class="field">
+      <div>Quota / Token / Hour</div>
+      <input name="quotaPerTokenPerHour" type="number" min="0" value="100">
+      <p class="hint">০ মানে আনলিমিটেড</p>
+    </label>
+
+    <label class="field">
+      <div>Names per Comment</div>
+      <input name="namesPerComment" type="number" min="1" value="1">
+    </label>
+
+    <label class="field">
+      <div>Limit per Post</div>
+      <input name="limitPerPost" type="number" min="0" value="50">
+      <p class="hint">০ মানে আনলিমিটেড</p>
+    </label>
+
+    <!-- error policy -->
+    <label class="field">
+      <div>Blocked Backoff (ms)</div>
+      <input name="blockedBackoffMs" type="number" min="0" value="600000">
+      <p class="hint">ডিফল্ট ~10 মিনিট</p>
+    </label>
+
+    <label class="field">
+      <div>Request Timeout (ms)</div>
+      <input name="requestTimeoutMs" type="number" min="3000" value="12000">
+    </label>
+
+    <label class="field">
+      <div>Retry Count</div>
+      <input name="retry" type="number" min="0" value="1">
+    </label>
+
+    <!-- logging -->
+    <label class="field">
+      <div>SSE Batch (ms)</div>
+      <input name="sseBatchMs" type="number" min="0" value="600">
+      <p class="hint">০ দিলে ইমিডিয়েট লগ</p>
+    </label>
+
+    <!-- toggles -->
+    <label class="checkbox" style="align-items:center">
+      <input type="checkbox" name="removeBadTokens" checked>
+      <span>Remove Bad Tokens (invalid/locked হলে বাদ)</span>
+    </label>
+
+    <label class="checkbox" style="align-items:center">
+      <input type="checkbox" name="tokenGlobalRing">
+      <span>Token Global Ring (সব পোস্টে এক রিং)</span>
+    </label>
+  </div>
+</details>
+
+
     <!-- ✅ Stats -->
     <section class="card">
       <h2 style="display:flex;justify-content:space-between;align-items:center">
