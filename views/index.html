@@ -646,80 +646,130 @@
   .live-dock iframe{ width:100%; height:calc(100% - 40px); border:0; background:#000; }
 </style>
 
+<!-- ========== Live Logs (FAB + Dock) – conflict-free IDs ========== -->
+<style id="extLiveStyles">
+  .ext-fab{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:18px; background:#2563eb; color:#fff;
+    padding:12px 18px; border:0; border-radius:9999px; font-weight:700;
+    box-shadow:0 6px 14px rgba(0,0,0,.35); z-index:2147483647; cursor:pointer;
+  }
+  .ext-dock{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:80px; width:92vw; max-width:640px; height:60vh;
+    background:#0b1020; border:1px solid #334; border-radius:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5); z-index:2147483647;
+    display:none; overflow:hidden;
+  }
+  .ext-dock.show{ display:block; }
+  .ext-dock-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 12px; background:#111827; color:#fff; font-weight:600; cursor:move;
+  }
+  .ext-dock-header button{ background:transparent; border:0; color:#fff; font-size:18px; margin-left:6px; cursor:pointer; }
+  .ext-dock iframe{ width:100%; height:calc(100% - 40px); border:0; background:#000; }
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // --- Floating FAB button ---
+  // ---- FAB
   const fab = document.createElement('button');
-  fab.id = 'liveFab';
-  fab.className = 'live-fab';
+  fab.id = 'extFab';
+  fab.className = 'ext-fab';
   fab.type = 'button';
-  fab.textContent = '📖 Logs';
+  fab.textContent = '📖 Live Logs';
   document.body.appendChild(fab);
 
-  // --- Floating dock panel (loads /live-logs inside iframe) ---
+  // ---- Dock
   const dock = document.createElement('div');
-  dock.id = 'liveDock';
-  dock.className = 'live-dock';
+  dock.id = 'extDock';
+  dock.className = 'ext-dock';
   dock.innerHTML = `
-    <div class="live-dock-header">
+    <div class="ext-dock-header">
       <span>Live Logs</span>
       <div>
-        <button id="liveMin" title="Minimize">—</button>
-        <button id="liveMax" title="Maximize">▢</button>
-        <button id="liveClose" title="Close">✖</button>
+        <button id="extMin" title="Minimize">—</button>
+        <button id="extMax" title="Maximize">▢</button>
+        <button id="extClose" title="Close">✖</button>
       </div>
     </div>
-    <iframe src="/live-logs"></iframe>
+    <iframe id="extFrame" src="/live-logs" referrerpolicy="no-referrer"></iframe>
   `;
   document.body.appendChild(dock);
 
-  // Toggle open/close
-  fab.addEventListener('click', () => dock.classList.toggle('show'));
-  dock.querySelector('#liveClose').addEventListener('click', () => dock.classList.remove('show'));
+  // ---- Open/Close
+  const btnMin = dock.querySelector('#extMin');
+  const btnMax = dock.querySelector('#extMax');
+  const btnClose = dock.querySelector('#extClose');
 
-  // Max/normal size
+  fab.addEventListener('click', () => dock.classList.toggle('show'));
+  btnClose.addEventListener('click', () => dock.classList.remove('show'));
+
+  // ---- Maximize / Restore
   let maximized = false;
-  dock.querySelector('#liveMax').addEventListener('click', () => {
+  btnMax.addEventListener('click', () => {
     maximized = !maximized;
     if (maximized) {
-      dock.style.width = '96vw';
+      dock.style.left   = '50%';
+      dock.style.transform = 'translateX(-50%)';
+      dock.style.right  = 'auto';
+      dock.style.top    = '2vh';
+      dock.style.bottom = 'auto';
+      dock.style.width  = '96vw';
       dock.style.height = '88vh';
-      dock.style.bottom = '12px';
     } else {
-      dock.style.width = '92vw';
-      dock.style.height = '60vh';
+      dock.style.left   = '50%';
+      dock.style.transform = 'translateX(-50%)';
+      dock.style.top    = 'auto';
       dock.style.bottom = '80px';
+      dock.style.width  = '92vw';
+      dock.style.height = '60vh';
     }
   });
 
-  // Drag by header (mobile + desktop)
-  const header = dock.querySelector('.live-dock-header');
-  let drag = false, sx=0, sy=0, startX=0, startY=0;
+  // ---- Minimize height (toggle small)
+  let minimized = false;
+  btnMin.addEventListener('click', () => {
+    minimized = !minimized;
+    if (minimized) {
+      dock.style.height = '180px';
+    } else {
+      dock.style.height = maximized ? '88vh' : '60vh';
+    }
+  });
+
+  // ---- Drag by header (mobile + desktop) — no name conflicts
+  const header = dock.querySelector('.ext-dock-header');
+  let dragging = false, startLeft=0, startTop=0, sx=0, sy=0;
 
   const start = (e) => {
-    drag = true;
+    dragging = true;
     const r = dock.getBoundingClientRect();
-    sx = r.left; sy = r.top;
+    startLeft = r.left; startTop = r.top;
     const p = e.touches ? e.touches[0] : e;
-    startX = p.clientX; startY = p.clientY;
-    dock.style.left = r.left + 'px';
-    dock.style.top  = r.top  + 'px';
+    sx = p.clientX; sy = p.clientY;
+
+    // switch to absolute fixed positioning for drag
+    dock.style.transform = '';
+    dock.style.left = startLeft + 'px';
+    dock.style.top  = startTop  + 'px';
     dock.style.right = 'auto';
     dock.style.bottom = 'auto';
-    dock.style.transform = '';
     e.preventDefault();
   };
   const move = (e) => {
-    if (!drag) return;
+    if (!dragging) return;
     const p = e.touches ? e.touches[0] : e;
-    dock.style.left = (sx + (p.clientX - startX)) + 'px';
-    dock.style.top  = (sy + (p.clientY - startY)) + 'px';
+    const dx = p.clientX - sx;
+    const dy = p.clientY - sy;
+    dock.style.left = (startLeft + dx) + 'px';
+    dock.style.top  = (startTop  + dy) + 'px';
   };
-  const end = () => drag = false;
+  const end = () => { dragging = false; };
 
   header.addEventListener('mousedown', start);
   header.addEventListener('touchstart', start, { passive:false });
-  window.addEventListener('mousemove', move);
+  window.addEventListener('mousemove', move, { passive:false });
   window.addEventListener('touchmove', move, { passive:false });
   window.addEventListener('mouseup', end);
   window.addEventListener('touchend', end);
