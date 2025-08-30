@@ -18,7 +18,7 @@ function previewQuotedComment(line) {
   if (!m) return line;
   const full = m[1].trim();
   const words = full.split(/\s+/);
-  const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "â€¦";
+  const short = words.length <= 5 ? full : words.slice(0, 5).join(" ") + "…";
   return line.replace(`"${m[1]}"`, `"${short}"`);
 }
 
@@ -48,7 +48,7 @@ function addLog(type, message) {
   if (!logBox) return;
   const div = document.createElement("div");
   const t = String(type || "info").toLowerCase();
-  div.className = `log-line type-${t} ${t}`; // support both CSS schemes
+  div.className = `log-line type-${t} ${t}`;
   div.innerHTML = buildLogHTML(message);
   logBox.appendChild(div);
   if (window.__autoScroll) logBox.scrollTop = logBox.scrollHeight;
@@ -91,7 +91,7 @@ function renderTokens(){
       (info.status === "REMOVED" || info.status === "ID_LOCKED" || info.status === "INVALID_TOKEN") ? "token-removed" :
       ""
     );
-    chip.title = ${tok}${info.until ? ` â€¢ until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
+    chip.title = `${tok}${info.until ? ` • until: ${new Date(info.until).toLocaleTimeString()}` : ""}`;
     chip.textContent = `#${info.pos ?? "-"} ${info.status}`;
     box.appendChild(chip);
   }
@@ -116,14 +116,14 @@ function tokenReport() {
 
 async function copyTokenReportToClipboard() {
   const { removed, backoff } = tokenReport();
-  const header = Token Report â€” ${new Date().toLocaleString()}`;
+  const header = `Token Report — ${new Date().toLocaleString()}`;
   const rmLines = removed.map(r => `#${r.pos ?? "-"}  ${r.status}  ${r.token}`);
   const boLines = backoff.map(r => `#${r.pos ?? "-"}  BACKOFF  until:${r.until ? new Date(r.until).toLocaleTimeString() : "-"}  ${r.token}`);
   const text = [
     header, "",
-    REMOVED / INVALID / LOCKED (${removed.length})`,
+    `REMOVED / INVALID / LOCKED (${removed.length})`,
     ...rmLines, "",
-    BACKOFF (${backoff.length}),
+    `BACKOFF (${backoff.length})`,
     ...boLines, ""
   ].join("\n");
   try {
@@ -197,13 +197,13 @@ async function loadSession() {
 }
 
 // ---------------------------
-// Welcome â†’ Approval flow
+// Welcome → Approval flow
 // ---------------------------
 let __statusTimer = null;
 
 function welcomeThenApproval() {
   const uid = document.getElementById("userIdBox")?.textContent || window.sessionId || "User";
-  addLog("success", 🙏 Welcome ${uid}`);
+  addLog("success", `🙏 Welcome ${uid}`);
 
   clearTimeout(__statusTimer);
   __statusTimer = setTimeout(async () => {
@@ -223,7 +223,7 @@ function welcomeThenApproval() {
         const text = await res.text();
 
         if (!res.ok) {
-          continue; // âŒ HTTP error à¦¹à¦²à§‡ à¦šà§à¦ªà¦šà¦¾à¦ª à¦ªà¦°à§‡à¦°à¦Ÿà¦¾à¦¤à§‡ à¦¯à¦¾à¦¬à§‡
+          continue; // ❌ HTTP error, try next
         }
 
         try { 
@@ -233,13 +233,13 @@ function welcomeThenApproval() {
         }
         if (u && typeof u === "object") break;
       } catch (e) {
-        // âŒ fetch failed à¦¹à¦²à§‡ à¦¶à§à¦§à§ à¦²à§à¦ª continue
+        // ❌ fetch failed → try next
         continue;
       }
     }
 
     if (u) {
-      addLog("info", `🔥 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "âˆž"}`);
+      addLog("info", `🔥 Status: ${u.status} | Blocked: ${u.blocked ? "Yes" : "No"} | Expiry: ${u.expiry ? new Date(u.expiry).toLocaleString() : "∞"}`);
     }
     showApproval(u);
   }, 5000);
@@ -258,7 +258,7 @@ function showApproval(u) {
   if (wb) wb.innerHTML = "";
 
   if (!u || typeof u !== "object") {
-    addWarning("warn", "🖐️ Waiting for approval statusâ€¦");
+    addWarning("warn", "🖐️ Waiting for approval status…");
     return;
   }
 
@@ -269,7 +269,10 @@ function showApproval(u) {
   const blocked  = truthy(u.blocked) || /blocked/i.test(statusStr);
   const approved = truthy(u.approved) || /approved/i.test(statusStr);
 
-  if (blocked) { addWarning("error","â›” Your access is blocked."); return; }
+  if (blocked) { 
+    addWarning("error","⛔ Your access is blocked."); 
+    return; 
+  }
 
   if (approved) {
     const expiry = u.expiry ?? u.expiresAt ?? u.expires_on ?? null;
@@ -294,7 +297,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
   if (window.sessionId) formData.append("sessionId", window.sessionId);
 
   try {
-    addLog("info", "â³ Uploading filesâ€¦");
+    addLog("info", "⏳ Uploading files…");
     const res = await fetch("/upload", {
       method: "POST",
       body: formData,
@@ -302,7 +305,7 @@ document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", 🗂️ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
+      addLog("success", `🗂️ Uploaded (tokens:${data.tokens ?? 0}, comments:${data.comments ?? 0}, posts:${data.postLinks ?? 0}, names:${data.names ?? 0}).`);
     } else {
       addWarning("error", "❌ Upload failed: " + (data.message || data.error || "Unknown"));
     }
@@ -330,7 +333,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   const shuffle = !!(shuffleEl?.checked);
   const commentPack = (packEl?.value || "").trim();
 
-   // 🔥 Advanced settings (fixed names)
+  // 🔥 Advanced settings
   const advSettings = {
     roundJitterMaxMs:  parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "80", 10),
     tokenCooldownMs:   parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "10", 10),
@@ -363,7 +366,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   }
 
   addLog("info", "✔️ Sending start requests");
-  addLog("info", 🚀 Selected Speed Mode: ${speedMode}`);
+  addLog("info", `🚀 Selected Speed Mode: ${speedMode}`);
 
   try {
     const res = await fetch("/start", {
@@ -377,6 +380,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
         speedMode,
         sessionId: window.sessionId || "",
         posts,
+        ...advSettings
       }),
     });
     const data = await res.json();
@@ -407,7 +411,7 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (data.ok) {
-      addLog("success", "🛑›‘ Stopped successfully.");
+      addLog("success", "🛑 Stopped successfully.");
       isRunning = false;
       stopSSE();
     } else {
@@ -437,7 +441,7 @@ function startSSE() {
   eventSource.addEventListener("user", (e) => {
     try {
       const u = JSON.parse(e.data || "{}");
-      addLog("info", `ðŸ‘¤ User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
+      addLog("info", `👤 User status: ${u.status}${u.blocked ? " (blocked)" : ""}${u.expiry ? `, expiry: ${new Date(+u.expiry).toLocaleString()}` : ""}`);
     } catch {
       addWarning("warn", "❌  User event parse error");
     }
@@ -491,12 +495,12 @@ function startSSE() {
       if (typ === "ready") { addLog("info", "✅ Live log connected."); return; }
 
       if (typ === "summary") {
-        addLog("success", `ðŸ“Š Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
+        addLog("success", `📊 Summary: sent=${(d.sent ?? "-")}, ok=${(d.ok ?? "-")}, failed=${(d.failed ?? "-")}`);
         if (typeof d.sent === "number")   stats.total = d.sent;
         if (typeof d.ok === "number")     stats.ok    = d.ok;
         if (typeof d.failed === "number") stats.fail  = d.failed;
         renderStats();
-        if ((d.failed || 0) > 0) addWarning("warn", ❌ Failures: ${d.failed} (details above).`);
+        if ((d.failed || 0) > 0) addWarning("warn", `❌ Failures: ${d.failed} (details above).`);
         isRunning = false;
         return;
       }
@@ -512,7 +516,7 @@ function startSSE() {
           renderPerPost();
         }
       } else {
-        if (typ === "log" && /✅” /.test(rawMsg)) {
+        if (typ === "log") {
           addLog("success", msg);
           stats.ok++; 
           stats.total++;
