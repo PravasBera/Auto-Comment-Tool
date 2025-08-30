@@ -14,7 +14,7 @@ const CORE_ASSETS = [
   '/icons/icon-512.png'
 ];
 
-// --- Install: pre-cache core static files (except html which is network-first) ---
+// --- Install: pre-cache core static files (except "/")
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
@@ -28,7 +28,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.map(k => (k === CACHE_NAME ? null : caches.delete(k))))
+      Promise.all(
+        keys.map(k => (k === CACHE_NAME ? Promise.resolve() : caches.delete(k)))
+      )
     )
   );
   self.clients.claim();
@@ -51,7 +53,7 @@ const isHtml = (req) =>
 // --- Fetch strategy ---
 // 1) API/SSE: bypass cache (network only)
 // 2) HTML pages: network-first, fallback to cache
-// 3) Static assets (css/js/png/svg/json): stale-while-revalidate
+// 3) Static assets: stale-while-revalidate
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
@@ -62,21 +64,21 @@ self.addEventListener('fetch', (event) => {
   // Do NOT cache SSE or API endpoints
   if (isApi(url)) return;
 
-  // HTML: network-first
+  // --- HTML: network-first ---
   if (isHtml(req)) {
     event.respondWith(
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('/', copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
           return res;
         })
-        .catch(() => caches.match('/') || caches.match('/index.html'))
+        .catch(() => caches.match(req) || caches.match('/index.html'))
     );
     return;
   }
 
-  // Static assets: stale-while-revalidate
+  // --- Static assets: stale-while-revalidate ---
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetchPromise = fetch(req)
@@ -85,7 +87,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
           return res;
         })
-        .catch(() => cached); // if offline and no network, return cached
+        .catch(() => cached); // if offline & network fail → return cache
       return cached || fetchPromise;
     })
   );
