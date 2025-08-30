@@ -64,7 +64,6 @@ app.use(cookieParser());
 
 // -------------------- MongoDB (Mongoose) --------------------
 require("dotenv").config();
-const mongoose = require("mongoose");
 
 // ENV থেকে MongoDB URI নাও
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fbtool";
