@@ -89,7 +89,7 @@ async function connectMongo() {
   await mongoose.connect(MONGO_URI, {
     dbName: new URL(MONGO_URI).pathname?.slice(1) || "fbtool",
   });
-  console.log("âœ… MongoDB connected");
+  console.log("✅ MongoDB connected");
 }
 
 // -------------------- Paths --------------------
