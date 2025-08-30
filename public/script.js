@@ -94,7 +94,7 @@ function renderTokens(){
 
 function tokenReport(){
   const removed = [], backoff = [];
-  tokenMap.forEach((info, token)=>{
+  tokenMap.forEach((info)=>{
     if (["REMOVED","INVALID"].includes(info.status)) removed.push(info);
     else if (info.status==="BACKOFF") backoff.push(info);
   });
@@ -185,19 +185,19 @@ document.getElementById("startBtn")?.addEventListener("click", async ()=>{
   const commentPack=(packEl?.value||"").trim();
   const speedMode=modeEl?modeEl.value:"fast";
 
-  // 🔥 Advanced settings
+  // 🔥 Advanced settings (fixed names)
   const adv = {
-    roundJitterMaxMs: parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "0", 10),
-    tokenCooldownMs:  parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "0", 10),
-    quotaPerTokenHour:parseInt(document.querySelector('[name="quotaPerTokenHour"]')?.value || "0", 10),
-    namesPerComment:  parseInt(document.querySelector('[name="namesPerComment"]')?.value || "1", 10),
-    limitPerPost:     parseInt(document.querySelector('[name="limitPerPost"]')?.value || "0", 10),
-    removeBadTokens:  !!document.querySelector('[name="removeBadTokens"]')?.checked,
-    blockedBackoffMs: parseInt(document.querySelector('[name="blockedBackoffMs"]')?.value || "0", 10),
-    requestTimeoutMs: parseInt(document.querySelector('[name="requestTimeoutMs"]')?.value || "0", 10),
-    retryCount:       parseInt(document.querySelector('[name="retryCount"]')?.value || "0", 10),
-    sseBatchMs:       parseInt(document.querySelector('[name="sseBatchMs"]')?.value || "0", 10),
-    tokenGlobalRing:  !!document.querySelector('[name="tokenGlobalRing"]')?.checked
+    roundJitterMaxMs:  parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "80", 10),
+    tokenCooldownMs:   parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "10", 10),
+    quotaPerTokenHour: parseInt(document.querySelector('[name="quotaPerTokenHour"]')?.value || "100", 10),
+    namesPerComment:   parseInt(document.querySelector('[name="namesPerComment"]')?.value || "1", 10),
+    limitPerPost:      parseInt(document.querySelector('[name="limitPerPost"]')?.value || "50", 10),
+    removeBadTokens:   !!document.querySelector('[name="removeBadTokens"]')?.checked,
+    blockedBackoffMs:  parseInt(document.querySelector('[name="blockedBackoffMs"]')?.value || "600000", 10),
+    requestTimeoutMs:  parseInt(document.querySelector('[name="requestTimeoutMs"]')?.value || "12000", 10),
+    retryCount:        parseInt(document.querySelector('[name="retryCount"]')?.value || "1", 10),
+    sseBatchMs:        parseInt(document.querySelector('[name="sseBatchMs"]')?.value || "600", 10),
+    tokenGlobalRing:   !!document.querySelector('[name="tokenGlobalRing"]')?.checked
   };
 
   // collect posts
@@ -259,7 +259,7 @@ function startSSE(){
 function stopSSE(){ if(eventSource){eventSource.close();eventSource=null;} }
 
 // =====================================================
-// Floating Log UI
+// Floating Log UI + Emergency Buttons
 // =====================================================
 (()=>{
   const btn=document.getElementById("btnOpenFloatLog");
@@ -268,6 +268,10 @@ function stopSSE(){ if(eventSource){eventSource.close();eventSource=null;} }
   const btnMin=document.getElementById("minLog");
   const btnMax=document.getElementById("maxLog");
   const btnClose=document.getElementById("closeLog");
+  const floatStart=document.getElementById("floatStartBtn");
+  const floatStop=document.getElementById("floatStopBtn");
+  const mainStart=document.getElementById("startBtn");
+  const mainStop=document.getElementById("stopBtn");
 
   if(!btn||!panel) return;
 
@@ -286,6 +290,10 @@ function stopSSE(){ if(eventSource){eventSource.close();eventSource=null;} }
   header.addEventListener("mousedown",(e)=>{drag=true;sx=e.clientX;sy=e.clientY;const r=panel.getBoundingClientRect();sl=r.left;st=r.top;panel.style.transform="none";});
   window.addEventListener("mousemove",(e)=>{if(!drag)return;panel.style.left=(sl+(e.clientX-sx))+"px";panel.style.top=(st+(e.clientY-sy))+"px";});
   window.addEventListener("mouseup",()=>drag=false);
+
+  // emergency buttons → trigger main start/stop
+  floatStart?.addEventListener("click", ()=>mainStart?.click());
+  floatStop?.addEventListener("click", ()=>mainStop?.click());
 })();
 
 // =====================================================
