@@ -31,6 +31,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+require("dotenv").config();
 
 // … Multer Storage Setup
 const storage = multer.diskStorage({
@@ -62,26 +63,36 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
 
-// -------------------- MongoDB (Mongoose) --------------------
-require("dotenv").config();
 
-// ENV থেকে MongoDB URI নাও
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fbtool";
+// -------------------- MongoDB (Mongoose) --------------------
+mongoose.set("strictQuery", false);
+
+const userSchema = new mongoose.Schema(
+  {
+    sessionId: { type: String, index: true, unique: true },
+    status: { type: String, enum: ["pending", "approved", "blocked"], default: "pending" },
+    blocked: { type: Boolean, default: false },
+    expiry: { type: Number, default: null }, // ms timestamp
+    notes: { type: String, default: "" },
+    approvedAt: { type: Date, default: null },
+    createdAt: { type: Number, default: () => Date.now() },
+    updatedAt: { type: Number, default: () => Date.now() },
+  },
+  { collection: "users" }
+);
+
+userSchema.pre("save", function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
+const User = mongoose.model("User", userSchema);
 
 async function connectMongo() {
-  try {
-    await mongoose.connect(MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      dbName: new URL(MONGO_URI).pathname?.slice(1) || "fbtool"
-    });
-    console.log("✅ MongoDB connected");
-  } catch (err) {
-    console.error("❌ Mongo connection failed:", err.message);
-  }
+  await mongoose.connect(MONGO_URI, {
+    dbName: new URL(MONGO_URI).pathname?.slice(1) || "fbtool",
+  });
+  console.log("✅ MongoDB connected");
 }
-
-connectMongo();
 
 // -------------------- Paths --------------------
 const ROOT = __dirname;
