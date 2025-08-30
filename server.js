@@ -32,7 +32,7 @@ const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 
-// âœ… Multer Storage Setup
+// … Multer Storage Setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
@@ -61,11 +61,6 @@ app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());
-
-// serve live logs page
-app.get("/live-logs", (req, res) => {
-  res.sendFile(path.join(__dirname, "views", "live-logs.html"));
-});
 
 // -------------------- MongoDB (Mongoose) --------------------
 mongoose.set("strictQuery", false);
