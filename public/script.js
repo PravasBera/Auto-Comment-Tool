@@ -331,7 +331,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
   const commentPack = (packEl?.value || "").trim();
 
    // 🔥 Advanced settings (fixed names)
-  const adv = {
+  const advSettings = {
     roundJitterMaxMs:  parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "80", 10),
     tokenCooldownMs:   parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "10", 10),
     quotaPerTokenHour: parseInt(document.querySelector('[name="quotaPerTokenHour"]')?.value || "100", 10),
