@@ -262,50 +262,63 @@
       </div>
     </div>
 
-<!-- ✅ Advance Settings -->
+<!-- ✅ Advanced Settings (collapsible) -->
 <section class="card">
-  <h2>⚙️ Advanced Settings</h2>
+  <h2 style="cursor:pointer" onclick="toggleAdvSettings()">
+    ⚙️ Advanced Settings ▼
+  </h2>
+  <div id="advSettings" style="display:none; margin-top:10px">
 
-  <label for="roundJitter">Round Jitter (ms)</label>
-  <input id="roundJitter" name="roundJitter" type="number" value="80" />
-  <p class="hint">প্রতি রাউন্ডে হালকা human-like delay</p>
+    <label for="roundJitterMaxMs">Round Jitter (ms)</label>
+    <input id="roundJitterMaxMs" name="roundJitterMaxMs" type="number" value="80" />
+    <p class="hint">প্রতি রাউন্ডে human-like delay</p>
 
-  <label for="tokenCooldown">Token Cooldown (ms)</label>
-  <input id="tokenCooldown" name="tokenCooldown" type="number" value="10" />
-  <p class="hint">প্রতি টোকেন ফায়ারের পর মিলিসেকেন্ড বিরতি</p>
+    <label for="tokenCooldownMs">Token Cooldown (ms)</label>
+    <input id="tokenCooldownMs" name="tokenCooldownMs" type="number" value="10" />
+    <p class="hint">প্রতি টোকেন ব্যবহারের পর বিরতি</p>
 
-  <label for="quotaPerTokenHour">Quota / Token / Hour</label>
-  <input id="quotaPerTokenHour" name="quotaPerTokenHour" type="number" value="100" />
-  <p class="hint">প্রতি ঘন্টায় আলিমিটেড</p>
+    <label for="quotaPerTokenHour">Quota / Token / Hour</label>
+    <input id="quotaPerTokenHour" name="quotaPerTokenHour" type="number" value="100" />
 
-  <label for="namesPerComment">Names per Comment</label>
-  <input id="namesPerComment" name="namesPerComment" type="number" value="1" />
+    <label for="namesPerComment">Names per Comment</label>
+    <input id="namesPerComment" name="namesPerComment" type="number" value="1" />
 
-  <label for="limitPerPost">Limit per Post</label>
-  <input id="limitPerPost" name="limitPerPost" type="number" value="50" />
-  <p class="hint">প্রতি পোস্টে আলিমিটেড</p>
+    <label for="limitPerPost">Limit per Post</label>
+    <input id="limitPerPost" name="limitPerPost" type="number" value="50" />
 
-  <label for="blockedBackoff">Blocked Backoff (ms)</label>
-  <input id="blockedBackoff" name="blockedBackoff" type="number" value="600000" />
-  <p class="hint">ডিফল্ট ~10 মিনিট</p>
+    <label for="blockedBackoffMs">Blocked Backoff (ms)</label>
+    <input id="blockedBackoffMs" name="blockedBackoffMs" type="number" value="600000" />
+    <p class="hint">ডিফল্ট ~10 মিনিট</p>
 
-  <label for="requestTimeout">Request Timeout (ms)</label>
-  <input id="requestTimeout" name="requestTimeout" type="number" value="12000" />
+    <label for="requestTimeoutMs">Request Timeout (ms)</label>
+    <input id="requestTimeoutMs" name="requestTimeoutMs" type="number" value="12000" />
 
-  <label for="retryCount">Retry Count</label>
-  <input id="retryCount" name="retryCount" type="number" value="1" />
+    <label for="retryCount">Retry Count</label>
+    <input id="retryCount" name="retryCount" type="number" value="1" />
 
-  <label for="sseBatch">SSE Batch (ms)</label>
-  <input id="sseBatch" name="sseBatch" type="number" value="600" />
-  <p class="hint">দিলে ইমিডিয়েট লগ</p>
+    <label for="sseBatchMs">SSE Batch (ms)</label>
+    <input id="sseBatchMs" name="sseBatchMs" type="number" value="600" />
 
-  <div style="margin-top:10px">
-    <label><input type="checkbox" id="removeBadTokens" name="removeBadTokens" checked />
-      Remove Bad Tokens (invalid/locked হলে বাদ)</label><br/>
-    <label><input type="checkbox" id="tokenGlobalRing" name="tokenGlobalRing" checked />
-      Token Global Ring (সব পোস্টে এক রিং)</label>
+    <div style="margin-top:10px">
+      <label>
+        <input type="checkbox" id="removeBadTokens" name="removeBadTokens" checked />
+        Remove Bad Tokens (invalid/locked হলে বাদ)
+      </label><br/>
+      <label>
+        <input type="checkbox" id="tokenGlobalRing" name="tokenGlobalRing" checked />
+        Token Global Ring (সব পোস্টে এক রিং)
+      </label>
+    </div>
+
   </div>
 </section>
+
+<script>
+function toggleAdvSettings(){
+  const el=document.getElementById("advSettings");
+  el.style.display = (el.style.display==="none") ? "block" : "none";
+}
+</script>
 
     <!-- ✅ Stats -->
     <section class="card">
