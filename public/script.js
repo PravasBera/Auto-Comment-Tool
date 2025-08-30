@@ -1,17 +1,17 @@
 // /public/script.js
-// =======================================
-// Facebook Auto Comment Tool Pro (FINAL)
-// Clean + Checked 100%
-// =======================================
+// =====================================================
+// Facebook Auto Comment Tool Pro (FINAL FULL)
+// With Advanced Settings + Floating Log + SSE Support
+// =====================================================
 
 let eventSource = null;
 let isRunning = false;
 window.sessionId = null;
 window.__autoScroll = true;
 
-// ---------------------------
-// Escape Helpers
-// ---------------------------
+// =====================================================
+// Helpers
+// =====================================================
 function _esc(s) {
   return String(s)
     .replace(/&/g,"&amp;")
@@ -20,18 +20,20 @@ function _esc(s) {
     .replace(/"/g,"&quot;")
     .replace(/'/g,"&#39;");
 }
+
 function buildLogHTML(message){
   const ts = `[${new Date().toLocaleTimeString()}] `;
   const raw = String(message ?? "");
   let safe = _esc(raw);
+  // highlight
   safe = safe.replace(/#(\d{5,})/g, (_m, p) => `<span class="f-post">#${_esc(p)}</span>`);
   safe = safe.replace(/@([\w .\-]{2,40})/g, (_m, n) => `<span class="f-name">@${_esc(n)}</span>`);
   return `${_esc(ts)}${safe}`;
 }
 
-// ---------------------------
+// =====================================================
 // Log Writers
-// ---------------------------
+// =====================================================
 function addLog(type, message) {
   const logBox = document.getElementById("logBox");
   if (!logBox) return;
@@ -41,7 +43,7 @@ function addLog(type, message) {
   logBox.appendChild(div);
   if (window.__autoScroll) logBox.scrollTop = logBox.scrollHeight;
 
-  // Mirror in floating log
+  // Mirror into floating log
   const floatLog = document.getElementById("floatLogContent");
   if (floatLog) {
     const clone = div.cloneNode(true);
@@ -49,6 +51,7 @@ function addLog(type, message) {
     floatLog.scrollTop = floatLog.scrollHeight;
   }
 }
+
 function addWarning(type, message) {
   const warnBox = document.getElementById("warnBox");
   if (!warnBox) return;
@@ -58,17 +61,20 @@ function addWarning(type, message) {
   warnBox.appendChild(div);
   if (window.__autoScroll) warnBox.scrollTop = warnBox.scrollHeight;
 }
+
 function clearLogs() {
   document.getElementById("logBox")?.innerHTML = "";
   document.getElementById("warnBox")?.innerHTML = "";
   document.getElementById("floatLogContent")?.innerHTML = "";
 }
 
-// ---------------------------
-// Tokens
-// ---------------------------
+// =====================================================
+// Token Handling
+// =====================================================
 const tokenMap = new Map();
+
 function resetTokens(){ tokenMap.clear(); renderTokens(); }
+
 function renderTokens(){
   const box = document.getElementById("tokenList");
   if(!box) return;
@@ -86,9 +92,32 @@ function renderTokens(){
   });
 }
 
-// ---------------------------
+function tokenReport(){
+  const removed = [], backoff = [];
+  tokenMap.forEach((info, token)=>{
+    if (["REMOVED","INVALID"].includes(info.status)) removed.push(info);
+    else if (info.status==="BACKOFF") backoff.push(info);
+  });
+  return {removed, backoff};
+}
+
+async function copyTokenReportToClipboard(){
+  const {removed, backoff} = tokenReport();
+  const header = `Token Report — ${new Date().toLocaleString()}`;
+  const rmLines = removed.map(r => `#${r.pos ?? "-"} ${r.status}`);
+  const boLines = backoff.map(r => `#${r.pos ?? "-"} BACKOFF until:${r.until || "-"}`);
+  const text = [header,"",`REMOVED (${removed.length})`,...rmLines,"",`BACKOFF (${backoff.length})`,...boLines].join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    addLog("success","📋 Token report copied");
+  } catch {
+    addWarning("warn","⚠ Could not copy report");
+  }
+}
+
+// =====================================================
 // Stats
-// ---------------------------
+// =====================================================
 const stats = { total:0, ok:0, fail:0 };
 const perPost = new Map();
 
@@ -97,17 +126,20 @@ function resetStats(){
   perPost.clear();
   renderStats(); renderPerPost();
 }
+
 function renderStats(){
   document.getElementById("stTotal").textContent = `Sent: ${stats.total}`;
   document.getElementById("stOk").textContent    = `OK: ${stats.ok}`;
   document.getElementById("stFail").textContent  = `Failed: ${stats.fail}`;
 }
+
 function bumpPerPost(postId, kind){
   if(!postId) return;
   if(!perPost.has(postId)) perPost.set(postId,{sent:0,ok:0,fail:0});
   const row = perPost.get(postId);
   row.sent++; if(kind==="ok") row.ok++; if(kind==="fail") row.fail++;
 }
+
 function renderPerPost(){
   const tb=document.getElementById("perPostBody"); if(!tb) return;
   tb.innerHTML="";
@@ -118,9 +150,9 @@ function renderPerPost(){
   });
 }
 
-// ---------------------------
+// =====================================================
 // Session
-// ---------------------------
+// =====================================================
 async function loadSession(){
   try {
     const res = await fetch("/session",{credentials:"include"});
@@ -135,9 +167,9 @@ async function loadSession(){
   }
 }
 
-// ---------------------------
+// =====================================================
 // Start
-// ---------------------------
+// =====================================================
 document.getElementById("startBtn")?.addEventListener("click", async ()=>{
   resetStats(); resetTokens();
 
@@ -153,6 +185,22 @@ document.getElementById("startBtn")?.addEventListener("click", async ()=>{
   const commentPack=(packEl?.value||"").trim();
   const speedMode=modeEl?modeEl.value:"fast";
 
+  // 🔥 Advanced settings
+  const adv = {
+    roundJitterMaxMs: parseInt(document.querySelector('[name="roundJitterMaxMs"]')?.value || "0", 10),
+    tokenCooldownMs:  parseInt(document.querySelector('[name="tokenCooldownMs"]')?.value || "0", 10),
+    quotaPerTokenHour:parseInt(document.querySelector('[name="quotaPerTokenHour"]')?.value || "0", 10),
+    namesPerComment:  parseInt(document.querySelector('[name="namesPerComment"]')?.value || "1", 10),
+    limitPerPost:     parseInt(document.querySelector('[name="limitPerPost"]')?.value || "0", 10),
+    removeBadTokens:  !!document.querySelector('[name="removeBadTokens"]')?.checked,
+    blockedBackoffMs: parseInt(document.querySelector('[name="blockedBackoffMs"]')?.value || "0", 10),
+    requestTimeoutMs: parseInt(document.querySelector('[name="requestTimeoutMs"]')?.value || "0", 10),
+    retryCount:       parseInt(document.querySelector('[name="retryCount"]')?.value || "0", 10),
+    sseBatchMs:       parseInt(document.querySelector('[name="sseBatchMs"]')?.value || "0", 10),
+    tokenGlobalRing:  !!document.querySelector('[name="tokenGlobalRing"]')?.checked
+  };
+
+  // collect posts
   const posts=[];
   for(let i=1;i<=4;i++){
     const targetEl=document.querySelector(`[name="postLinks${i}"]`);
@@ -170,7 +218,7 @@ document.getElementById("startBtn")?.addEventListener("click", async ()=>{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       credentials:"include",
-      body:JSON.stringify({delay,limit,shuffle,speedMode,sessionId:window.sessionId||"",posts})
+      body:JSON.stringify({delay,limit,shuffle,speedMode,sessionId:window.sessionId||"",posts,...adv})
     });
     const data=await res.json();
     if(data.ok){ addLog("success","✅ Started"); isRunning=true; startSSE(); }
@@ -178,9 +226,9 @@ document.getElementById("startBtn")?.addEventListener("click", async ()=>{
   }catch(err){ addWarning("error","❌ Start error: "+err.message); }
 });
 
-// ---------------------------
+// =====================================================
 // Stop
-// ---------------------------
+// =====================================================
 document.getElementById("stopBtn")?.addEventListener("click", async ()=>{
   if(!isRunning){ addWarning("warn","⚠ Nothing running"); return; }
   try{
@@ -190,9 +238,9 @@ document.getElementById("stopBtn")?.addEventListener("click", async ()=>{
   }catch(err){ addWarning("error","❌ Stop error: "+err.message); }
 });
 
-// ---------------------------
+// =====================================================
 // SSE
-// ---------------------------
+// =====================================================
 function startSSE(){
   if(eventSource) eventSource.close();
   eventSource=new EventSource(`/events?sessionId=${encodeURIComponent(window.sessionId||"")}`);
@@ -210,9 +258,9 @@ function startSSE(){
 }
 function stopSSE(){ if(eventSource){eventSource.close();eventSource=null;} }
 
-// ---------------------------
+// =====================================================
 // Floating Log UI
-// ---------------------------
+// =====================================================
 (()=>{
   const btn=document.getElementById("btnOpenFloatLog");
   const panel=document.getElementById("floatLog");
@@ -240,7 +288,10 @@ function stopSSE(){ if(eventSource){eventSource.close();eventSource=null;} }
   window.addEventListener("mouseup",()=>drag=false);
 })();
 
-// ---------------------------
+// =====================================================
 // Init
-// ---------------------------
-window.addEventListener("DOMContentLoaded",()=>{ loadSession(); });
+// =====================================================
+window.addEventListener("DOMContentLoaded",()=>{
+  loadSession();
+  document.getElementById("btnCopyReport")?.addEventListener("click", copyTokenReportToClipboard);
+});
