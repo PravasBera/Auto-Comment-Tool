@@ -423,153 +423,186 @@ function toggleAdvSettings(){
   </script>
   <script src="/script.js"></script>
   
-<!-- ▶▶ Floating Log UI -->
+<!-- Floating Log UI -->  <button id="btnOpenFloatLog" aria-label="Open floating logs">📜 Logs</button>
 
-	<!-- Floating Log Open Button -->
-<button id="btnOpenFloatLog" style="position:fixed;bottom:20px;right:20px;
- background:#2563eb;color:#fff;padding:12px 18px;border-radius:9999px;
- border:none;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:9999;">
- 📜 Logs
-</button>
-	
-<div id="floatLog" aria-live="polite" aria-hidden="true">
-  <div id="floatLogHeader">
-    <span>📜 Live Log</span>
-    <div class="actions">
-      <button id="minLog" title="Minimize">−</button>
-      <button id="maxLog" title="Maximize">▢</button>
-      <button id="closeLog" title="Close">✖</button>
-    </div>
-  </div>
-
-  <!-- main log mirror -->
-  <div id="floatLogContent"></div>
-
-  <!-- emergency buttons -->
-  <div style="padding:8px; text-align:center; border-top:1px solid #333; background:#1e293b">
-    <button id="floatStartBtn" style="background:#2563eb; padding:8px 16px; border-radius:6px; margin-right:8px; color:#fff;">▶ Start</button>
-    <button id="floatStopBtn" style="background:#ef4444; padding:8px 16px; border-radius:6px; color:#fff;">■ Stop</button>
-  </div>
-
-  <div id="floatResize" aria-hidden="true"></div>
-</div>
-
-<script>
-(() => {
-  const btnOpen  = document.getElementById('btnOpenFloatLog');
-  const panel    = document.getElementById('floatLog');
-  const header   = document.getElementById('floatLogHeader');
-  const bodyEl   = document.getElementById('floatLogContent');
-  const btnMin   = document.getElementById('minLog');
-  const btnMax   = document.getElementById('maxLog');
-  const btnClose = document.getElementById('closeLog');
-  const grip     = document.getElementById('floatResize');
-  const mainLog  = document.getElementById('logBox');
-  const autoChk  = document.getElementById('autoScrollLogs');
-
-  // emergency btns
-  const floatStart = document.getElementById('floatStartBtn');
-  const floatStop  = document.getElementById('floatStopBtn');
-  const mainStart  = document.getElementById('startBtn');
-  const mainStop   = document.getElementById('stopBtn');
-
-  if (!btnOpen || !panel || !header || !bodyEl) return;
-
-  // open/close/min/max
-  const showPanel = () => {
-    bodyEl.innerHTML = (mainLog && mainLog.innerHTML) ? mainLog.innerHTML : '';
-    panel.style.display = 'block';
-    panel.setAttribute('aria-hidden','false');
-  };
-  const hidePanel = () => { panel.style.display = 'none'; panel.setAttribute('aria-hidden','true'); };
-
-  btnOpen .addEventListener('click', showPanel);
-  btnClose.addEventListener('click', hidePanel);
-  btnMin  .addEventListener('click', ()=>{ panel.style.height='200px'; panel.style.width='420px'; });
-  let max=false;
-  btnMax.addEventListener('click', ()=>{
-    max=!max;
-    if(max){ panel.style.left='2%'; panel.style.top='5%'; panel.style.width='96vw'; panel.style.height='90vh'; panel.style.transform='none'; }
-    else { panel.style.left='50%'; panel.style.top='50%'; panel.style.width='90vw'; panel.style.height='70vh'; panel.style.transform='translate(-50%,-50%)'; }
-  });
-
-  // drag
-  let sX=0, sY=0, baseLeft=0, baseTop=0, dragging=false;
-  function px(n){ return parseFloat(String(n||'0').replace('px',''))||0; }
-  function ensureLeftTop(){
-    const rect = panel.getBoundingClientRect();
-    panel.style.left = rect.left + 'px'; panel.style.top = rect.top + 'px';
-    panel.style.right = ''; panel.style.bottom = '';
-  }
-  function dragStart(e){
-    const p = e.touches ? e.touches[0] : e;
-    dragging = true; ensureLeftTop();
-    sX = p.clientX; sY = p.clientY;
-    baseLeft = px(panel.style.left); baseTop = px(panel.style.top);
-    document.addEventListener('mousemove', dragMove, {passive:false});
-    document.addEventListener('mouseup', dragEnd);
-    document.addEventListener('touchmove', dragMove, {passive:false});
-    document.addEventListener('touchend', dragEnd);
-  }
-  function dragMove(e){
-    if(!dragging) return;
-    const p = e.touches ? e.touches[0] : e;
-    panel.style.left = (baseLeft + (p.clientX - sX)) + 'px';
-    panel.style.top  = (baseTop  + (p.clientY - sY)) + 'px';
-  }
-  function dragEnd(){ dragging=false;
-    document.removeEventListener('mousemove', dragMove);
-    document.removeEventListener('mouseup', dragEnd);
-    document.removeEventListener('touchmove', dragMove);
-    document.removeEventListener('touchend', dragEnd);
-  }
-  header.addEventListener('mousedown', dragStart);
-  header.addEventListener('touchstart', dragStart, {passive:false});
-
-  // resize
-  if (grip){
-    let rx=0, ry=0, rw=0, rh=0, resizing=false;
-    grip.addEventListener('mousedown', e=>{
-      const r = panel.getBoundingClientRect();
-      rx=e.clientX; ry=e.clientY; rw=r.width; rh=r.height; resizing=true;
-      document.addEventListener('mousemove', rMove, {passive:false});
-      document.addEventListener('mouseup', rUp);
-    });
-    function rMove(e){
-      if(!resizing) return;
-      panel.style.width  = Math.max(300, rw+(e.clientX-rx))+'px';
-      panel.style.height = Math.max(220, rh+(e.clientY-ry))+'px';
-    }
-    function rUp(){ resizing=false;
-      document.removeEventListener('mousemove', rMove);
-      document.removeEventListener('mouseup', rUp);
-    }
-  }
-
-  // mirror log
-  if (mainLog){
-    const obs = new MutationObserver(muts=>{
-      muts.forEach(m=>m.addedNodes.forEach(node=>bodyEl.appendChild(node.cloneNode(true))));
-      if (autoChk?.checked) bodyEl.scrollTop = bodyEl.scrollHeight+200;
-      while (bodyEl.childNodes.length > 2000) bodyEl.removeChild(bodyEl.firstChild);
-    });
-    obs.observe(mainLog, { childList:true });
-  }
-
-  // emergency start/stop → main start/stop click করাবে
-  floatStart.addEventListener('click', ()=>mainStart?.click());
-  floatStop .addEventListener('click', ()=>mainStop?.click());
-
-})();
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js')
-    .then(reg => console.log("✅ Service Worker registered:", reg.scope))
-    .catch(err => console.error("❌ Service Worker failed:", err));
-}
-</script>
+<div id="floatLog" aria-live="polite" aria-hidden="true">  
+  <div id="floatLogHeader">  
+    <span>📜 Live Log</span>  
+    <div class="actions">  
+      <button id="minLog" title="Minimize">−</button>  
+      <button id="maxLog" title="Maximize">▢</button>  
+      <button id="closeLog" title="Close">✖</button>  
+    </div>  
+  </div>  
+  <div id="floatLogContent"></div>  
+  <div id="floatResize" aria-hidden="true"></div>  
+</div>  <script>  
+(() => {  
+  // ---- elements ----  
+  const btnOpen  = document.getElementById('btnOpenFloatLog');  
+  const panel    = document.getElementById('floatLog');  
+  const header   = document.getElementById('floatLogHeader');  
+  const bodyEl   = document.getElementById('floatLogContent');  
+  const btnMin   = document.getElementById('minLog');  
+  const btnMax   = document.getElementById('maxLog');  
+  const btnClose = document.getElementById('closeLog');  
+  const grip     = document.getElementById('floatResize');  
+  const mainLog  = document.getElementById('logBox');    // আপনার মেইন লগ বক্স  
+  const autoChk  = document.getElementById('autoScrollLogs'); // থাকলে অটো-স্ক্রল  
   
+  if (!btnOpen || !panel || !header || !bodyEl) return;  
+  
+  // ---- open/close/min/max ----  
+  const showPanel = () => {  
+    bodyEl.innerHTML = (mainLog && mainLog.innerHTML) ? mainLog.innerHTML : '';  
+    panel.style.display = 'block';  
+    panel.setAttribute('aria-hidden','false');  
+  };  
+  const hidePanel = () => {  
+    panel.style.display = 'none';  
+    panel.setAttribute('aria-hidden','true');  
+  };  
+  const toggleMin = () => {  
+    const isMin = panel.dataset.min === '1';  
+    if (isMin) {  
+      panel.style.height = panel.dataset.h || '55%';  
+      panel.dataset.min = '0';  
+    } else {  
+      panel.dataset.h = panel.style.height || '';  
+      panel.style.height = '180px';  
+      panel.dataset.min = '1';  
+    }  
+  };  
+  const toggleMax = () => {  
+    const isMax = panel.dataset.max === '1';  
+    if (isMax) {  
+      panel.style.left   = panel.dataset.left || '';  
+      panel.style.top    = panel.dataset.top || '';  
+      panel.style.right  = panel.dataset.right || '22px';  
+      panel.style.bottom = panel.dataset.bottom || '72px';  
+      panel.style.width  = panel.dataset.width || '420px';  
+      panel.style.height = panel.dataset.height || '55%';  
+      panel.dataset.max = '0';  
+    } else {  
+      // save current  
+      panel.dataset.left   = panel.style.left;  
+      panel.dataset.top    = panel.style.top;  
+      panel.dataset.right  = panel.style.right;  
+      panel.dataset.bottom = panel.style.bottom;  
+      panel.dataset.width  = panel.style.width;  
+      panel.dataset.height = panel.style.height;  
+      // go fullscreen-ish  
+      panel.style.left   = '2vw';  
+      panel.style.top    = '2vh';  
+      panel.style.right  = '2vw';  
+      panel.style.bottom = '2vh';  
+      panel.style.width  = '96vw';  
+      panel.style.height = '78vh';  
+      panel.dataset.max = '1';  
+    }  
+  };  
+  
+  btnOpen .addEventListener('click', showPanel);  
+  btnClose.addEventListener('click', hidePanel);  
+  btnMin  .addEventListener('click', toggleMin);  
+  btnMax  .addEventListener('click', toggleMax);  
+  
+  // ---- DRAG (header ধরে টানা) ----  
+  let sX=0, sY=0, baseLeft=0, baseTop=0, dragging=false;  
+  function px(n){ return parseFloat(String(n||'0').replace('px',''))||0; }  
+  function ensureLeftTop(){  
+    // right/bottom সেট থাকলে left/top-এ কনভার্ট করি—drag smooth হবে  
+    const rect = panel.getBoundingClientRect();  
+    panel.style.left = rect.left + 'px';  
+    panel.style.top  = rect.top  + 'px';  
+    panel.style.right = '';  
+    panel.style.bottom = '';  
+  }  
+  function dragStart(e){  
+    const p = e.touches ? e.touches[0] : e;  
+    dragging = true;  
+    ensureLeftTop();  
+    sX = p.clientX; sY = p.clientY;  
+    baseLeft = px(panel.style.left);  
+    baseTop  = px(panel.style.top);  
+    document.addEventListener('mousemove', dragMove, {passive:false});  
+    document.addEventListener('mouseup', dragEnd);  
+    document.addEventListener('touchmove', dragMove, {passive:false});  
+    document.addEventListener('touchend', dragEnd);  
+  }  
+  function dragMove(e){  
+    if(!dragging) return;  
+    e.preventDefault();  
+    const p = e.touches ? e.touches[0] : e;  
+    const dx = p.clientX - sX;  
+    const dy = p.clientY - sY;  
+    panel.style.left = (baseLeft + dx) + 'px';  
+    panel.style.top  = (baseTop  + dy) + 'px';  
+  }  
+  function dragEnd(){  
+    dragging = false;  
+    document.removeEventListener('mousemove', dragMove);  
+    document.removeEventListener('mouseup', dragEnd);  
+    document.removeEventListener('touchmove', dragMove);  
+    document.removeEventListener('touchend', dragEnd);  
+  }  
+  header.addEventListener('mousedown', dragStart);  
+  header.addEventListener('touchstart', dragStart, {passive:false});  
+  
+  // ---- RESIZE (mobile + desktop) ----  
+  if (grip){  
+    let rx=0, ry=0, rw=0, rh=0, resizing=false;  
+    function rDown(e){  
+      e.preventDefault(); e.stopPropagation();  
+      const p = e.touches ? e.touches[0] : e;  
+      rx = p.clientX; ry = p.clientY;  
+      const r = panel.getBoundingClientRect();  
+      rw = r.width; rh = r.height;  
+      resizing = true;  
+      document.addEventListener('mousemove', rMove, {passive:false});  
+      document.addEventListener('mouseup', rUp);  
+      document.addEventListener('touchmove', rMove, {passive:false});  
+      document.addEventListener('touchend', rUp);  
+    }  
+    function rMove(e){  
+      if(!resizing) return;  
+      e.preventDefault();  
+      const p = e.touches ? e.touches[0] : e;  
+      const w = Math.max(300, rw + (p.clientX - rx));  
+      const h = Math.max(220, rh + (p.clientY - ry));  
+      panel.style.width  = w + 'px';  
+      panel.style.height = h + 'px';  
+      bodyEl.style.maxHeight = `calc(${h}px - 44px)`;  
+    }  
+    function rUp(){  
+      resizing = false;  
+      document.removeEventListener('mousemove', rMove);  
+      document.removeEventListener('mouseup', rUp);  
+      document.removeEventListener('touchmove', rMove);  
+      document.removeEventListener('touchend', rUp);  
+    }  
+    grip.addEventListener('mousedown', rDown);  
+    grip.addEventListener('touchstart', rDown, {passive:false});  
+  }  
+  
+  // ---- Mirror main #logBox into floating (লাইভ কপি) ----  
+  if (mainLog){  
+    const obs = new MutationObserver(muts=>{  
+      muts.forEach(m=>{  
+        m.addedNodes.forEach(node=>{  
+          bodyEl.appendChild(node.cloneNode(true));  
+        });  
+      });  
+      if (autoChk?.checked) bodyEl.scrollTop = bodyEl.scrollHeight + 200;  
+      // পুরোনো লাইন ট্রিম করে হালকা রাখি  
+      while (bodyEl.childNodes.length > 2000) {  
+        bodyEl.removeChild(bodyEl.firstChild);  
+      }  
+    });  
+    obs.observe(mainLog, { childList: true });  
+  }  
+})();  
+</script>
+	
 </body>
 </html>
