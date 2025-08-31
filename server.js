@@ -1046,17 +1046,22 @@ async function runJobSuperFast({
 // roundGap   = uiDelay / batchCount
 // প্রতি ব্যাচে: সব পোস্টে এক রাউন্ড করে "burst" ফায়ার (প্রতি কমেন্টে 80–120ms micro gap)
 // ------------------------------------------------------------
+
 async function runJobExtreme({
   sessionId, resolvedTargets, tokenName,
   uiDelayMs, totalIds, postsCount, limit
 }) {
   const job = getJob(sessionId);
 
-  const batchCount = Math.max(1, Math.ceil(totalIds / Math.max(1, postsCount)));
-  const roundGap   = Math.max(0, Math.floor(uiDelayMs / batchCount));
-  const micro = () => 80 + Math.floor(Math.random()*41); // 80–120ms
+  // 🔹 Batch Count Calculation
+  const batchCount = (postsCount === 1)
+    ? totalIds                                // single-post → সব IDs এক burst
+    : Math.max(1, Math.ceil(totalIds / Math.max(1, postsCount)));
 
-  // সেফ ডিফল্ট
+  const roundGap = Math.max(0, Math.floor(uiDelayMs / batchCount));
+  const micro = () => 80 + Math.floor(Math.random() * 41); // 80–120ms
+
+  // 🔹 Safe defaults
   const requestTimeoutMs = 12000;
   const blockedBackoffMs = 10 * 60 * 1000;
   const tokenCooldownMs  = 0;
@@ -1064,16 +1069,19 @@ async function runJobExtreme({
 
   let sent = 0, okCount=0, failCount=0;
 
-  // per-post pointer
+  // 🔹 per-post pointer
   const state = resolvedTargets.map(() => ({ tok:0, cmt:0, name:0, sent:0 }));
 
-  // per-token state
+  // 🔹 per-token state
   const tState = new Map();
   const ensureT = (tok) => {
-    if (!tState.has(tok)) tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
+    if (!tState.has(tok)) {
+      tState.set(tok,{nextAt:0,hourlyCount:0,windowStart:Date.now(),removed:false,backoff:0});
+    }
     return tState.get(tok);
   };
 
+  // 🔹 Fire one
   async function fireOne(pIdx){
     const tgt = resolvedTargets[pIdx];
     const st  = state[pIdx];
@@ -1090,21 +1098,23 @@ async function runJobExtreme({
     const ts = ensureT(token);
     if (ts.removed || Date.now() < ts.nextAt) return;
 
-    try{
+    try {
       await Promise.race([
-  tgt.type === "comment"
-    ? postComment({ token, postId: tgt.id, message })
-    : sendMessage({ token, convoId: tgt.id, message }),
-  new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-]);
+        tgt.type === "comment"
+          ? postComment({ token, postId: tgt.id, message })
+          : sendMessage({ token, convoId: tgt.id, message }),
+        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+      ]);
+
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
+
       if (tgt.type === "comment") {
-  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
-} else if (tgt.type === "message") {
-  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
-}
+        sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
+      } else if (tgt.type === "message") {
+        sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
+      }
     }catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
@@ -1115,40 +1125,50 @@ async function runJobExtreme({
       } else if (cls.kind==="NO_PERMISSION"){
         ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
       }
+
       if (tgt.type === "comment") {
-  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
-} else if (tgt.type === "message") {
-  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
-}
+        sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
+      } else if (tgt.type === "message") {
+        sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
+      }
     }
   }
 
+  // 🔹 Debug Info
   sseLine(sessionId,"info",
     `EXTREME → batch:${batchCount}, roundGap:${roundGap}ms, posts:${postsCount}, totalIds:${totalIds}`
   );
 
   // ====== INFINITE BATCHES ======
   while(!job.abort && (!limit || sent < limit)){
-    // প্রতি ব্যাচে সব পোস্টে ১টা করে burst fire
-    const order = [...Array(postsCount).keys()].sort(()=>Math.random()-0.5);
-
-    for (const idx of order){
-      await fireOne(idx);
-      if (limit && sent>=limit) break;
-      // burst হলেও প্রতি কমেন্টে micro jitter (80–120ms)
-      await sleep(micro());
+    if (postsCount === 1) {
+      // 🟢 SINGLE-POST MODE (সব IDs এক burst)
+      for (let i=0; i<totalIds; i++) {
+        await fireOne(0);
+        if (limit && sent>=limit) break;
+        await sleep(micro()); // প্রতি comment এ 80–120ms gap
+      }
+    } else {
+      // 🟢 MULTI-POST MODE (প্রতি batch এ সব post এ ১টা করে burst fire)
+      const order = [...Array(postsCount).keys()].sort(()=>Math.random()-0.5);
+      for (const idx of order){
+        await fireOne(idx);
+        if (limit && sent>=limit) break;
+        await sleep(micro()); // burst এর মধ্যে 80–120ms gap
+      }
     }
 
     if (job.abort || (limit && sent>=limit)) break;
 
-    // ব্যাচ শেষে roundGap (uiDelay/batchCount)
+    // 🕒 batch শেষে roundGap wait
     if (roundGap>0) await sleep(roundGap);
   }
 
+  // 🔚 Job Summary
   sseLine(sessionId,"summary",
-  `Run finished (Comments+Messages)`,
-  { sent: okCount+failCount, ok: okCount, failed: failCount }
-);
+    `Run finished (Comments+Messages)`,
+    { sent: okCount+failCount, ok: okCount, failed: failCount }
+  );
   const j=getJob(sessionId); j.running=false; j.abort=false;
   sseLine(sessionId,"info","Job closed");
 }
