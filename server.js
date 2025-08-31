@@ -318,6 +318,27 @@ async function postComment({ token, postId, message }) {
   return json;
 }
 
+// -------------------- Send Message (Messenger API) --------------------
+async function sendMessage({ token, convoId, message }) {
+  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(convoId)}/messages`;
+  const body = new URLSearchParams({
+    messaging_type: "MESSAGE_TAG",   // ✅ Messenger rule অনুযায়ী দরকার
+    tag: "ACCOUNT_UPDATE",           // ✅ Safe tag (FB-তে without webhook একে ব্যবহার করা যায়)
+    message: JSON.stringify({ text: message }),
+    access_token: token
+  });
+
+  const res = await fetch(url, { method: "POST", body });
+  const json = await res.json();
+
+  if (!res.ok || json?.error) {
+    const err = json?.error || { message: `HTTP ${res.status}` };
+    throw err;
+  }
+  if (!json?.id) throw { message: "Message id missing in response" };
+  return json;
+}
+
 function classifyError(err) {
   const code = err?.code || err?.error_subcode || 0;
   const msg = (err?.message || "").toLowerCase();
@@ -342,6 +363,39 @@ function classifyError(err) {
   if (msg.includes("checkpoint") || msg.includes("locked") || msg.includes("hold"))
     return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
   return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
+}
+
+// ---------------------------
+// Detect Target Type (Post vs Conversation)
+// ---------------------------
+function detectTargetType(idOrUrl) {
+  if (!idOrUrl) return "unknown";
+  const s = String(idOrUrl).trim();
+
+  // 🔹 Messenger detect
+  if (/facebook\.com\/messages\/t\/(\d+)/i.test(s)) return "message";
+  if (/^https?:\/\/(www\.)?facebook\.com\/t\/(\d+)/i.test(s)) return "message";
+
+  // যদি pure convoId হয়
+  if (/^\d{16,}$/.test(s)) return "message";   // 16+ digit = convoId
+
+  // 🔹 Post detect (already server এ helper আছে)
+  if (/^https?:\/\//i.test(s)) {
+    if (/\/posts\/|story_fbid=|\/permalink\//i.test(s)) return "comment";
+    if (/\/photo\.php\?fbid=\d+/i.test(s)) return "comment";
+    if (/\/video\.php\?v=\d+/i.test(s)) return "comment";
+  }
+
+  // শুধু সংখ্যা → FBID (post or actor)
+  if (/^\d+$/.test(s)) {
+    if (s.length < 16) return "comment"; // ছোট ID ~ post/page
+  }
+
+  // fallback → tryExtractGraphPostId
+  const tryPost = tryExtractGraphPostId(s);
+  if (tryPost) return "comment";
+
+  return "unknown";
 }
 
 // --------------- Name tag helpers (#First_Last) ----------------
@@ -1428,22 +1482,36 @@ const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
   });
 
   // ---- resolve targets
-  const anyToken = targets.find(t => t.tokens.length)?.tokens[0] || fileTokens[0] || null;
-  if (!anyToken) {
-    sseLine(sessionId, "error", "No token available to resolve links.");
-    return res.status(400).json({ ok: false, message: "No tokens available" });
-  }
-
   async function resolveOne(tgt) {
+  const targetType = detectTargetType(tgt.rawTarget);
+  let finalId = null;
+
+  if (targetType === "comment") {
+    // -------- Post Resolver --------
     let id = tryExtractGraphPostId(tgt.rawTarget);
     if (!id) id = await resolveViaGraphLookup(tgt.rawTarget, anyToken);
     if (!id) {
-      sseLine(sessionId, "warn", `Could not resolve: ${tgt.rawTarget}`);
+      sseLine(sessionId, "warn", `❌ Could not resolve post: ${tgt.rawTarget}`);
       return null;
     }
     id = await refineCommentTarget(id, anyToken);
-    return { ...tgt, id };
+    finalId = id;
+  } else if (targetType === "message") {
+    // -------- Messenger Resolver --------
+    // এখানে post এর মত জটিল resolver লাগবে না,
+    // কারণ convoId সরাসরি use করা যায়।
+    finalId = String(tgt.rawTarget).replace(/\D/g, ""); // শুধু সংখ্যা
+    if (!/^\d{16,}$/.test(finalId)) {
+      sseLine(sessionId, "warn", `❌ Invalid conversationId: ${tgt.rawTarget}`);
+      return null;
+    }
+  } else {
+    sseLine(sessionId, "warn", `❌ Unknown target type: ${tgt.rawTarget}`);
+    return null;
   }
+
+  return { ...tgt, id: finalId, type: targetType };
+}
 
   const resolvedTargets = [];
   for (const t of targets) {
