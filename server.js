@@ -1439,6 +1439,9 @@ const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
   const fileLinks    = pLinks ? readLines(pLinks).map(cleanPostLink).filter(l => l !== null) : [];
   const fileNames    = readLines(pNames);
 
+  // pick anyToken for Graph resolver
+const anyToken = (fileTokens.length ? fileTokens[0] : null);
+
   if (!fileTokens.length) {
     sseLine(sessionId, "warn", "No tokens uploaded for this session.");
   }
