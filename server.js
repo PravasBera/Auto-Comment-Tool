@@ -698,24 +698,18 @@ app.post(
   upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
-    // accept BOTH spellings so frontend <input name="postlinks"> à¦•à¦¾à¦œ à¦•à¦°à§‡
     { name: "postlinks", maxCount: 1 },
     { name: "postLinks", maxCount: 1 },
     { name: "uploadNames", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
-      // âœ… sessionId fallback: query/body à¦¨à¦¾ à¦¥à¦¾à¦•à¦²à§‡ cookie-session à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦°
-      const sessionId =
-        req.query.sessionId ||
-        req.body.sessionId ||
-        req.sessionId;
-
+      const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId;
       if (!sessionId) {
         return res.status(400).json({ ok: false, message: "sessionId required" });
       }
 
-      // âœ… access check (approved/blocked/expired)
+      // ✅ access check
       const user = await User.findOne({ sessionId }).lean();
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
@@ -723,11 +717,11 @@ app.post(
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
-      // âœ… per-session folder
+      // ✅ per-session folder
       const sessionDir = path.join(UPLOAD_DIR, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-      // âœ… save tokens/comments
+      // ✅ save tokens/comments
       if (req.files?.tokens?.[0]) {
         fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "tokens.txt"));
       }
@@ -735,36 +729,37 @@ app.post(
         fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comments.txt"));
       }
 
-      // âœ… postlinks vs postLinks â€” à¦¯à§‡à¦Ÿà¦¾ à¦†à¦›à§‡ à¦¸à§‡à¦Ÿà¦¾à¦‡ à¦¨à¦¾à¦“
-      const postFile = (req.files?.postlinks?.[0]) || (req.files?.postLinks?.[0]);
+      // ✅ postlinks file (support both names)
+      const postFile = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
       if (postFile) {
         fs.renameSync(postFile.path, path.join(sessionDir, "postlinks.txt"));
       }
 
+      // ✅ Parse postlinks and detect type
       const postLinksPath = path.join(sessionDir, "postlinks.txt");
-let links = [];
-if (fs.existsSync(postLinksPath)) {
-  const rawLinks = fs.readFileSync(postLinksPath, "utf8");
-  console.log("ðŸ“‚ postlinks.txt content:\n", rawLinks);
-  links = rawLinks
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean)
-    .map(cleanPostLink)
-    .filter(l => l !== null);
-  console.log("âœ… Parsed links:", links);
-} else {
-  console.log("â„¹ï¸ postlinks.txt not found (skip parsing).");
-}
+      let rawLinks = [];
+      if (fs.existsSync(postLinksPath)) {
+        rawLinks = fs.readFileSync(postLinksPath, "utf8")
+          .split(/\r?\n/)
+          .map(l => l.trim())
+          .filter(Boolean);
+      }
 
-      // âœ… names textarea (optional)
-      // à¦›à¦¿à¦²: const uploadNames = req.body.uploadNames || "";
-const uploadNames = req.body.names || req.body.uploadNames || "";
-if (uploadNames && uploadNames.trim()) {
-  fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
-}
+      let postCount = 0;
+      let convoCount = 0;
+      for (const lnk of rawLinks) {
+        const typ = detectTargetType(lnk); // <-- তোমার আগে লেখা function
+        if (typ === "comment") postCount++;
+        else if (typ === "message") convoCount++;
+      }
 
-      // âœ… simple counter (per-session à¦«à¦¾à¦‡à¦² à¦¥à§‡à¦•à§‡à¦‡)
+      // ✅ names textarea
+      const uploadNames = req.body.names || req.body.uploadNames || "";
+      if (uploadNames && uploadNames.trim()) {
+        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
+      }
+
+      // ✅ count helper
       const countLines = (p) =>
         fs.existsSync(p)
           ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
@@ -772,13 +767,13 @@ if (uploadNames && uploadNames.trim()) {
 
       const tCount = countLines(path.join(sessionDir, "tokens.txt"));
       const cCount = countLines(path.join(sessionDir, "comments.txt"));
-      const pCount = countLines(path.join(sessionDir, "postlinks.txt"));
       const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
 
+      // ✅ Final log
       sseLine(
         sessionId,
         "info",
-        `Files uploaded âœ“ (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`
+        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${postCount}, inbox/groups:${convoCount}, names:${nCount})`
       );
 
       return res.json({
@@ -786,7 +781,8 @@ if (uploadNames && uploadNames.trim()) {
         success: true,
         tokens: tCount,
         comments: cCount,
-        postLinks: pCount,
+        posts: postCount,
+        convos: convoCount,
         names: nCount,
       });
     } catch (err) {
@@ -890,7 +886,11 @@ async function runJobSuperFast({
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
-      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+      if (tgt.type === "comment") {
+  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
+} else if (tgt.type === "message") {
+  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
+}
     } catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
@@ -901,7 +901,11 @@ async function runJobSuperFast({
       } else if (cls.kind==="NO_PERMISSION"){
         ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
       }
-      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+      if (tgt.type === "comment") {
+  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
+} else if (tgt.type === "message") {
+  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
+}
     }
     return (limit && sent>=limit);
   }
@@ -934,7 +938,10 @@ async function runJobSuperFast({
     if (roundGap>0) await sleep(roundGap);
   }
 
-  sseLine(sessionId,"summary","SUPER FAST finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  sseLine(sessionId,"summary",
+  `Run finished (Comments+Messages)`,
+  { sent: okCount+failCount, ok: okCount, failed: failCount }
+);
   const j=getJob(sessionId); j.running=false; j.abort=false;
   sseLine(sessionId,"info","Job closed");
 }
@@ -999,7 +1006,11 @@ async function runJobExtreme({
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
-      sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → "${message}" on ${tgt.id}`);
+      if (tgt.type === "comment") {
+  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
+} else if (tgt.type === "message") {
+  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
+}
     }catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
@@ -1010,7 +1021,11 @@ async function runJobExtreme({
       } else if (cls.kind==="NO_PERMISSION"){
         ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
       }
-      sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → ${cls.human} (${tgt.id})`);
+      if (tgt.type === "comment") {
+  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
+} else if (tgt.type === "message") {
+  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
+}
     }
   }
 
@@ -1036,7 +1051,10 @@ async function runJobExtreme({
     if (roundGap>0) await sleep(roundGap);
   }
 
-  sseLine(sessionId,"summary","EXTREME finished",{ sent:okCount+failCount, ok:okCount, failed:failCount });
+  sseLine(sessionId,"summary",
+  `Run finished (Comments+Messages)`,
+  { sent: okCount+failCount, ok: okCount, failed: failCount }
+);
   const j=getJob(sessionId); j.running=false; j.abort=false;
   sseLine(sessionId,"info","Job closed");
 }
