@@ -9,6 +9,14 @@ let isRunning = false;
 window.sessionId = null;
 window.__autoScroll = true;
 
+// --- Job State (persistent) ---
+function saveJobState(running) {
+  localStorage.setItem("jobRunning", running ? "true" : "false");
+}
+function loadJobState() {
+  return localStorage.getItem("jobRunning") === "true";
+}
+
 // ---------------------------
 // UI Helpers
 // ---------------------------
@@ -388,6 +396,7 @@ document.getElementById("startBtn")?.addEventListener("click", async () => {
     if (data.ok) {
       addLog("success", "✅ Commenting started 🎉.");
       isRunning = true;
+      saveJobState(true);   // ✅ Save state
       startSSE();
     } else {
       addWarning("error", "❌ Start failed: " + (data.message || data.error || "Unknown"));
@@ -413,6 +422,7 @@ document.getElementById("stopBtn")?.addEventListener("click", async () => {
     if (data.ok) {
       addLog("success", "🛑 Stopped successfully.");
       isRunning = false;
+      saveJobState(false);  // ✅ Save state
       stopSSE();
     } else {
       addWarning("error", "❌ Stop failed: " + (data.message || data.error || "Unknown"));
@@ -551,6 +561,33 @@ function stopSSE() {
     eventSource = null;
     addLog("info", "❌ Live log disconnected.");
   }
+}
+
+// ✅ Refresh হলে state sync করো
+try {
+  fetch("/checkJob", { credentials: "include" })
+    .then(res => res.json())
+    .then(data => {
+      if (data.running) {
+        // Backend এ job চলছে
+        isRunning = true;
+        saveJobState(true);
+        addLog("info", "🔄 Restored old job after refresh.");
+        if (data.logs) data.logs.forEach(line => addLog("info", line));
+      } else {
+        // Backend এ কিছু চলছে না
+        isRunning = false;
+        if (loadJobState()) {
+          // আগে চালু ছিল, কিন্তু backend এ নেই → mismatch fix
+          saveJobState(false);
+          clearLogs();
+          addLog("info", "♻️ Reset logs (no job running).");
+        }
+      }
+    })
+    .catch(err => addWarning("error", "CheckJob failed: " + err.message));
+} catch (err) {
+  addWarning("error", "CheckJob error: " + err.message);
 }
 
 // ---------------------------
