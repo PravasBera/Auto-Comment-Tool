@@ -33,6 +33,14 @@ const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+
+const COMMON_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Content-Type": "application/x-www-form-urlencoded"
+};
+
 // … Multer Storage Setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -264,16 +272,33 @@ function tryExtractGraphPostId(raw) {
   }
 }
 
+// -------------------- Multi-version Graph fetch --------------------
+async function fetchGraphWithFallback(path, token, versions = ["v19.0","v15.0","v7.0"]) {
+  for (const ver of versions) {
+    try {
+      const url = `https://graph.facebook.com/${ver}/${path}${path.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`;
+      const res = await fetch(url, { headers: COMMON_HEADERS });
+      const json = await res.json();
+      if (res.ok && !json.error) {
+        return { ok: true, json, via: ver };
+      }
+    } catch (e) {
+      console.log(`⚠️ ${ver} failed:`, e.message);
+    }
+  }
+  return { ok: false, json: null, via: null };
+}
+
 async function resolveViaGraphLookup(linkOrPfbidLike, token) {
   try {
     const normalized = canonicalizePfbidInput(linkOrPfbidLike);
-    const api = `https://graph.facebook.com/v19.0/?id=${encodeURIComponent(
-      normalized
-    )}&access_token=${encodeURIComponent(token)}`;
-    const res = await fetch(api);
-    const json = await res.json();
-    if (json?.og_object?.id) return String(json.og_object.id);
-    if (json?.id) return String(json.id);
+    const path = `?id=${encodeURIComponent(normalized)}`;
+    const { ok, json, via } = await fetchGraphWithFallback(path, token);
+
+    if (ok) {
+      if (json?.og_object?.id) return String(json.og_object.id);
+      if (json?.id) return String(json.id);
+    }
   } catch {}
   return null;
 }
@@ -281,12 +306,12 @@ async function resolveViaGraphLookup(linkOrPfbidLike, token) {
 async function refineCommentTarget(id, token) {
   try {
     if (/^\d+_\d+$/.test(id)) return id;
-    const ep = `https://graph.facebook.com/v19.0/${encodeURIComponent(
-      id
-    )}?fields=object_id,status_type,from,permalink_url&access_token=${encodeURIComponent(token)}`;
-    const res = await fetch(ep);
-    const json = await res.json();
-    if (json?.object_id && /^\d+$/.test(String(json.object_id))) return String(json.object_id);
+    const path = `${encodeURIComponent(id)}?fields=object_id,status_type,from,permalink_url`;
+    const { ok, json, via } = await fetchGraphWithFallback(path, token);
+
+    if (ok && json?.object_id && /^\d+$/.test(String(json.object_id))) {
+      return String(json.object_id);
+    }
     return id;
   } catch {
     return id;
@@ -295,74 +320,113 @@ async function refineCommentTarget(id, token) {
 
 async function getAccountName(token) {
   try {
-    const res = await fetch(
-      `https://graph.facebook.com/v19.0/me?fields=name&access_token=${encodeURIComponent(token)}`
-    );
-    const j = await res.json();
-    return j?.name || "Unknown Account";
+    const path = `me?fields=name`;
+    const { ok, json, via } = await fetchGraphWithFallback(path, token);
+
+    if (ok) return json?.name || "Unknown Account";
+    return "Unknown Account";
   } catch {
     return "Unknown Account";
   }
 }
 
+// -------------------- Post Comment (Dual System with Loophole) --------------------
 async function postComment({ token, postId, message }) {
+  async function tryLoophole(ver) {
+    const url = `https://graph.facebook.com/v${ver}.0/${encodeURIComponent(postId)}/comments`;
+    const body = new URLSearchParams({ message, access_token: token });
+    try {
+      const res = await fetch(url, { method: "POST", body });
+      const json = await res.json();
+
+      if (res.ok && json?.id) {
+        return { ok: true, id: json.id, via: `loophole-v${ver}` };
+      }
+      const errMsg = (json?.error?.message || "").toLowerCase();
+      if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
+        return null; // fallback
+      }
+      throw json?.error || { message: "HTTP " + res.status };
+    } catch (e) {
+      console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
+      return null;
+    }
+  }
+
+  // 🔹 1st attempt → loophole v7
+  let result = await tryLoophole(7);
+  if (result) return result;
+
+  // 🔹 2nd attempt → loophole v15
+  result = await tryLoophole(15);
+  if (result) return result;
+
+  // 🔹 3rd attempt → fallback to official v19
   const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(postId)}/comments`;
   const body = new URLSearchParams({ message, access_token: token });
+
   const res = await fetch(url, { method: "POST", body });
   const json = await res.json();
+
   if (!res.ok || json?.error) {
-    const err = json?.error || { message: `HTTP ${res.status}` };
-    throw err;
+    throw json?.error || { message: `HTTP ${res.status}` };
   }
   if (!json?.id) throw { message: "Comment id missing in response" };
-  return json;
+
+  return { ok: true, id: json.id, via: "v19" };
 }
 
-// -------------------- Send Message (Messenger API) --------------------
+// -------------------- Send Message (Dual System with Loophole) --------------------
 async function sendMessage({ token, convoId, message }) {
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(convoId)}/messages`;
-  const body = new URLSearchParams({
-    messaging_type: "MESSAGE_TAG",   // ✅ Messenger rule অনুযায়ী দরকার
-    tag: "ACCOUNT_UPDATE",           // ✅ Safe tag (FB-তে without webhook একে ব্যবহার করা যায়)
+  // Helper → try loophole with specific API version
+  async function tryLoophole(ver) {
+    const url = `https://graph.facebook.com/v${ver}.0/t_${encodeURIComponent(convoId)}`;
+    const body = new URLSearchParams({ message, access_token: token });
+
+    try {
+      const res = await fetch(url, { method: "POST", body });
+      const json = await res.json();
+
+      if (res.ok && json?.id) {
+        return { ok: true, id: json.id, via: `loophole-v${ver}` };
+      }
+      const errMsg = (json?.error?.message || "").toLowerCase();
+      if (errMsg.includes("permission") || errMsg.includes("cannot")) {
+        return null; // fallback to next
+      }
+      throw json?.error || { message: "HTTP " + res.status };
+    } catch (e) {
+      console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
+      return null;
+    }
+  }
+
+  // 🔹 1st attempt → v7 loophole
+  let result = await tryLoophole(7);
+  if (result) return result;
+
+  // 🔹 2nd attempt → v15 loophole
+  result = await tryLoophole(15);
+  if (result) return result;
+
+  // 🔹 3rd attempt → fallback to Official Page Messaging API
+  const pageUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(convoId)}/messages`;
+  const pageBody = new URLSearchParams({
+    messaging_type: "MESSAGE_TAG",
+    tag: "ACCOUNT_UPDATE",
     message: JSON.stringify({ text: message }),
     access_token: token
   });
 
-  const res = await fetch(url, { method: "POST", body });
-  const json = await res.json();
+  const res2 = await fetch(pageUrl, { method: "POST", body: pageBody });
+  const json2 = await res2.json();
 
-  if (!res.ok || json?.error) {
-    const err = json?.error || { message: `HTTP ${res.status}` };
-    throw err;
+  if (!res2.ok || json2?.error) {
+    throw json2?.error || { message: `HTTP ${res2.status}` };
   }
-  if (!json?.id) throw { message: "Message id missing in response" };
-  return json;
-}
+  if (!json2?.id) throw { message: "Message id missing in response" };
 
-function classifyError(err) {
-  const code = err?.code || err?.error_subcode || 0;
-  const msg = (err?.message || "").toLowerCase();
-  if (code === 190 || msg.includes("expired") || msg.includes("session has expired"))
-    return { kind: "INVALID_TOKEN", human: "Invalid or expired token" };
-  if (msg.includes("permission") || msg.includes("insufficient"))
-    return { kind: "NO_PERMISSION", human: "Missing permission to comment" };
-  if (
-    msg.includes("not found") ||
-    msg.includes("unsupported") ||
-    msg.includes("cannot be accessed") ||
-    msg.includes("unknown object")
-  )
-    return { kind: "WRONG_POST_ID", human: "Wrong or inaccessible post id/link" };
-  if (
-    msg.includes("temporarily blocked") ||
-    msg.includes("rate limit") ||
-    msg.includes("reduced") ||
-    msg.includes("block")
-  )
-    return { kind: "COMMENT_BLOCKED", human: "Comment blocked or rate limited" };
-  if (msg.includes("checkpoint") || msg.includes("locked") || msg.includes("hold"))
-    return { kind: "ID_LOCKED", human: "Account locked/checkpoint" };
-  return { kind: "UNKNOWN", human: err?.message || "Unknown error" };
+  return { ok: true, id: json2.id, via: "page" };
 }
 
 // ---------------------------
