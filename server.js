@@ -504,12 +504,20 @@ function sseBroadcast(sessionId, payloadObj) {
 }
 
 function sseLine(sessionId, type = "log", text = "", meta = {}) {
-  sseBroadcast(sessionId, {
-    ts: Date.now(),   // timestamp
-    type,             // "log" | "success" | "warn" | "error" | "ready"
-    text,             // main message string
-    meta              // optional extra info { name, post, comment }
-  });
+  const job = getJob(sessionId);
+  const payloadObj = {
+    ts: Date.now(),
+    type,
+    text,
+    meta
+  };
+
+  // 🔥 এখানে log memory রাখো
+  if (!job.logs) job.logs = [];
+  job.logs.push(`[${new Date().toLocaleTimeString()}] ${type.toUpperCase()} ${text}`);
+  if (job.logs.length > 500) job.logs.shift(); // সর্বোচ্চ 500 লাইন রাখো
+
+  sseBroadcast(sessionId, payloadObj);
 }
 
 // --- named SSE event (e.g. "token")
@@ -869,6 +877,28 @@ app.post("/stop", (req, res) => {
     return res.json({ ok: true, message: "Job stopping..." });
   }
   return res.json({ ok: false, message: "No active job" });
+});
+
+// -------------------- Check Job --------------------
+app.get("/checkJob", (req, res) => {
+  const sessionId = req.query.sessionId || req.sessionId;
+  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+
+  const job = getJob(sessionId);
+  res.json({
+    running: job.running,
+    logs: job.logs ? job.logs.slice(-100) : []   // optional: শুধু শেষ 100 লাইন
+  });
+});
+
+// -------------------- Clear Logs --------------------
+app.post("/clearLogs", (req, res) => {
+  const sessionId = req.query.sessionId || req.sessionId;
+  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+
+  const job = getJob(sessionId);
+  job.logs = [];
+  res.json({ ok: true, message: "Logs cleared" });
 });
 
 // --------- Comment pack loader ----------
