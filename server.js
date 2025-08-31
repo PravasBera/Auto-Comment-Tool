@@ -882,9 +882,11 @@ async function runJobSuperFast({
 
     try{
       await Promise.race([
-        postComment({ token, postId: tgt.id, message }),
-        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-      ]);
+  tgt.type === "comment"
+    ? postComment({ token, postId: tgt.id, message })
+    : sendMessage({ token, convoId: tgt.id, message }),
+  new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+]);
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
@@ -989,9 +991,11 @@ async function runJobExtreme({
 
     try{
       await Promise.race([
-        postComment({ token, postId: tgt.id, message }),
-        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-      ]);
+  tgt.type === "comment"
+    ? postComment({ token, postId: tgt.id, message })
+    : sendMessage({ token, convoId: tgt.id, message }),
+  new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+]);
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
@@ -1229,9 +1233,15 @@ async function runJob(
           usedTimes++;
 
           const doSend = async () => {
-            const outc = await attemptWithTimeout(() =>
-              postComment({ token, postId: tgt.id, message })
-            );
+            const outc = await attemptWithTimeout(() => {
+  if (tgt.type === "comment") {
+    return postComment({ token, postId: tgt.id, message });
+  } else if (tgt.type === "message") {
+    return sendMessage({ token, convoId: tgt.id, message });
+  } else {
+    throw new Error("Unknown target type: " + tgt.type);
+  }
+});
 
             okCount++;
             out("log", `âœ” ${tokenName[token] || "Account"} â†’ "${message}" on ${tgt.id}`, {
