@@ -202,6 +202,29 @@ const shuffleArr = (arr) => {
   return a;
 };
 
+// -------------------- Error Classifier --------------------
+function classifyError(err) {
+  const msg = (err?.message || "").toLowerCase();
+
+  if (msg.includes("invalid token") || msg.includes("session has been invalidated")) {
+    return { kind: "INVALID_TOKEN", human: "Invalid or expired token" };
+  }
+  if (msg.includes("id locked") || msg.includes("checkpoint")) {
+    return { kind: "ID_LOCKED", human: "Account locked / checkpoint" };
+  }
+  if (msg.includes("commenting too fast") || msg.includes("temporarily blocked")) {
+    return { kind: "COMMENT_BLOCKED", human: "Commenting temporarily blocked" };
+  }
+  if (msg.includes("permission") || msg.includes("not authorized")) {
+    return { kind: "NO_PERMISSION", human: "No permission on post" };
+  }
+  if (msg.includes("abusive") || msg.includes("policy") || msg.includes("community standards")) {
+    return { kind: "ABUSIVE", human: "Blocked: Abusive / Policy violation" };
+  }
+
+  return { kind: "UNKNOWN", human: msg || "Unknown error" };
+}
+
 // ------------------ Link Cleaner ------------------
 function cleanPostLink(link) {
   if (!link) return null;
