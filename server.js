@@ -1776,7 +1776,7 @@ if (speedMode === "superfast") {
 connectMongo()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`ðŸš€ Server running at http://localhost:${PORT}`);
+      console.log(✅ Server running at http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
