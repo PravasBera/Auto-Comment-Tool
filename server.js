@@ -51,7 +51,10 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 200 * 1024 } // প্রতি ফাইল max 200KB (তুমি চাইলে বাড়াতে পারো)
+});
 
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
 function generateUserId() {
@@ -924,6 +927,21 @@ app.post("/clearLogs", (req, res) => {
   res.json({ ok: true, message: "Logs cleared" });
 });
 
+// -------------------- Global Error Handlers --------------------
+app.use((err, req, res, next) => {
+  console.error("❌ Uncaught Error:", err);
+  res.status(500).json({ ok: false, message: err.message || "Server error" });
+});
+
+// Prevent Node process crash
+process.on("unhandledRejection", (reason, p) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err);
+});
+
 // --------- Comment pack loader ----------
 function loadPackComments(name) {
   const map = {
@@ -1752,6 +1770,7 @@ if (speedMode === "superfast") {
   });
 }
 });
+
 
 // -------------------- Boot --------------------
 connectMongo()
