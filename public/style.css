@@ -423,6 +423,17 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   z-index: 9999;
 }
 
+/* 🔹 Logs Button (ছোট থাকবে) */
+#floating-controls button {
+  padding: 10px 16px;     
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+
 /* 🔹 Start / Stop আলাদা বড় */
 #floating-start,
 #floating-stop {
