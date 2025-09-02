@@ -416,22 +416,22 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 #floating-controls {
   position: fixed;
   bottom: 20px;
-  left: 20px; /* 👉 চাইলে right:20px করতে পারো */
+  right: 20px;       /* আগে ছিল left:20px → এখন ডানে */
   display: flex;
   flex-direction: row;
-  gap: 12px;
+  gap: 16px;         /* আগে 12px ছিল → একটু বেশি space */
   z-index: 9999;
 }
 
 #floating-controls button {
-  padding: 10px 16px;
+  padding: 14px 22px;   /* আগে ছিল 10px 16px → এখন বড় */
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 10px;  /* কোণায় একটু বেশি গোল */
+  font-size: 16px;      /* টেক্সট বড় */
   font-weight: bold;
   cursor: pointer;
   color: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.3);
 }
 
 #floating-start {
