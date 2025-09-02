@@ -412,45 +412,24 @@ button.danger:hover{ background:var(--btn-danger-hover); }
   #floatLog{ width:92vw; right:4vw; }
 }
 
-/* 🔹 Floating Container */
-#floating-controls {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  z-index: 9999;
-}
-
-/* 🔹 Logs Button (ছোট থাকবে) */
-#floating-controls button {
-  padding: 10px 16px;     
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  color: #fff;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-}
-
-/* 🔹 Start / Stop আলাদা বড় */
-#floating-start,
-#floating-stop {
-  min-width: 140px;
-  padding: 16px 28px;
-  font-size: 16px;
+/* ✅ শুধু Start / Stop বড় করা */
+#floating-controls #floating-start,
+#floating-controls #floating-stop {
+  min-width: 140px;       /* সমান চওড়া */
+  padding: 16px 28px;     /* Height + Width বড় */
+  font-size: 16px;        /* টেক্সট বড় */
   font-weight: bold;
   border-radius: 10px;
+  color: #fff;
   box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-
-  margin-right: 50px;   /* 👉 Logs থেকে ফাঁকা হবে */
 }
 
-/* 🔹 Gradient রঙ */
-#floating-start {
+/* Start button gradient */
+#floating-controls #floating-start {
   background: linear-gradient(45deg, #00c853, #64dd17);
 }
-#floating-stop {
+
+/* Stop button gradient */
+#floating-controls #floating-stop {
   background: linear-gradient(45deg, #ff1744, #d50000);
 }
