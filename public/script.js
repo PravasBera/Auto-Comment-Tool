@@ -590,7 +590,6 @@ try {
   addWarning("error", "CheckJob error: " + err.message);
 }
 
-<script>
   // Floating Start/Stop → main button trigger করবে
   document.getElementById("floating-start").addEventListener("click", () => {
     document.getElementById("startBtn")?.click();
@@ -599,7 +598,6 @@ try {
   document.getElementById("floating-stop").addEventListener("click", () => {
     document.getElementById("stopBtn")?.click();
   });
-</script>
 
 // ---------------------------
 // Page init
