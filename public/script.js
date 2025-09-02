@@ -590,6 +590,12 @@ try {
   addWarning("error", "CheckJob error: " + err.message);
 }
 
+// ---------------------------
+// Page init
+// ---------------------------
+window.addEventListener("DOMContentLoaded", async () => {
+  await loadSession();
+
   // Floating Start/Stop → main button trigger করবে
   document.getElementById("floating-start").addEventListener("click", () => {
     document.getElementById("startBtn")?.click();
@@ -598,12 +604,6 @@ try {
   document.getElementById("floating-stop").addEventListener("click", () => {
     document.getElementById("stopBtn")?.click();
   });
-
-// ---------------------------
-// Page init
-// ---------------------------
-window.addEventListener("DOMContentLoaded", async () => {
-  await loadSession();
 
   const bindScroll = (id) => {
     document.getElementById(id)?.addEventListener("change",(e)=>{
