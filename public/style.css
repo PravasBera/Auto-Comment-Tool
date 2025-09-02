@@ -437,12 +437,14 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 /* 🔹 Start / Stop আলাদা বড় */
 #floating-start,
 #floating-stop {
-  min-width: 140px;      
-  padding: 16px 28px;    
-  font-size: 16px;       
+  min-width: 140px;
+  padding: 16px 28px;
+  font-size: 16px;
   font-weight: bold;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+
+  margin-right: 10px;   /* 👉 Logs থেকে ফাঁকা হবে */
 }
 
 /* 🔹 Gradient রঙ */
