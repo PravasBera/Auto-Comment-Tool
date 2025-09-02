@@ -416,28 +416,38 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 #floating-controls {
   position: fixed;
   bottom: 20px;
-  right: 20px;       /* আগে ছিল left:20px → এখন ডানে */
+  right: 20px;        /* আগে ছিল left:20px → এখন ডানে */
   display: flex;
   flex-direction: row;
-  gap: 16px;         /* আগে 12px ছিল → একটু বেশি space */
+  gap: 16px;          /* আগে 12px ছিল → এখন একটু বেশি space */
   z-index: 9999;
 }
 
+/* ডিফল্ট সব বাটন (Logs সহ) */
 #floating-controls button {
-  padding: 14px 22px;   /* আগে ছিল 10px 16px → এখন বড় */
+  padding: 10px 16px;   /* 👉 ছোট থাকবে Logs এর জন্য */
   border: none;
-  border-radius: 10px;  /* কোণায় একটু বেশি গোল */
-  font-size: 16px;      /* টেক্সট বড় */
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
   color: #fff;
   box-shadow: 0 3px 8px rgba(0,0,0,0.3);
 }
 
+/* 👉 Start / Stop আলাদা বড় */
+#floating-start,
+#floating-stop {
+  min-width: 140px;     /* চওড়া */
+  font-size: 16px;      /* টেক্সট বড় */
+  padding: 14px 22px;   /* উঁচু + চওড়া */
+  border-radius: 10px;
+}
+
+/* রঙ */
 #floating-start {
   background: linear-gradient(45deg, #00c853, #64dd17);
 }
-
 #floating-stop {
   background: linear-gradient(45deg, #ff1744, #d50000);
 }
