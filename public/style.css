@@ -416,7 +416,7 @@ button.danger:hover{ background:var(--btn-danger-hover); }
 #floating-controls {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px;
   display: flex;
   flex-direction: row;   /* 👉 side by side */
   align-items: center;
