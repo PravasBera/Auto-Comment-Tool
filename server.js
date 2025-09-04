@@ -548,31 +548,37 @@ function getJob(sessionId) {
   return jobs.get(sessionId);
 }
 
+// Replace existing sseBroadcast + sseLine with these implementations:
+
 function sseBroadcast(sessionId, payloadObj) {
   const job = getJob(sessionId);
+  // ensure timestamp key name consistent (ts)
+  if (!payloadObj.ts) payloadObj.ts = Date.now();
   const payload = `data: ${JSON.stringify(payloadObj)}\n\n`;
   for (const res of job.clients) {
     try {
       res.write(payload);
     } catch {
-      job.clients.delete(res); // dead client remove
+      job.clients.delete(res);
     }
   }
 }
 
 function sseLine(sessionId, type = "log", text = "", meta = {}) {
   const job = getJob(sessionId);
+  // flatten meta into top-level to match client expectation
   const payloadObj = {
     ts: Date.now(),
     type,
     text,
-    meta
+    // copy meta fields to top-level (if keys conflict, meta wins intentionally)
+    ...meta
   };
 
-  // 🔥 এখানে log memory রাখো
+  // keep server-side log memory (string array)
   if (!job.logs) job.logs = [];
   job.logs.push(`[${new Date().toLocaleTimeString()}] ${type.toUpperCase()} ${text}`);
-  if (job.logs.length > 500) job.logs.shift(); // সর্বোচ্চ 500 লাইন রাখো
+  if (job.logs.length > 500) job.logs.shift();
 
   sseBroadcast(sessionId, payloadObj);
 }
@@ -580,6 +586,8 @@ function sseLine(sessionId, type = "log", text = "", meta = {}) {
 // --- named SSE event (e.g. "token")
 function sseNamed(sessionId, eventName, payloadObj = {}) {
   const job = getJob(sessionId);
+  // inside sseBroadcast before stringify
+payloadObj.ts = payloadObj.ts || payloadObj.t || Date.now();
   const payload = `event: ${eventName}\n` + `data: ${JSON.stringify(payloadObj)}\n\n`;
   for (const res of job.clients) {
     try { res.write(payload); } catch { job.clients.delete(res); }
@@ -1578,7 +1586,9 @@ const body = req.body || {};
 // advanced tuning knobs (override defaults)
 const roundJitterMaxMs   = Math.max(0, parseInt(body.roundJitterMaxMs ?? 80));
 const tokenCooldownMs    = Math.max(0, parseInt(body.tokenCooldownMs ?? 10));
-const quotaPerTokenHour  = Math.max(0, parseInt(body.quotaPerTokenPerHour ?? 100));
+// inside /start handler (parsing adv knobs)
+const quotaPerTokenHour =
+  Math.max(0, parseInt(body.quotaPerTokenPerHour ?? body.quotaPerTokenHour ?? 100));
 const namesPerComment    = Math.max(1, parseInt(body.namesPerComment ?? 1));
 const limitPerPost       = Math.max(0, parseInt(body.limitPerPost ?? 50));
 
