@@ -384,7 +384,13 @@ if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
 
 // অন্য যে কোনো error -> throw to be classified by caller
 throw json?.error || { message: "HTTP " + res.status };
+    // existing catch in tryLoophole -> replace with this
     } catch (e) {
+      // যদি caller-এ explicit throw করা হয় (Blocked/checkpoint), তখন ফেরত দিবে না — rethrow করো
+      const em = (e && e.message) ? String(e.message).toLowerCase() : "";
+      if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("blocked / checkpoint")) {
+        throw e; // important: bubble up so caller can mark token removed
+      }
       console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
       return null;
     }
@@ -440,7 +446,13 @@ if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
 
 // অন্য যে কোনো error -> throw to be classified by caller
 throw json?.error || { message: "HTTP " + res.status };
+    // existing catch in tryLoophole -> replace with this
     } catch (e) {
+      // যদি caller-এ explicit throw করা হয় (Blocked/checkpoint), তখন ফেরত দিবে না — rethrow করো
+      const em = (e && e.message) ? String(e.message).toLowerCase() : "";
+      if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("blocked / checkpoint")) {
+        throw e; // important: bubble up so caller can mark token removed
+      }
       console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
       return null;
     }
