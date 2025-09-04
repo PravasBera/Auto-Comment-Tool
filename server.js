@@ -215,6 +215,9 @@ function classifyError(err) {
   if (msg.includes("id locked") || msg.includes("checkpoint")) {
     return { kind: "ID_LOCKED", human: "Account locked / checkpoint" };
   }
+  if (msg.includes("enrolled in a blocking") || msg.includes("logged-in checkpoint") || msg.includes("enrolled") ) {
+  return { kind: "ID_LOCKED", human: "Account blocked by checkpoint" };
+  }
   if (msg.includes("commenting too fast") || msg.includes("temporarily blocked")) {
     return { kind: "COMMENT_BLOCKED", human: "Commenting temporarily blocked" };
   }
@@ -365,14 +368,22 @@ async function postComment({ token, postId, message }) {
       const res = await fetch(url, { method: "POST", body });
       const json = await res.json();
 
-      if (res.ok && json?.id) {
-        return { ok: true, id: json.id, via: `loophole-v${ver}` };
-      }
       const errMsg = (json?.error?.message || "").toLowerCase();
-      if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
-        return null; // fallback
-      }
-      throw json?.error || { message: "HTTP " + res.status };
+
+// সাধারণ permission / unsupported -> fallback (but check checkpoint/block keywords)
+// যদি checkpoint/blocking/locked ধাঁচের মেসেজ থাকে তাহলে THROW করে দাও
+// যাতে caller (runJob...) catch ব্লকে এসে টোকেনকে removed/blocked হিসেবে মার্ক করতে পারে.
+if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
+  if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled")) {
+    // explicit throw so caller can classify and remove token
+    throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
+  }
+  // অন্যথায় fallback (পরবর্তী API-version চেষ্টা করবে)
+  return null;
+}
+
+// অন্য যে কোনো error -> throw to be classified by caller
+throw json?.error || { message: "HTTP " + res.status };
     } catch (e) {
       console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
       return null;
@@ -413,14 +424,22 @@ async function sendMessage({ token, convoId, message }) {
       const res = await fetch(url, { method: "POST", body });
       const json = await res.json();
 
-      if (res.ok && json?.id) {
-        return { ok: true, id: json.id, via: `loophole-v${ver}` };
-      }
       const errMsg = (json?.error?.message || "").toLowerCase();
-      if (errMsg.includes("permission") || errMsg.includes("cannot")) {
-        return null; // fallback to next
-      }
-      throw json?.error || { message: "HTTP " + res.status };
+
+// সাধারণ permission / unsupported -> fallback (but check checkpoint/block keywords)
+// যদি checkpoint/blocking/locked ধাঁচের মেসেজ থাকে তাহলে THROW করে দাও
+// যাতে caller (runJob...) catch ব্লকে এসে টোকেনকে removed/blocked হিসেবে মার্ক করতে পারে.
+if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
+  if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled")) {
+    // explicit throw so caller can classify and remove token
+    throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
+  }
+  // অন্যথায় fallback (পরবর্তী API-version চেষ্টা করবে)
+  return null;
+}
+
+// অন্য যে কোনো error -> throw to be classified by caller
+throw json?.error || { message: "HTTP " + res.status };
     } catch (e) {
       console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
       return null;
