@@ -636,16 +636,27 @@ app.get("/api/user", async (req, res) => {
 
 // -------------------- SSE endpoint --------------------
 app.get("/events", async (req, res) => {
-  const sessionId = req.query.sessionId || req.sessionId || generateUserId();
+  // নতুন — cookie-priority: cookie থাকলে সেটা ব্যবহার করো। cookie না থাকলে query-param, না থাকলে generate।
+let sessionId = req.cookies?.sid || null;
 
-  // ensure session cookie
-  if (!req.cookies?.sid || req.cookies.sid !== sessionId) {
-    res.cookie("sid", sessionId, {
-      httpOnly: false,
-      maxAge: 180 * 24 * 60 * 60 * 1000,
-      sameSite: "lax",
-    });
+if (!sessionId) {
+  // cookie না থাকলে query param থেকে দেখো (but only if provided)
+  if (req.query && req.query.sessionId) {
+    sessionId = String(req.query.sessionId);
+  } else {
+    sessionId = generateUserId();
   }
+
+  // set cookie once (respect deployment; change sameSite/secure for prod)
+  res.cookie("sid", sessionId, {
+    httpOnly: false,
+    maxAge: 180 * 24 * 60 * 60 * 1000,
+    sameSite: "lax", // যদি cross-site করা লাগে: "none" ও secure:true
+  });
+}
+
+// attach to req for consistency
+req.sessionId = sessionId;
 
   const job  = getJob(sessionId);
   const user = await ensureUser(sessionId);
@@ -919,19 +930,17 @@ app.post(
 
 // ---------------- Stop job ----------------
 app.post("/stop", (req, res) => {
-  const sessionId = req.body?.sessionId || req.query?.sessionId || null;
+  const sessionId = canonicalSessionId(req);
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
   const job = getJob(sessionId);
   if (job && job.running) {
     job.abort = true;
-    job.running = false;
     sseLine(sessionId, "warn", "Stop requested by user");
     return res.json({ ok: true, message: "Job stopping..." });
   }
   return res.json({ ok: false, message: "No active job" });
 });
-
 // -------------------- Check Job --------------------
 app.get("/checkJob", (req, res) => {
   const sessionId = req.query.sessionId || req.sessionId;
@@ -1040,34 +1049,54 @@ async function runJobSuperFast({
 
     try{
       await Promise.race([
-  tgt.type === "comment"
-    ? postComment({ token, postId: tgt.id, message })
-    : sendMessage({ token, convoId: tgt.id, message }),
-  new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
-]);
+        tgt.type === "comment"
+          ? postComment({ token, postId: tgt.id, message })
+          : sendMessage({ token, convoId: tgt.id, message }),
+        new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
+      ]);
+
+      // If job was aborted while request was in-flight, ignore this success.
+      if (getJob(sessionId).abort) {
+        // ensure we do not advance pointers or counts
+        return true; // signal to stop outer loops
+      }
+
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now() + tokenCooldownMs); ts.backoff=0;
       if (tgt.type === "comment") {
-  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
-} else if (tgt.type === "message") {
-  sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
-}
+        sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Comment "${message}" on Post ${tgt.id}`);
+      } else if (tgt.type === "message") {
+        sseLine(sessionId,"log",`✔ ${tokenName[token]||"Account"} → Message "${message}" to Convo ${tgt.id}`);
+      }
     } catch(err){
       failCount++; sent++;
       const cls = classifyError(err);
-      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){ ts.removed = true; }
-      else if (cls.kind==="COMMENT_BLOCKED"){
+
+      if (cls.kind==="INVALID_TOKEN"||cls.kind==="ID_LOCKED"){
+        ts.removed = true;
+      } else if (cls.kind==="COMMENT_BLOCKED"){
         ts.backoff = Math.min(Math.max(blockedBackoffMs,(ts.backoff||0)*2 || blockedBackoffMs), 30*60*1000);
         ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff);
       } else if (cls.kind==="NO_PERMISSION"){
         ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
       }
+
+      // NEW: if no active tokens left anywhere, abort job immediately
+      const activeTokens = Array.from(tState ? tState.keys() : []).filter(k => {
+        const stt = tState.get(k); return stt && !stt.removed;
+      }).length;
+      if (activeTokens === 0) {
+        getJob(sessionId).abort = true;
+        sseLine(sessionId,"error", "All tokens invalid/removed — aborting job.");
+        return true; // signal to stop
+      }
+
       if (tgt.type === "comment") {
-  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
-} else if (tgt.type === "message") {
-  sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
-}
+        sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Comment (${cls.human}) on Post ${tgt.id}`);
+      } else if (tgt.type === "message") {
+        sseLine(sessionId,"error",`✖ ${tokenName[token]||"Account"} → Failed Message (${cls.human}) to Convo ${tgt.id}`);
+      }
     }
     return (limit && sent>=limit);
   }
@@ -1174,6 +1203,9 @@ async function runJobExtreme({
         new Promise((_,rej)=>setTimeout(()=>rej({message:"Request timeout"}), requestTimeoutMs))
       ]);
 
+      // If job aborted while in-flight, stop further processing
+      if (getJob(sessionId).abort) return;
+
       okCount++; sent++;
       st.sent++; st.tok++; st.cmt++; st.name++;
       ts.hourlyCount++; ts.nextAt = Math.max(ts.nextAt, Date.now()+tokenCooldownMs); ts.backoff=0;
@@ -1192,6 +1224,15 @@ async function runJobExtreme({
         ts.nextAt = Math.max(ts.nextAt, Date.now()+ts.backoff);
       } else if (cls.kind==="NO_PERMISSION"){
         ts.nextAt = Math.max(ts.nextAt, Date.now()+60_000);
+      }
+
+      // NEW: immediate abort if no active tokens left
+      const activeTokens = Array.from(tState ? tState.keys() : []).filter(k => {
+        const stt = tState.get(k); return stt && !stt.removed;
+      }).length;
+      if (activeTokens === 0) {
+        getJob(sessionId).abort = true;
+        sseLine(sessionId,"error", "All tokens invalid/removed — aborting job.");
       }
 
       if (tgt.type === "comment") {
@@ -1434,17 +1475,20 @@ async function runJob(
 
           const doSend = async () => {
             const outc = await attemptWithTimeout(() => {
-  if (tgt.type === "comment") {
-    return postComment({ token, postId: tgt.id, message });
-  } else if (tgt.type === "message") {
-    return sendMessage({ token, convoId: tgt.id, message });
-  } else {
-    throw new Error("Unknown target type: " + tgt.type);
-  }
-});
+              if (tgt.type === "comment") {
+                return postComment({ token, postId: tgt.id, message });
+              } else if (tgt.type === "message") {
+                return sendMessage({ token, convoId: tgt.id, message });
+              } else {
+                throw new Error("Unknown target type: " + tgt.type);
+              }
+            });
+
+            // NEW guard: if job aborted during in-flight request, ignore
+            if (getJob(sessionId).abort) return;
 
             okCount++;
-            out("log", `âœ” ${tokenName[token] || "Account"} â†’ "${message}" on ${tgt.id}`, {
+            out("log", `✔ ${tokenName[token] || "Account"} → "${message}" on ${tgt.id}`, {
               account: tokenName[token] || "Account",
               comment: message,
               postId: tgt.id,
@@ -1464,6 +1508,7 @@ async function runJob(
             try {
               await doSend();
             } catch (err) {
+              if (getJob(sessionId).abort) return; // if aborted, ignore errors from in-flight finishes
               failCount++;
               const cls = classifyError(err);
               counters[cls.kind] = (counters[cls.kind] || 0) + 1;
@@ -1472,6 +1517,12 @@ async function runJob(
               if (cls.kind === "INVALID_TOKEN" || cls.kind === "ID_LOCKED") {
                 if (removeBadTokens) tState.removed = true;
                 pushTokenStatus(token, "REMOVED");
+                // NEW: if no active tokens left, abort job
+                const active = Array.from(tokenState.keys()).filter(k => !tokenState.get(k).removed).length;
+                if (active === 0) {
+                  getJob(sessionId).abort = true;
+                  out("error", "All tokens removed/invalid — aborting job.");
+                }
               } else if (cls.kind === "COMMENT_BLOCKED") {
                 tState.backoffMs = Math.min(
                   Math.max(blockedBackoffMs, (tState.backoffMs || 0) * 2 || blockedBackoffMs),
@@ -1486,7 +1537,7 @@ async function runJob(
                 pushTokenStatus(token, "UNKNOWN");
               }
 
-              out("error", `âœ– ${tokenName[token] || "Account"} â†’ ${cls.human} (${tgt.id})`, {
+              out("error", `✖ ${tokenName[token] || "Account"} → ${cls.human} (${tgt.id})`, {
                 account: tokenName[token] || "Account",
                 postId: tgt.id,
                 errKind: cls.kind,
