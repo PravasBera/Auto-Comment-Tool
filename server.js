@@ -360,63 +360,44 @@ async function getAccountName(token) {
 }
 
 // -------------------- Post Comment (Dual System with Loophole) --------------------
+// শুধুই v15 ব্যবহার করে postComment — checkpoint/errors কে bubble up করে
 async function postComment({ token, postId, message }) {
-  async function tryLoophole(ver) {
-    const url = `https://graph.facebook.com/v${ver}.0/${encodeURIComponent(postId)}/comments`;
-    const body = new URLSearchParams({ message, access_token: token });
-    try {
-      const res = await fetch(url, { method: "POST", body });
-      const json = await res.json();
-
-      const errMsg = (json?.error?.message || "").toLowerCase();
-
-// সাধারণ permission / unsupported -> fallback (but check checkpoint/block keywords)
-// যদি checkpoint/blocking/locked ধাঁচের মেসেজ থাকে তাহলে THROW করে দাও
-// যাতে caller (runJob...) catch ব্লকে এসে টোকেনকে removed/blocked হিসেবে মার্ক করতে পারে.
-if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
-  if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled")) {
-    // explicit throw so caller can classify and remove token
-    throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
-  }
-  // অন্যথায় fallback (পরবর্তী API-version চেষ্টা করবে)
-  return null;
-}
-
-// অন্য যে কোনো error -> throw to be classified by caller
-throw json?.error || { message: "HTTP " + res.status };
-    // existing catch in tryLoophole -> replace with this
-    } catch (e) {
-      // যদি caller-এ explicit throw করা হয় (Blocked/checkpoint), তখন ফেরত দিবে না — rethrow করো
-      const em = (e && e.message) ? String(e.message).toLowerCase() : "";
-      if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("blocked / checkpoint")) {
-        throw e; // important: bubble up so caller can mark token removed
-      }
-      console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
-      return null;
-    }
-  }
-
-  // 🔹 1st attempt → loophole v7
-  let result = await tryLoophole(7);
-  if (result) return result;
-
-  // 🔹 2nd attempt → loophole v15
-  result = await tryLoophole(15);
-  if (result) return result;
-
-  // 🔹 3rd attempt → fallback to official v19
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(postId)}/comments`;
+  const url = `https://graph.facebook.com/v15.0/${encodeURIComponent(postId)}/comments`;
   const body = new URLSearchParams({ message, access_token: token });
 
-  const res = await fetch(url, { method: "POST", body });
-  const json = await res.json();
+  try {
+    const res = await fetch(url, { method: "POST", body }); // Content-Type set automatically
+    const json = await res.json().catch(() => ({}));
 
-  if (!res.ok || json?.error) {
+    // success -> return
+    if (res.ok && json && json.id) {
+      return { ok: true, id: json.id, via: "v15" };
+    }
+
+    // error handling
+    const errMsg = (json?.error?.message || "").toString().toLowerCase();
+
+    // checkpoint/blocking/locked-like messages -> throw so caller can mark token removed
+    if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled") || errMsg.includes("action blocked")) {
+      throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
+    }
+
+    // permission / unsupported -> throw so caller can handle (previous code returned null to fallback)
+    if (errMsg.includes("permission") || errMsg.includes("unsupported") || errMsg.includes("not authorized")) {
+      throw json?.error || { message: json?.error?.message || `Permission / unsupported: HTTP ${res.status}` };
+    }
+
+    // 다른 কোনো error -> throw so caller classifies it
     throw json?.error || { message: `HTTP ${res.status}` };
+  } catch (e) {
+    // যদি catch-এ checkpoint-like message আসে (কেউ আগে throw করে ফেলল), আবার rethrow করো
+    const em = (e && e.message) ? String(e.message).toLowerCase() : "";
+    if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("action blocked") || em.includes("blocked / checkpoint")) {
+      throw e;
+    }
+    // otherwise bubble up the error (so runJob's classifyError can run)
+    throw e;
   }
-  if (!json?.id) throw { message: "Comment id missing in response" };
-
-  return { ok: true, id: json.id, via: "v19" };
 }
 
 // -------------------- Send Message (Dual System with Loophole) --------------------
