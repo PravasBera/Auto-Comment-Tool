@@ -525,6 +525,37 @@ function buildCommentWithNames(baseComment, namesList) {
   return `${tags} ${baseComment}`.trim();
 }
 
+// === Session AbortController utilities ===
+// place this near the top (just before or after `const jobs = new Map();`)
+
+const sessionControllers = new Map();
+
+function createSessionController(sessionId) {
+  if (!sessionId) return null;
+  // যদি আগের controller থাকে, আগে তাকে abort করে replace করো
+  if (sessionControllers.has(sessionId)) {
+    try { sessionControllers.get(sessionId).abort(); } catch (e) {}
+  }
+  const ac = new AbortController();
+  sessionControllers.set(sessionId, ac);
+  return ac;
+}
+
+function getSessionController(sessionId) {
+  if (!sessionId) return null;
+  return sessionControllers.get(sessionId) || null;
+}
+
+function clearSessionController(sessionId) {
+  if (!sessionId) return;
+  try {
+    const c = sessionControllers.get(sessionId);
+    if (c) try { c.abort(); } catch (e) {}
+  } finally {
+    sessionControllers.delete(sessionId);
+  }
+}
+
 // -------------------- SSE state per session --------------------
 const jobs = new Map();
 
