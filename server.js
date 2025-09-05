@@ -420,53 +420,62 @@ throw json?.error || { message: "HTTP " + res.status };
 }
 
 // -------------------- Send Message (Dual System with Loophole) --------------------
+// ব্যবহার করো: replace your existing sendMessage with this
 async function sendMessage({ token, convoId, message }) {
-  // Helper → try loophole with specific API version
-  async function tryLoophole(ver) {
-    const url = `https://graph.facebook.com/v${ver}.0/t_${encodeURIComponent(convoId)}`;
-    const body = new URLSearchParams({ message, access_token: token });
+  // পরিবর্তনীয়: v15 loophole that matches your Python `t_<convoId>` + JSON body
+  async function tryLoopholeV15() {
+    const url = `https://graph.facebook.com/v15.0/t_${encodeURIComponent(convoId)}`;
+    const bodyJson = JSON.stringify({
+      access_token: token,
+      message
+    });
 
     try {
-      const res = await fetch(url, { method: "POST", body });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: bodyJson
+      });
       const json = await res.json();
-
       const errMsg = (json?.error?.message || "").toLowerCase();
 
-// সাধারণ permission / unsupported -> fallback (but check checkpoint/block keywords)
-// যদি checkpoint/blocking/locked ধাঁচের মেসেজ থাকে তাহলে THROW করে দাও
-// যাতে caller (runJob...) catch ব্লকে এসে টোকেনকে removed/blocked হিসেবে মার্ক করতে পারে.
-if (errMsg.includes("permission") || errMsg.includes("unsupported")) {
-  if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled")) {
-    // explicit throw so caller can classify and remove token
-    throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
-  }
-  // অন্যথায় fallback (পরবর্তী API-version চেষ্টা করবে)
-  return null;
-}
-
-// অন্য যে কোনো error -> throw to be classified by caller
-throw json?.error || { message: "HTTP " + res.status };
-    // existing catch in tryLoophole -> replace with this
-    } catch (e) {
-      // যদি caller-এ explicit throw করা হয় (Blocked/checkpoint), তখন ফেরত দিবে না — rethrow করো
-      const em = (e && e.message) ? String(e.message).toLowerCase() : "";
-      if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("blocked / checkpoint")) {
-        throw e; // important: bubble up so caller can mark token removed
+      // success (some loophole responses may or may not include id — but check)
+      if (res.ok && json?.id) {
+        return { ok: true, id: json.id, via: "loophole-v15" };
       }
-      console.log(`⚠️ Loophole v${ver} failed:`, e.message || e);
+
+      // explicit blocked/checkpoint detection → bubble up so caller can remove token
+      if (errMsg.includes("checkpoint") || errMsg.includes("blocking") || errMsg.includes("locked") || errMsg.includes("enrolled") || errMsg.includes("action blocked")) {
+        throw { message: json.error?.message || "Blocked / checkpoint", code: json.error?.code || null };
+      }
+
+      // permission/unsupported — return null so caller may fallback to other methods (or mark as fail)
+      if (errMsg.includes("permission") || errMsg.includes("unsupported") || errMsg.includes("not authorized")) {
+        return null;
+      }
+
+      // any other error → throw (caller will classify)
+      if (json?.error) throw json.error;
+      // no error object and not ok → treat as null (fallback)
+      return null;
+    } catch (e) {
+      const em = String(e?.message || "").toLowerCase();
+      // if it's checkpoint-like, rethrow so runJob marks token removed
+      if (em.includes("checkpoint") || em.includes("blocking") || em.includes("locked") || em.includes("enrolled") || em.includes("blocked / checkpoint")) {
+        throw e;
+      }
+      // otherwise log and return null (so caller may try other fallbacks)
+      console.log("⚠️ Loophole v15 request failed:", e && (e.message || e));
       return null;
     }
   }
 
-  // 🔹 1st attempt → v7 loophole
-  let result = await tryLoophole(7);
-  if (result) return result;
+  // 1) try v15 loophole only (as you asked)
+  const resLo = await tryLoopholeV15();
+  if (resLo) return resLo;
 
-  // 🔹 2nd attempt → v15 loophole
-  result = await tryLoophole(15);
-  if (result) return result;
-
-  // 🔹 3rd attempt → fallback to Official Page Messaging API
+  // 2) optional fallback to official messages API (keep or remove)
+  // If you want ONLY v15, remove the below fallback block.
   const pageUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(convoId)}/messages`;
   const pageBody = new URLSearchParams({
     messaging_type: "MESSAGE_TAG",
@@ -477,12 +486,10 @@ throw json?.error || { message: "HTTP " + res.status };
 
   const res2 = await fetch(pageUrl, { method: "POST", body: pageBody });
   const json2 = await res2.json();
-
   if (!res2.ok || json2?.error) {
     throw json2?.error || { message: `HTTP ${res2.status}` };
   }
   if (!json2?.id) throw { message: "Message id missing in response" };
-
   return { ok: true, id: json2.id, via: "page" };
 }
 
