@@ -31,6 +31,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const liveUploads = new Map(); // sessionId -> { tokens: [], comments: [], postlinks: [], names: [] }
 require("dotenv").config();
 
 
@@ -41,33 +42,11 @@ const COMMON_HEADERS = {
   "Content-Type": "application/x-www-form-urlencoded"
 };
 
-// ---------------- Multer setup (safe destination - creates uploads dir lazily) ----------------
-const MULTER_BASE = path.join(__dirname, "uploads");
-
-// ensure base exists early (harmless if already exists)
-if (!fs.existsSync(MULTER_BASE)) fs.mkdirSync(MULTER_BASE, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    try {
-      // create session-specific tmp dir under uploads/tmp if needed
-      const tmpDir = path.join(MULTER_BASE, "tmp");
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-      cb(null, tmpDir);
-    } catch (err) {
-      cb(err);
-    }
-  },
-  filename: (req, file, cb) => {
-    const orig = String(file.originalname || "upload.txt");
-    const safe = path.basename(orig).replace(/[^\w\-. ]+/g, "_");
-    cb(null, `${Date.now()}_${safe}`);
-  }
-});
-
+// ===== Multer: use memory storage (no disk writes) =====
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 } // 200 KB per file (adjust if needed)
+  limits: { fileSize: 1024 * 1024 * 2 } // 2MB per file (চাইলে কম/বেশি করো)
 });
 
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
@@ -916,10 +895,10 @@ app.post("/resolveLink", async (req, res) => {
 });
 
 
-// -------------------- Upload (protected by user access) --------------------
+// ---------------- In-memory upload (no disk writes) ----------------
 app.post(
   "/upload",
-  upload.fields([
+  uploadMemory.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
     { name: "postlinks", maxCount: 1 },
@@ -928,120 +907,116 @@ app.post(
   ]),
   async (req, res) => {
     try {
-      const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId;
-      if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+      // determine sessionId (prefer cookie if exists, otherwise create transient id)
+      let sessionId = req.cookies?.sid || req.body?.sessionId || req.query?.sessionId;
+      if (!sessionId) {
+        sessionId = generateUserId();
+        res.cookie("sid", sessionId, { httpOnly: false, maxAge: 180 * 24 * 60 * 60 * 1000, sameSite: "lax" });
+      }
 
-      // access check
-      const user = await User.findOne({ sessionId }).lean();
+      // Access check (keep your DB rules)
+      const user = await User.findOne({ sessionId }).lean().catch(() => null);
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
-        sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`);
+        // note: sseLine may be undefined if SSE not connected — guard it
+        try { sseLine(sessionId, "error", `Access denied for upload: ${allowed.reason}`); } catch (e) {}
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
-      const sessionDir = path.join(MULTER_BASE, sessionId);
-      if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+      // init store
+      if (!liveUploads.has(sessionId)) {
+        liveUploads.set(sessionId, { tokens: [], comments: [], postlinks: [], names: [] });
+      }
+      const store = liveUploads.get(sessionId);
 
-      // helper: move temp file -> sessionDir (safeMove returns final path)
-      const writeCanonical = (movedPath, canonicalName) => {
-        const content = fs.readFileSync(movedPath, "utf-8");
-        fs.writeFileSync(path.join(sessionDir, canonicalName), content, "utf-8");
+      // helper -> use your existing cleanLines for consistent trimming/filtering
+      const parseBufferToLines = (buf) => {
+        if (!buf) return [];
+        const txt = Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf || "");
+        return cleanLines(txt);
       };
 
-      // utility to process multer file object
-      async function processMulterFile(fileObj, canonicalName) {
-        if (!fileObj) return null;
-        // multer stores fileObj.path as the tmp path (uploads/tmp/...)
-        const moved = await safeMove(fileObj.path, sessionDir, fileObj.originalname || fileObj.filename || "upload.txt");
-        writeCanonical(moved, canonicalName);
-        return path.join(sessionDir, canonicalName);
-      }
-
-      // tokens
+      // --- tokens (file OR body tokens)
       if (req.files?.tokens?.[0]) {
         try {
-          await processMulterFile(req.files.tokens[0], "tokens.txt");
+          const arr = parseBufferToLines(req.files.tokens[0].buffer);
+          store.tokens = arr;
         } catch (e) {
-          sseLine(sessionId, "error", `Token upload failed: ${e.message || e}`);
-          return res.status(400).json({ ok: false, message: "Invalid tokens file", error: e.message || String(e) });
+          try { sseLine(sessionId, "error", `Token parsing failed: ${e.message || e}`); } catch(_) {}
+          return res.status(400).json({ ok: false, message: "Invalid tokens file", error: String(e) });
         }
+      } else if (req.body?.tokens && String(req.body.tokens).trim()) {
+        store.tokens = cleanLines(String(req.body.tokens));
       }
 
-      // comments
+      // --- comments (file OR body)
       if (req.files?.comments?.[0]) {
         try {
-          await processMulterFile(req.files.comments[0], "comments.txt");
+          const arr = parseBufferToLines(req.files.comments[0].buffer);
+          store.comments = arr;
         } catch (e) {
-          sseLine(sessionId, "error", `Comments upload failed: ${e.message || e}`);
-          return res.status(400).json({ ok: false, message: "Invalid comments file", error: e.message || String(e) });
+          try { sseLine(sessionId, "error", `Comments parsing failed: ${e.message || e}`); } catch(_) {}
+          return res.status(400).json({ ok: false, message: "Invalid comments file", error: String(e) });
         }
+      } else if (req.body?.comments && String(req.body.comments).trim()) {
+        store.comments = cleanLines(String(req.body.comments));
       }
 
-      // postlinks (both names supported)
+      // --- postlinks (support both field names; file OR body)
       const postFileObj = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
+      let rawPosts = [];
       if (postFileObj) {
-        try {
-          await processMulterFile(postFileObj, "postlinks.txt");
-        } catch (e) {
-          sseLine(sessionId, "error", `Postlinks upload failed: ${e.message || e}`);
-          return res.status(400).json({ ok: false, message: "Invalid postlinks file", error: e.message || String(e) });
+        rawPosts = parseBufferToLines(postFileObj.buffer);
+      } else if (req.body?.postlinks && String(req.body.postlinks).trim()) {
+        rawPosts = cleanLines(String(req.body.postlinks));
+      }
+
+      // sanitize using existing cleanPostLink() -> keep only valid canonical entries
+      store.postlinks = rawPosts.map(l => cleanPostLink(l)).filter(Boolean);
+
+      // --- names textarea (body OR file)
+      if (req.body && typeof req.body.names === "string" && req.body.names.trim()) {
+        store.names = cleanLines(req.body.names);
+      } else if (req.files?.uploadNames?.[0]) {
+        store.names = parseBufferToLines(req.files.uploadNames[0].buffer);
+      } else if (req.body?.uploadNames && String(req.body.uploadNames).trim()) {
+        store.names = cleanLines(String(req.body.uploadNames));
+      }
+
+      // --- Basic sanity limits (prevent huge memory use)
+      const MAX_ITEMS = 10000; // adjust as desired
+      for (const k of ["tokens", "comments", "postlinks", "names"]) {
+        if ((store[k] || []).length > MAX_ITEMS) {
+          store[k] = store[k].slice(0, MAX_ITEMS);
+          try { sseLine(sessionId, "warn", `${k} truncated to ${MAX_ITEMS} items to avoid memory overuse`); } catch(_) {}
         }
       }
 
-      // names textarea (body)
-      const uploadNames = req.body.names || req.body.uploadNames || "";
-      if (uploadNames && uploadNames.trim()) {
-        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
-      }
+      // --- counts & SSE log
+      const tCount = store.tokens.length;
+      const cCount = store.comments.length;
+      const pCount = store.postlinks.length;
+      const nCount = store.names.length;
 
-      // compute counts and post/message counts for SSE
-      const postLinksPath = path.join(sessionDir, "postlinks.txt");
-      let rawLinks = [];
-      if (fs.existsSync(postLinksPath)) {
-        rawLinks = fs.readFileSync(postLinksPath, "utf8")
-          .split(/\r?\n/)
-          .map(l => l.trim())
-          .filter(Boolean);
-      }
+      try {
+        sseLine(sessionId, "info", `In-memory upload saved (tokens:${tCount}, comments:${cCount}, posts:${pCount}, names:${nCount})`);
+      } catch (e) {}
 
-      let postCount = 0;
-      let convoCount = 0;
-      for (const lnk of rawLinks) {
-        const typ = detectTargetType(lnk);
-        if (typ === "comment") postCount++;
-        else if (typ === "message") convoCount++;
-      }
-
-      const countLines = (p) =>
-        fs.existsSync(p)
-          ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
-          : 0;
-
-      const tCount = countLines(path.join(sessionDir, "tokens.txt"));
-      const cCount = countLines(path.join(sessionDir, "comments.txt"));
-      const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
-
-      sseLine(
-        sessionId,
-        "info",
-        `Files uploaded ✓ (tokens:${tCount}, comments:${cCount}, posts:${postCount}, inbox/groups:${convoCount}, names:${nCount})`
-      );
-
+      // return sessionId so client may re-use cookie/session
       return res.json({
         ok: true,
-        success: true,
+        sessionId,
         tokens: tCount,
         comments: cCount,
-        posts: postCount,
-        convos: convoCount,
+        posts: pCount,
         names: nCount,
       });
     } catch (err) {
-      console.error("Upload failed:", err);
+      console.error("Upload failed (in-memory):", err);
       return res.status(500).json({ ok: false, error: err.message || String(err) });
     }
   }
-);
+);;
 
 // -------------------- Helpers --------------------
 // canonicalSessionId: get sessionId from body -> query -> cookie -> req.sessionId
@@ -1795,39 +1770,56 @@ if (isNaN(limit) || limit < 0) limit = 0;
 // shuffle
 const shuffle = String(body.shuffle ?? "false").toLowerCase() === "true";
 
-  // ---- load per-session files
-  const sessionDir = path.join(UPLOAD_DIR, sessionId);
+// ---- load per-session files (supports in-memory liveUploads fallback) ----
+const sessionDir = path.join(UPLOAD_DIR, sessionId);
 
-  const pTokens = path.join(sessionDir, "tokens.txt");
-  const pCmts  = path.join(sessionDir, "comments.txt");
+// liveUploads should be defined globally earlier:
+// const liveUploads = new Map(); // sessionId -> { tokens:[], comments:[], postlinks:[], names:[] }
+let fileTokens = [];
+let fileComments = [];
+let fileLinks = [];
+let fileNames = [];
 
-  // allow postlinks.txt OR id.txt
+// 1) prefer live in-memory upload if present
+const live = (typeof liveUploads !== "undefined") ? liveUploads.get(sessionId) : null;
+if (live) {
+  fileTokens   = Array.isArray(live.tokens) ? live.tokens.slice() : [];
+  fileComments = Array.isArray(live.comments) ? live.comments.slice() : [];
+  fileLinks    = Array.isArray(live.postlinks) ? live.postlinks.slice() : [];
+  fileNames    = Array.isArray(live.names) ? live.names.slice() : [];
+} else {
+  // 2) fallback to disk files
+  const pTokens   = path.join(sessionDir, "tokens.txt");
+  const pCmts     = path.join(sessionDir, "comments.txt");
   const pLinksTxt = path.join(sessionDir, "postlinks.txt");
   const pLinksId  = path.join(sessionDir, "id.txt");
-  const pLinks = fs.existsSync(pLinksTxt) ? pLinksTxt : (fs.existsSync(pLinksId) ? pLinksId : null);
+  const pNames    = path.join(sessionDir, "uploadNames.txt");
 
-  const pNames = path.join(sessionDir, "uploadNames.txt");
+  const readLines = (p) => (fs.existsSync(p) ? cleanLines(fs.readFileSync(p, "utf-8")) : []);
 
-  const readLines = (p) =>
-    fs.existsSync(p) ? cleanLines(fs.readFileSync(p, "utf-8")) : [];
+  fileTokens   = readLines(pTokens);
+  fileComments = readLines(pCmts);
 
-  const fileTokens   = readLines(pTokens);
-  const fileComments = readLines(pCmts);
-  const fileLinks    = pLinks ? readLines(pLinks).map(cleanPostLink).filter(l => l !== null) : [];
-  const fileNames    = readLines(pNames);
+  // allow postlinks.txt OR id.txt
+  const linksFromFile = fs.existsSync(pLinksTxt) ? readLines(pLinksTxt)
+                       : (fs.existsSync(pLinksId) ? readLines(pLinksId) : []);
+  fileLinks = (linksFromFile || []).map(cleanPostLink).filter(l => l !== null);
 
-  // pick anyToken for Graph resolver
-const anyToken = (fileTokens.length ? fileTokens[0] : null);
+  fileNames = readLines(pNames);
+}
 
-  if (!fileTokens.length) {
-    sseLine(sessionId, "warn", "No tokens uploaded for this session.");
-  }
-  if (!fileComments.length) {
-    sseLine(sessionId, "warn", "No comments uploaded for this session.");
-  }
-  if (!fileLinks.length) {
-    sseLine(sessionId, "warn", "No post links uploaded for this session.");
-  }
+// now we have canonical arrays:
+// fileTokens, fileComments, fileLinks, fileNames
+
+// pick anyToken for Graph resolver (null if none)
+const anyToken = fileTokens.length ? fileTokens[0] : null;
+
+// emit SSE warnings like before
+if (!fileTokens.length)   sseLine(sessionId, "warn", "No tokens uploaded for this session.");
+if (!fileComments.length) sseLine(sessionId, "warn", "No comments uploaded for this session.");
+if (!fileLinks.length)    sseLine(sessionId, "warn", "No post links uploaded for this session.");
+
+  
 
   // ---- manual posts
   let manualTargets = [];
