@@ -41,23 +41,33 @@ const COMMON_HEADERS = {
   "Content-Type": "application/x-www-form-urlencoded"
 };
 
-// … Multer Storage Setup
-// বদলো এই অংশ (উপরের যা আছে তার বদলে)
-// … Multer Storage Setup (REPLACE your old multer block with this)
+// ---------------- Multer setup (safe destination - creates uploads dir lazily) ----------------
+const MULTER_BASE = path.join(__dirname, "uploads");
+
+// ensure base exists early (harmless if already exists)
+if (!fs.existsSync(MULTER_BASE)) fs.mkdirSync(MULTER_BASE, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR || "uploads/");
+    try {
+      // create session-specific tmp dir under uploads/tmp if needed
+      const tmpDir = path.join(MULTER_BASE, "tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      cb(null, tmpDir);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: (req, file, cb) => {
-    // sanitize original name, prefix with timestamp to avoid collision
     const orig = String(file.originalname || "upload.txt");
-    const base = path.basename(orig).replace(/[^\w\-. ]+/g, "_");
-    cb(null, `${Date.now()}_${base}`);
+    const safe = path.basename(orig).replace(/[^\w\-. ]+/g, "_");
+    cb(null, `${Date.now()}_${safe}`);
   }
 });
+
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 } // প্রতি ফাইল max 200KB (চাইলে বাড়াবে)
+  limits: { fileSize: 200 * 1024 } // 200 KB per file (adjust if needed)
 });
 
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
@@ -919,9 +929,7 @@ app.post(
   async (req, res) => {
     try {
       const sessionId = req.query.sessionId || req.body.sessionId || req.sessionId;
-      if (!sessionId) {
-        return res.status(400).json({ ok: false, message: "sessionId required" });
-      }
+      if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
       // access check
       const user = await User.findOne({ sessionId }).lean();
@@ -931,21 +939,28 @@ app.post(
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
-      const sessionDir = path.join(UPLOAD_DIR, sessionId);
+      const sessionDir = path.join(MULTER_BASE, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-      // helper: move uploaded multer-temp -> sessionDir (safeMove returns final path)
-      // then write canonical filename (utf-8)
+      // helper: move temp file -> sessionDir (safeMove returns final path)
       const writeCanonical = (movedPath, canonicalName) => {
         const content = fs.readFileSync(movedPath, "utf-8");
         fs.writeFileSync(path.join(sessionDir, canonicalName), content, "utf-8");
       };
 
+      // utility to process multer file object
+      async function processMulterFile(fileObj, canonicalName) {
+        if (!fileObj) return null;
+        // multer stores fileObj.path as the tmp path (uploads/tmp/...)
+        const moved = await safeMove(fileObj.path, sessionDir, fileObj.originalname || fileObj.filename || "upload.txt");
+        writeCanonical(moved, canonicalName);
+        return path.join(sessionDir, canonicalName);
+      }
+
       // tokens
       if (req.files?.tokens?.[0]) {
         try {
-          const moved = await safeMove(req.files.tokens[0].path, sessionDir, req.files.tokens[0].originalname);
-          writeCanonical(moved, "tokens.txt");
+          await processMulterFile(req.files.tokens[0], "tokens.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Token upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid tokens file", error: e.message || String(e) });
@@ -955,20 +970,18 @@ app.post(
       // comments
       if (req.files?.comments?.[0]) {
         try {
-          const moved = await safeMove(req.files.comments[0].path, sessionDir, req.files.comments[0].originalname);
-          writeCanonical(moved, "comments.txt");
+          await processMulterFile(req.files.comments[0], "comments.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Comments upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid comments file", error: e.message || String(e) });
         }
       }
 
-      // postlinks (support both names)
+      // postlinks (both names supported)
       const postFileObj = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
       if (postFileObj) {
         try {
-          const moved = await safeMove(postFileObj.path, sessionDir, postFileObj.originalname);
-          writeCanonical(moved, "postlinks.txt");
+          await processMulterFile(postFileObj, "postlinks.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Postlinks upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid postlinks file", error: e.message || String(e) });
@@ -1025,7 +1038,7 @@ app.post(
       });
     } catch (err) {
       console.error("Upload failed:", err);
-      return res.status(500).json({ ok: false, error: err.message });
+      return res.status(500).json({ ok: false, error: err.message || String(err) });
     }
   }
 );
