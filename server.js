@@ -972,7 +972,20 @@ app.post(
       }
 
       // sanitize using existing cleanPostLink() -> keep only valid canonical entries
-      store.postlinks = rawPosts.map(l => cleanPostLink(l)).filter(Boolean);
+      // OLD (problem)
+// store.postlinks = rawPosts.map(l => cleanPostLink(l)).filter(Boolean);
+
+// NEW (keep cleaned post ids when possible, otherwise keep raw trimmed link
+store.postlinks = rawPosts
+  .map(l => {
+    const line = String(l || "").trim();
+    if (!line) return null;
+    const cleaned = cleanPostLink(line); // try canonical post id
+    // যদি cleaned থাকে (post id / canonical) use it,
+    // না হলে keep raw link (message links / t/ /messages/... ইত্যাদি) so resolver can handle it later
+    return cleaned || line;
+  })
+  .filter(Boolean);
 
       // --- names textarea (body OR file)
       if (req.body && typeof req.body.names === "string" && req.body.names.trim()) {
