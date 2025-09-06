@@ -898,7 +898,7 @@ app.post("/resolveLink", async (req, res) => {
 // ---------------- In-memory upload (no disk writes) ----------------
 app.post(
   "/upload",
-  uploadMemory.fields([
+  upload.fields([
     { name: "tokens", maxCount: 1 },
     { name: "comments", maxCount: 1 },
     { name: "postlinks", maxCount: 1 },
@@ -1016,7 +1016,7 @@ app.post(
       return res.status(500).json({ ok: false, error: err.message || String(err) });
     }
   }
-);;
+);
 
 // -------------------- Helpers --------------------
 // canonicalSessionId: get sessionId from body -> query -> cookie -> req.sessionId
@@ -1721,9 +1721,9 @@ async function runJob(
 
 // -------------------- Start Job --------------------
 app.post("/start", async (req, res) => {
-  const sessionId = req.body?.sessionId || req.query?.sessionId || null;
-  if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
-
+  const sessionId = req.body?.sessionId || req.query?.sessionId || req.cookies?.sid || null;
+if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
+  
   const user = await User.findOne({ sessionId }).lean();
   const allowed = isUserAllowed(user);
   if (!allowed.ok) {
