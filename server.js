@@ -42,15 +42,18 @@ const COMMON_HEADERS = {
 };
 
 // … Multer Storage Setup
+// বদলো এই অংশ (উপরের যা আছে তার বদলে)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname); // âœ… user à¦¯à§‡ à¦¨à¦¾à¦® à¦¦à¦¿à§Ÿà§‡à¦›à§‡ à¦¸à§‡à¦Ÿà¦¾à¦‡ à¦¥à¦¾à¦•à¦¬à§‡
+    // sanitize original name, prefix with timestamp to avoid collision
+    const orig = String(file.originalname || "upload.txt");
+    const base = path.basename(orig).replace(/[^\w\-. ]+/g, "_");
+    cb(null, `${Date.now()}_${base}`);
   }
 });
-
 const upload = multer({ 
   storage,
   limits: { fileSize: 200 * 1024 } // প্রতি ফাইল max 200KB (তুমি চাইলে বাড়াতে পারো)
