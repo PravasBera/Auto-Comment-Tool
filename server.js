@@ -205,6 +205,48 @@ const shuffleArr = (arr) => {
   return a;
 };
 
+// --- START: safe upload helpers (paste after shuffleArr) ---
+const ALLOWED_UPLOAD_EXT = new Set([".txt"]); // চাইলে এক্সটেনশন বাড়াও
+
+function sanitizeFilename(name) {
+  const base = path.basename(String(name || ""));
+  // keep alnum, underscore, dash, dot and space; replace others with _
+  return base.replace(/[^\w\-. ]+/g, "_");
+}
+
+async function safeMove(srcPath, destDir, originalName) {
+  // ensure dest dir
+  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+  const ext = String(path.extname(originalName || "") || "").toLowerCase();
+  if (!ALLOWED_UPLOAD_EXT.has(ext)) {
+    // remove temp file if invalid and throw
+    try { fs.unlinkSync(srcPath); } catch (e) {}
+    throw new Error(`Invalid upload file type: ${ext || "<none>"}`);
+  }
+
+  const cleanName = sanitizeFilename(originalName || "upload.txt");
+  const finalName = `${Date.now()}_${cleanName}`;
+  const destPath = path.join(destDir, finalName);
+
+  // try atomic rename first (fast)
+  try {
+    fs.renameSync(srcPath, destPath);
+    return destPath;
+  } catch (errRename) {
+    // fallback to copy+unlink (cross-device)
+    try {
+      fs.copyFileSync(srcPath, destPath);
+      try { fs.unlinkSync(srcPath); } catch (e) {}
+      return destPath;
+    } catch (errCopy) {
+      try { fs.unlinkSync(srcPath); } catch (e) {}
+      throw new Error(`Failed to move uploaded file: ${errCopy.message || errRename.message}`);
+    }
+  }
+}
+// --- END helper ---
+
 // -------------------- Error Classifier --------------------
 function classifyError(err) {
   const msg = (err?.message || "").toLowerCase();
@@ -876,7 +918,7 @@ app.post(
         return res.status(400).json({ ok: false, message: "sessionId required" });
       }
 
-      // ✅ access check
+      // ✅ access check (unchanged)
       const user = await User.findOne({ sessionId }).lean();
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
@@ -884,25 +926,76 @@ app.post(
         return res.status(403).json({ ok: false, message: "Not allowed", reason: allowed.reason });
       }
 
-      // ✅ per-session folder
       const sessionDir = path.join(UPLOAD_DIR, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-      // ✅ save tokens/comments
+      // -------------------------------
+      // Use safeMove to place uploaded file into sessionDir
+      // then copy content into canonical filenames tokens.txt, comments.txt, postlinks.txt
+      // -------------------------------
+
+      // helper to read moved file and write canonical file (atomic-ish)
+      const moveAndNormalize = (fileObj, destCanonicalName) => {
+        if (!fileObj) return null;
+        // multer file object: { path, originalname, ... }
+        const tmpPath = fileObj.path;
+        const originalName = fileObj.originalname || "upload.txt";
+        // safeMove returns final path in sessionDir
+        const finalPath = safeMove(tmpPath, sessionDir, originalName);
+        // read final content and write canonical filename (utf-8)
+        const canonicalPath = path.join(sessionDir, destCanonicalName);
+        const content = fs.readFileSync(finalPath, "utf-8");
+        fs.writeFileSync(canonicalPath, content, "utf-8");
+        return canonicalPath;
+      };
+
+      // NOTE: safeMove is async (declared async). Use await.
+      // handle tokens
       if (req.files?.tokens?.[0]) {
-        fs.renameSync(req.files.tokens[0].path, path.join(sessionDir, "tokens.txt"));
+        try {
+          const moved = await safeMove(req.files.tokens[0].path, sessionDir, req.files.tokens[0].originalname);
+          // write canonical file
+          const content = fs.readFileSync(moved, "utf-8");
+          fs.writeFileSync(path.join(sessionDir, "tokens.txt"), content, "utf-8");
+        } catch (e) {
+          sseLine(sessionId, "error", `Token upload failed: ${e.message || e}`);
+          return res.status(400).json({ ok: false, message: "Invalid tokens file", error: e.message || String(e) });
+        }
       }
+
+      // handle comments
       if (req.files?.comments?.[0]) {
-        fs.renameSync(req.files.comments[0].path, path.join(sessionDir, "comments.txt"));
+        try {
+          const moved = await safeMove(req.files.comments[0].path, sessionDir, req.files.comments[0].originalname);
+          const content = fs.readFileSync(moved, "utf-8");
+          fs.writeFileSync(path.join(sessionDir, "comments.txt"), content, "utf-8");
+        } catch (e) {
+          sseLine(sessionId, "error", `Comments upload failed: ${e.message || e}`);
+          return res.status(400).json({ ok: false, message: "Invalid comments file", error: e.message || String(e) });
+        }
       }
 
-      // ✅ postlinks file (support both names)
-      const postFile = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
-      if (postFile) {
-        fs.renameSync(postFile.path, path.join(sessionDir, "postlinks.txt"));
+      // postlinks file (support both names)
+      const postFileObj = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
+      if (postFileObj) {
+        try {
+          const moved = await safeMove(postFileObj.path, sessionDir, postFileObj.originalname);
+          const content = fs.readFileSync(moved, "utf-8");
+          fs.writeFileSync(path.join(sessionDir, "postlinks.txt"), content, "utf-8");
+        } catch (e) {
+          sseLine(sessionId, "error", `Postlinks upload failed: ${e.message || e}`);
+          return res.status(400).json({ ok: false, message: "Invalid postlinks file", error: e.message || String(e) });
+        }
       }
 
-      // ✅ Parse postlinks and detect type
+      // names textarea (unchanged)
+      const uploadNames = req.body.names || req.body.uploadNames || "";
+      if (uploadNames && uploadNames.trim()) {
+        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
+      }
+
+      // rest of existing logic: parse postlinks, detect type, counts, final sse line
+      // -------------------------
       const postLinksPath = path.join(sessionDir, "postlinks.txt");
       let rawLinks = [];
       if (fs.existsSync(postLinksPath)) {
@@ -915,18 +1008,11 @@ app.post(
       let postCount = 0;
       let convoCount = 0;
       for (const lnk of rawLinks) {
-        const typ = detectTargetType(lnk); // <-- তোমার আগে লেখা function
+        const typ = detectTargetType(lnk);
         if (typ === "comment") postCount++;
         else if (typ === "message") convoCount++;
       }
 
-      // ✅ names textarea
-      const uploadNames = req.body.names || req.body.uploadNames || "";
-      if (uploadNames && uploadNames.trim()) {
-        fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
-      }
-
-      // ✅ count helper
       const countLines = (p) =>
         fs.existsSync(p)
           ? fs.readFileSync(p, "utf-8").split(/\r?\n/).map(s => s.trim()).filter(Boolean).length
@@ -936,7 +1022,6 @@ app.post(
       const cCount = countLines(path.join(sessionDir, "comments.txt"));
       const nCount = countLines(path.join(sessionDir, "uploadNames.txt"));
 
-      // ✅ Final log
       sseLine(
         sessionId,
         "info",
@@ -959,19 +1044,46 @@ app.post(
   }
 );
 
-// ---------------- Stop job ----------------
+// -------------------- Helpers --------------------
+// canonicalSessionId: get sessionId from body -> query -> cookie -> req.sessionId
+function canonicalSessionId(req) {
+  if (!req) return null;
+  const fromBody = req.body && (req.body.sessionId || req.body.sid);
+  const fromQuery = req.query && (req.query.sessionId || req.query.sid);
+  const fromCookie = req.cookies && (req.cookies.sid || req.cookies.sessionId);
+  return String(fromBody || fromQuery || fromCookie || req.sessionId || "").trim() || null;
+}
+
+// ---------------- Stop job (REPLACEMENT) ----------------
 app.post("/stop", (req, res) => {
   const sessionId = canonicalSessionId(req);
   if (!sessionId) return res.status(400).json({ ok: false, message: "sessionId required" });
 
+  // mark job abort flag
   const job = getJob(sessionId);
   if (job && job.running) {
     job.abort = true;
+
+    // try to abort any in-flight controlled requests (if you create controllers for runs)
+    try {
+      // abort controller stored in sessionControllers (if created by run)
+      const sc = getSessionController(sessionId);
+      if (sc && typeof sc.abort === "function") {
+        try { sc.abort(); } catch (e) { /* ignore */ }
+      }
+      // ensure we clear the controller entry
+      clearSessionController(sessionId);
+    } catch (e) {
+      console.error("Error while aborting session controller:", e);
+    }
+
     sseLine(sessionId, "warn", "Stop requested by user");
     return res.json({ ok: true, message: "Job stopping..." });
   }
   return res.json({ ok: false, message: "No active job" });
 });
+
+
 // -------------------- Check Job --------------------
 app.get("/checkJob", (req, res) => {
   const sessionId = req.query.sessionId || req.sessionId;
