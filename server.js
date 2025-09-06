@@ -43,9 +43,10 @@ const COMMON_HEADERS = {
 
 // … Multer Storage Setup
 // বদলো এই অংশ (উপরের যা আছে তার বদলে)
+// … Multer Storage Setup (REPLACE your old multer block with this)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    cb(null, UPLOAD_DIR || "uploads/");
   },
   filename: (req, file, cb) => {
     // sanitize original name, prefix with timestamp to avoid collision
@@ -54,9 +55,9 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${base}`);
   }
 });
-const upload = multer({ 
+const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 } // প্রতি ফাইল max 200KB (তুমি চাইলে বাড়াতে পারো)
+  limits: { fileSize: 200 * 1024 } // প্রতি ফাইল max 200KB (চাইলে বাড়াবে)
 });
 
 // ===== Custom User ID Generator with ALPHA / BETA / GAMMA / DELTA =====
@@ -904,6 +905,7 @@ app.post("/resolveLink", async (req, res) => {
   }
 });
 
+
 // -------------------- Upload (protected by user access) --------------------
 app.post(
   "/upload",
@@ -921,7 +923,7 @@ app.post(
         return res.status(400).json({ ok: false, message: "sessionId required" });
       }
 
-      // ✅ access check (unchanged)
+      // access check
       const user = await User.findOne({ sessionId }).lean();
       const allowed = isUserAllowed(user);
       if (!allowed.ok) {
@@ -932,73 +934,54 @@ app.post(
       const sessionDir = path.join(UPLOAD_DIR, sessionId);
       if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-      // -------------------------------
-      // Use safeMove to place uploaded file into sessionDir
-      // then copy content into canonical filenames tokens.txt, comments.txt, postlinks.txt
-      // -------------------------------
-
-      // helper to read moved file and write canonical file (atomic-ish)
-      const moveAndNormalize = (fileObj, destCanonicalName) => {
-        if (!fileObj) return null;
-        // multer file object: { path, originalname, ... }
-        const tmpPath = fileObj.path;
-        const originalName = fileObj.originalname || "upload.txt";
-        // safeMove returns final path in sessionDir
-        const finalPath = safeMove(tmpPath, sessionDir, originalName);
-        // read final content and write canonical filename (utf-8)
-        const canonicalPath = path.join(sessionDir, destCanonicalName);
-        const content = fs.readFileSync(finalPath, "utf-8");
-        fs.writeFileSync(canonicalPath, content, "utf-8");
-        return canonicalPath;
+      // helper: move uploaded multer-temp -> sessionDir (safeMove returns final path)
+      // then write canonical filename (utf-8)
+      const writeCanonical = (movedPath, canonicalName) => {
+        const content = fs.readFileSync(movedPath, "utf-8");
+        fs.writeFileSync(path.join(sessionDir, canonicalName), content, "utf-8");
       };
 
-      // NOTE: safeMove is async (declared async). Use await.
-      // handle tokens
+      // tokens
       if (req.files?.tokens?.[0]) {
         try {
           const moved = await safeMove(req.files.tokens[0].path, sessionDir, req.files.tokens[0].originalname);
-          // write canonical file
-          const content = fs.readFileSync(moved, "utf-8");
-          fs.writeFileSync(path.join(sessionDir, "tokens.txt"), content, "utf-8");
+          writeCanonical(moved, "tokens.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Token upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid tokens file", error: e.message || String(e) });
         }
       }
 
-      // handle comments
+      // comments
       if (req.files?.comments?.[0]) {
         try {
           const moved = await safeMove(req.files.comments[0].path, sessionDir, req.files.comments[0].originalname);
-          const content = fs.readFileSync(moved, "utf-8");
-          fs.writeFileSync(path.join(sessionDir, "comments.txt"), content, "utf-8");
+          writeCanonical(moved, "comments.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Comments upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid comments file", error: e.message || String(e) });
         }
       }
 
-      // postlinks file (support both names)
+      // postlinks (support both names)
       const postFileObj = req.files?.postlinks?.[0] || req.files?.postLinks?.[0];
       if (postFileObj) {
         try {
           const moved = await safeMove(postFileObj.path, sessionDir, postFileObj.originalname);
-          const content = fs.readFileSync(moved, "utf-8");
-          fs.writeFileSync(path.join(sessionDir, "postlinks.txt"), content, "utf-8");
+          writeCanonical(moved, "postlinks.txt");
         } catch (e) {
           sseLine(sessionId, "error", `Postlinks upload failed: ${e.message || e}`);
           return res.status(400).json({ ok: false, message: "Invalid postlinks file", error: e.message || String(e) });
         }
       }
 
-      // names textarea (unchanged)
+      // names textarea (body)
       const uploadNames = req.body.names || req.body.uploadNames || "";
       if (uploadNames && uploadNames.trim()) {
         fs.writeFileSync(path.join(sessionDir, "uploadNames.txt"), uploadNames, "utf-8");
       }
 
-      // rest of existing logic: parse postlinks, detect type, counts, final sse line
-      // -------------------------
+      // compute counts and post/message counts for SSE
       const postLinksPath = path.join(sessionDir, "postlinks.txt");
       let rawLinks = [];
       if (fs.existsSync(postLinksPath)) {
